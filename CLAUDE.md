@@ -32,7 +32,7 @@ Six end-to-end flows on real AWS infrastructure (or LocalStack locally). Build i
 | 8 | Executive Dashboard — MAPE trend + forecast accuracy, fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, inventory carrying cost, replenishment lead time, top stockout SKUs | Seed data |
 | 9 | SC Planner Console — supplier performance scorecard, exception queue, inventory overview by DC, demand forecast view (P10/P50/P90), stockout risk indicators, PO approval workflows, supplier order tracking, replenishment action trigger, forecast adjustment controls | Seed data |
 
-Flows 8 and 9 use pre-populated seed data. No write path is exercised.
+Flows 8 and 9 use pre-populated seed data. Flow 9 also exercises a write path for manual replenishment triggers.
 
 ---
 

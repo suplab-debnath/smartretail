@@ -177,6 +177,50 @@ Executive Insights Dashboard MFE   (localhost:5175 / CloudFront)
 
 ---
 
+## What Flow 9 Does
+
+**Pre-condition:** Seed data (`make local-seed`) must be applied. Flow 9 exercises both read paths (ARS) and write paths (RE).
+
+```
+SC Planner Console MFE   (localhost:5174 / CloudFront)
+    ├── Tab 1: Exception Queue        inventory.stock_alerts (ACTIVE) sorted by severity
+    ├── Tab 2: Inventory Overview     inventory.inventory_positions by DC
+    ├── Tab 3: Demand Forecast View   forecasting.demand_forecasts (P10/P50/P90)
+    ├── Tab 4: Stockout Risk          Derived ATP vs reorder_point flags
+    ├── Tab 5: Approval Workflows     replenishment.purchase_orders (PENDING_APPROVAL)
+    ├── Tab 6: Supplier Tracking      supplier.supplier_pos + shipment progress
+    ├── Tab 7: Replenishment Trigger  POST /v1/replenishment/orders (DRAFT creation)
+    └── Tab 8: Forecast Adjustment    PPS-driven promotional uplift signals
+            │
+            ▼  GET /v1/dashboard/planner
+ARS — Analytics & Reporting Service   (ECS Fargate, port 8083)
+    ├── Aggregates data from 4 schemas (inventory, forecasting, replenishment, supplier)
+    └── Returns unified dashboard summary + tab-specific detail blocks
+            │
+            ▼  POST /v1/replenishment/orders
+ RE — Replenishment Engine             (ECS Fargate, port 8082)
+    └── Creates DRAFT Purchase Order in replenishment schema
+```
+
+**Observable evidence (all 11 checks must pass):**
+
+| #    | Check                                          | How to verify                                                                                                                                        |
+| ---- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 9.1  | Exception Queue renders prioritised alert list | Visual: alerts sorted CRITICAL → HIGH → MEDIUM; severity badges visible                                                                              |
+| 9.2  | Inventory Overview by DC renders data per DC   | Visual: DC dropdown selector drives data; all 3 DCs selectable                                                                                       |
+| 9.3  | Demand Forecast View renders P10/P50/P90 bands | Visual: Recharts AreaChart per SKU × DC; accuracy % visible                                                                                          |
+| 9.4  | Stockout Risk Indicators render risk flags     | Visual: colour-coded badges (MODERATE/HIGH/CRITICAL)                                                                                                 |
+| 9.5  | Approval Workflows tab shows pending POs       | Visual: PO list renders; approve/reject buttons functional                                                                                           |
+| 9.6  | Supplier Order Tracking table renders PO list  | Visual: 5 suppliers; ETA and shipment progress columns visible                                                                                       |
+| 9.7  | Replenishment Action Trigger creates DRAFT PO  | API: POST /v1/replenishment/orders returns 201; `SELECT workflow_status FROM replenishment.purchase_orders ORDER BY created_at DESC LIMIT 1` = DRAFT |
+| 9.8  | Forecast Adjustment Controls apply uplift      | Visual: uplift % input updates P50 line in Demand Forecast chart                                                                                     |
+| 9.9  | No cross-schema JOIN used                      | Code review: ARS merges separate schema queries in Java                                                                                              |
+| 9.10 | Supplier scorecard renders correct OTD rates   | Visual: Metro Food 71% (red), Chill Chain 95% (green)                                                                                                |
+| 9.11 | `dataFreshness` displayed on all surfaces      | Visual: "Data as of HH:MM" visible on each tab                                                                                                       |
+
+
+---
+
 ## Prerequisites
 
 
@@ -439,8 +483,8 @@ com.smartretail.{service}/
 | `sales`         | SIS        |
 | `inventory`     | IMS        |
 | `replenishment` | RE         |
-| `forecasting`   | DFS |
-| `supplier`      | SUP |
+| `forecasting`   | DFS        |
+| `supplier`      | SUP        |
 | `promotions`    | PPS (stub) |
 
 No cross-schema SQL joins anywhere. ARS reads multiple schemas via separate queries merged in Java.
@@ -528,4 +572,4 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | 3     | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                               | 🔲 Specified   |
 | 4     | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | 🔲 Specified   |
 | **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs                   | ✅ Implemented |
-| 9     | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🚧 In Progress |
+| **9** | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | ✅ Implemented |
