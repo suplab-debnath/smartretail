@@ -1,0 +1,25 @@
+{
+  "name": "@smartretail/auth",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@aws-amplify/auth": "^6.3.1",
+    "aws-amplify": "^6.3.1",
+    "axios": "^1.7.2",
+    "jwt-decode": "^4.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/react": "^18.3.3"
+  }
+}

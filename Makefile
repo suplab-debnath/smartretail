@@ -52,7 +52,7 @@ local-ars:
 	    -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
 
 local-mfe-sm:
-	cd mfe/store-manager && npm run dev
+	cd mfe/store-manager && npm run dev -- --port 5173
 
 local-mfe-scp:
 	cd mfe/sc-planner && npm run dev -- --port 5174

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@smartretail/auth'
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard'
 import { KpiCard } from './KpiCard'
 import { MapeTrendChart } from './MapeTrendChart'
@@ -20,17 +21,32 @@ function mapeColor(mape: number): KpiCardProps['color'] {
 }
 
 export function ExecutiveDashboard() {
+  const { isAuthenticated, isLoading: authLoading, signIn, signOut, user, hasRole } = useAuth()
   const { data, loading, error, lastUpdated } = useExecutiveDashboard()
   const [expanded, setExpanded] = useState<CardId | null>(null)
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      signIn();
+    }
+  }, [authLoading, isAuthenticated, signIn]);
 
   function toggle(id: CardId) {
     setExpanded(prev => (prev === id ? null : id))
   }
 
-  if (loading) {
+  if (loading || authLoading || !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading dashboard…</div>
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-gray-500">{authLoading ? 'Checking authentication...' : !isAuthenticated ? 'Redirecting to login...' : 'Loading dashboard…'}</div>
+      </div>
+    )
+  }
+
+  if (!hasRole('EXECUTIVE') && !hasRole('SC_PLANNER') && !hasRole('ADMIN')) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-red-500">Access Denied: You do not have the required role to view this dashboard.</div>
       </div>
     )
   }
@@ -56,11 +72,19 @@ export function ExecutiveDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Executive Insights Dashboard</h1>
             <p className="text-sm text-gray-500">SmartRetail · Demand Forecasting & Supply Chain</p>
           </div>
-          {lastUpdated && (
-            <p className="text-xs text-gray-400">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </p>
-          )}
+          <div className="flex items-center gap-4">
+            {lastUpdated && (
+              <p className="text-xs text-gray-400">
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </p>
+            )}
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-gray-600 font-medium">{user?.email}</span>
+              <button onClick={signOut} className="text-xs text-blue-600 hover:text-blue-800 underline">
+                Sign out
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
