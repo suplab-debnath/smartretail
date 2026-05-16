@@ -7,9 +7,11 @@ import com.smartretail.ars.adapter.in.web.generated.model.ExecutiveDashboardResp
 import com.smartretail.ars.adapter.in.web.generated.model.ExecutiveKpis;
 import com.smartretail.ars.adapter.in.web.generated.model.ForecastAccuracyKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.MapeDataPoint;
+import com.smartretail.ars.adapter.in.web.generated.model.OnTimeDeliveryKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.ReplenishmentCycleTimeKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutAlertDataPoint;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutFrequencyKpi;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceEntry;
 import com.smartretail.ars.adapter.in.web.generated.model.Trend;
 import com.smartretail.ars.domain.model.ExecutiveDashboard;
 import com.smartretail.ars.port.inbound.ExecutiveDashboardPort;
@@ -118,7 +120,25 @@ public class DashboardController implements DashboardApi {
                 cycleHistory
         );
 
-        ExecutiveKpis kpis = new ExecutiveKpis(forecastKpi, stockoutKpi, cycleKpi);
+        OnTimeDeliveryKpi otdKpi = new OnTimeDeliveryKpi(
+                domain.onTimeDelivery().rate().doubleValue(),
+                Trend.valueOf(domain.onTimeDelivery().trend().name())
+        );
+
+        List<SupplierPerformanceEntry> supplierKpis = domain.supplierPerformance().stream()
+                .map(s -> new SupplierPerformanceEntry(
+                        s.supplierId(),
+                        s.supplierName(),
+                        s.otdRate().doubleValue(),
+                        s.fillRate().doubleValue(),
+                        s.earlyCount(),
+                        s.onTimeCount(),
+                        s.lateCount(),
+                        s.openExceptions()
+                ))
+                .toList();
+
+        ExecutiveKpis kpis = new ExecutiveKpis(forecastKpi, stockoutKpi, cycleKpi, otdKpi, supplierKpis);
         OffsetDateTime freshness = domain.dataFreshness().atOffset(ZoneOffset.UTC);
         return new ExecutiveDashboardResponse(kpis, freshness);
     }

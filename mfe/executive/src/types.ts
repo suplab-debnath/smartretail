@@ -35,10 +35,28 @@ export interface ReplenishmentCycleTimeKpi {
   history: CycleTimeDataPoint[]
 }
 
+export interface OnTimeDeliveryKpi {
+  rate: number
+  trend: Trend
+}
+
+export interface SupplierPerformanceEntry {
+  supplierId: string
+  supplierName: string
+  otdRate: number
+  fillRate: number
+  earlyCount: number
+  onTimeCount: number
+  lateCount: number
+  openExceptions: number
+}
+
 export interface ExecutiveKpis {
   forecastAccuracy: ForecastAccuracyKpi
   stockoutFrequency: StockoutFrequencyKpi
   replenishmentCycleTime: ReplenishmentCycleTimeKpi
+  onTimeDelivery: OnTimeDeliveryKpi
+  supplierPerformance: SupplierPerformanceEntry[]
 }
 
 export interface ExecutiveDashboardResponse {

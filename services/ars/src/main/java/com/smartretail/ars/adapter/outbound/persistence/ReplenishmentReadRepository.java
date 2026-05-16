@@ -8,8 +8,11 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class ReplenishmentReadRepository implements ReplenishmentReadPort {
@@ -19,6 +22,16 @@ public class ReplenishmentReadRepository implements ReplenishmentReadPort {
             FROM replenishment.purchase_orders
             WHERE workflow_status IN ('DISPATCHED', 'COMPLETED')
               AND approved_at >= NOW() - (:days || ' days')::INTERVAL
+            """;
+
+    private static final String FILL_RATE_SQL = """
+            SELECT supplier_id::UUID,
+                   COUNT(*) FILTER (WHERE workflow_status = 'COMPLETED')::INT AS completed,
+                   COUNT(*)::INT AS total
+            FROM replenishment.purchase_orders
+            WHERE workflow_status IN ('DISPATCHED', 'COMPLETED')
+              AND approved_at >= NOW() - (:days || ' days')::INTERVAL
+            GROUP BY supplier_id
             """;
 
     private static final String WEEKLY_HISTORY_SQL = """
@@ -46,6 +59,18 @@ public class ReplenishmentReadRepository implements ReplenishmentReadPort {
                 BigDecimal.class
         );
         return Optional.ofNullable(result);
+    }
+
+    @Override
+    public Map<UUID, int[]> fillRateBySupplier(int days) {
+        Map<UUID, int[]> result = new HashMap<>();
+        jdbc.query(FILL_RATE_SQL, new MapSqlParameterSource("days", days), rs -> {
+            result.put(
+                    rs.getObject("supplier_id", UUID.class),
+                    new int[]{rs.getInt("completed"), rs.getInt("total")}
+            );
+        });
+        return result;
     }
 
     @Override

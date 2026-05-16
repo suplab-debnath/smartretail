@@ -191,6 +191,86 @@ components:
           items:
             $ref: '#/components/schemas/CycleTimeDataPoint'
 
+    OnTimeDeliveryKpi:
+      type: object
+      description: Aggregate on-time delivery rate across all active suppliers
+      required:
+        - rate
+        - trend
+      additionalProperties: false
+      properties:
+        rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Aggregate OTD rate across all suppliers (0.0–1.0)
+          example: 0.848
+        trend:
+          $ref: '#/components/schemas/Trend'
+
+    SupplierPerformanceEntry:
+      type: object
+      description: Delivery performance metrics for a single supplier
+      required:
+        - supplierId
+        - supplierName
+        - otdRate
+        - fillRate
+        - earlyCount
+        - onTimeCount
+        - lateCount
+        - openExceptions
+      additionalProperties: false
+      properties:
+        supplierId:
+          type: string
+          format: uuid
+          description: Supplier UUID
+          example: "11111111-0000-0000-0000-000000000001"
+        supplierName:
+          type: string
+          description: Human-readable supplier name
+          example: "Acme Beverages Ltd"
+        otdRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: On-time delivery rate for this supplier (0.0–1.0)
+          example: 0.92
+        fillRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: PO fill rate — completed POs / total POs (0.0–1.0)
+          example: 1.0
+        earlyCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Shipments dispatched more than 1 day before ETA
+          example: 2
+        onTimeCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Shipments dispatched on or before ETA
+          example: 7
+        lateCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Shipments dispatched after ETA
+          example: 1
+        openExceptions:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of late-dispatched (overdue) supplier POs
+          example: 1
+
     ExecutiveKpis:
       type: object
       description: All KPI blocks for the executive persona dashboard
@@ -198,6 +278,8 @@ components:
         - forecastAccuracy
         - stockoutFrequency
         - replenishmentCycleTime
+        - onTimeDelivery
+        - supplierPerformance
       additionalProperties: false
       properties:
         forecastAccuracy:
@@ -206,6 +288,13 @@ components:
           $ref: '#/components/schemas/StockoutFrequencyKpi'
         replenishmentCycleTime:
           $ref: '#/components/schemas/ReplenishmentCycleTimeKpi'
+        onTimeDelivery:
+          $ref: '#/components/schemas/OnTimeDeliveryKpi'
+        supplierPerformance:
+          type: array
+          description: Per-supplier performance metrics, sorted by OTD rate descending
+          items:
+            $ref: '#/components/schemas/SupplierPerformanceEntry'
 
     ExecutiveDashboardResponse:
       type: object

@@ -6,13 +6,19 @@ import com.smartretail.ars.port.inbound.ExecutiveDashboardPort;
 import com.smartretail.ars.port.outbound.ForecastReadPort;
 import com.smartretail.ars.port.outbound.InventoryReadPort;
 import com.smartretail.ars.port.outbound.ReplenishmentReadPort;
+import com.smartretail.ars.port.outbound.SupplierReadPort;
+import com.smartretail.ars.port.outbound.SupplierReadPort.SupplierDeliveryStats;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -25,14 +31,17 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
     private final ForecastReadPort forecastReadPort;
     private final InventoryReadPort inventoryReadPort;
     private final ReplenishmentReadPort replenishmentReadPort;
+    private final SupplierReadPort supplierReadPort;
 
     public ExecutiveDashboardUseCase(
             ForecastReadPort forecastReadPort,
             InventoryReadPort inventoryReadPort,
-            ReplenishmentReadPort replenishmentReadPort) {
+            ReplenishmentReadPort replenishmentReadPort,
+            SupplierReadPort supplierReadPort) {
         this.forecastReadPort = forecastReadPort;
         this.inventoryReadPort = inventoryReadPort;
         this.replenishmentReadPort = replenishmentReadPort;
+        this.supplierReadPort = supplierReadPort;
     }
 
     @Override
@@ -56,19 +65,34 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
         CompletableFuture<List<CycleTimeDataPoint>> cycleHistoryFuture =
                 CompletableFuture.supplyAsync(() -> replenishmentReadPort.findWeeklyCycleTimeHistory(90));
 
+        CompletableFuture<List<SupplierDeliveryStats>> supplierStatsFuture =
+                CompletableFuture.supplyAsync(() -> supplierReadPort.findDeliveryStats());
+
+        CompletableFuture<Map<UUID, int[]>> fillRateFuture =
+                CompletableFuture.supplyAsync(() -> replenishmentReadPort.fillRateBySupplier(90));
+
         CompletableFuture.allOf(forecastFuture, stockoutFuture, cycleTimeFuture,
-                stockoutHistoryFuture, cycleHistoryFuture).join();
+                stockoutHistoryFuture, cycleHistoryFuture, supplierStatsFuture, fillRateFuture).join();
 
         List<MapeDataPoint> history = forecastFuture.join();
         int[] stockoutCounts = stockoutFuture.join();
         Optional<BigDecimal> cycleTime = cycleTimeFuture.join();
         List<StockoutDataPoint> stockoutHistory = stockoutHistoryFuture.join();
         List<CycleTimeDataPoint> cycleHistory = cycleHistoryFuture.join();
+        List<SupplierDeliveryStats> deliveryStats = supplierStatsFuture.join();
+        Map<UUID, int[]> fillRates = fillRateFuture.join();
+
+        // Supplier names fetched synchronously — cheap single-table read
+        Map<UUID, String> supplierNames = supplierReadPort.findActiveSupplierNames();
+
+        List<SupplierPerformanceEntry> suppliers = buildSupplierPerformance(supplierNames, deliveryStats, fillRates);
 
         return new ExecutiveDashboard(
                 buildForecastAccuracy(history),
                 buildStockoutFrequency(stockoutCounts, stockoutHistory),
                 buildCycleTime(cycleTime, cycleHistory),
+                buildOnTimeDelivery(deliveryStats),
+                suppliers,
                 Instant.now()
         );
     }
@@ -113,5 +137,42 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
         BigDecimal days = avgDays.orElse(BigDecimal.ZERO)
                 .setScale(1, RoundingMode.HALF_UP);
         return new ReplenishmentCycleTime(days, Trend.STABLE, history);
+    }
+
+    private OnTimeDelivery buildOnTimeDelivery(List<SupplierDeliveryStats> stats) {
+        int totalOnTime = stats.stream().mapToInt(s -> s.earlyCount() + s.onTimeCount()).sum();
+        int totalAll = stats.stream().mapToInt(s -> s.earlyCount() + s.onTimeCount() + s.lateCount()).sum();
+        BigDecimal rate = totalAll == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(totalOnTime).divide(BigDecimal.valueOf(totalAll), 4, RoundingMode.HALF_UP);
+        return new OnTimeDelivery(rate, Trend.STABLE);
+    }
+
+    private List<SupplierPerformanceEntry> buildSupplierPerformance(
+            Map<UUID, String> names,
+            List<SupplierDeliveryStats> stats,
+            Map<UUID, int[]> fillRates) {
+
+        List<SupplierPerformanceEntry> entries = new ArrayList<>();
+        for (SupplierDeliveryStats s : stats) {
+            String name = names.getOrDefault(s.supplierId(), "Unknown");
+            int[] fr = fillRates.getOrDefault(s.supplierId(), new int[]{0, 1});
+            int completed = fr[0];
+            int total = fr[1];
+            BigDecimal fillRate = total == 0
+                    ? BigDecimal.ZERO
+                    : BigDecimal.valueOf(completed).divide(BigDecimal.valueOf(total), 4, RoundingMode.HALF_UP);
+            int shipments = s.earlyCount() + s.onTimeCount() + s.lateCount();
+            BigDecimal otdRate = shipments == 0
+                    ? BigDecimal.ZERO
+                    : BigDecimal.valueOf(s.earlyCount() + s.onTimeCount())
+                            .divide(BigDecimal.valueOf(shipments), 4, RoundingMode.HALF_UP);
+            entries.add(new SupplierPerformanceEntry(
+                    s.supplierId(), name, otdRate, fillRate,
+                    s.earlyCount(), s.onTimeCount(), s.lateCount(), s.lateCount()
+            ));
+        }
+        entries.sort(Comparator.comparing(SupplierPerformanceEntry::otdRate).reversed());
+        return entries;
     }
 }
