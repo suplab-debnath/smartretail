@@ -27,8 +27,9 @@ export class MessagingStack extends cdk.Stack {
     // ── Kinesis ───────────────────────────────────────────────────────────────
     this.kinesisStream = new kinesis.Stream(this, 'SmartRetailStream', {
       streamName: `smartretail-events-${srEnv}`,
-      streamMode: kinesis.StreamMode.ON_DEMAND,
-      retentionPeriod: cdk.Duration.days(7),
+      streamMode: kinesis.StreamMode.PROVISIONED,
+      shardCount: 1,
+      retentionPeriod: cdk.Duration.days(1),
       encryption: kinesis.StreamEncryption.KMS,
     });
 
