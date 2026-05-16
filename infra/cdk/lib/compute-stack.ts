@@ -30,6 +30,7 @@ export class ComputeStack extends cdk.Stack {
   public readonly cluster: ecs.Cluster;
   public readonly sisService: ecs.FargateService;
   public readonly imsService: ecs.FargateService;
+  public readonly reService: ecs.FargateService;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -119,8 +120,39 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
+    const reConfig: ServiceConfig = {
+      name: 're', port: 8082,
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA:            'replenishment',
+        DB_USERNAME:          'smartretail_admin',
+        RE_ALERT_QUEUE_URL:   messaging.reAlertQueue.queueUrl,
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: [
+            'sqs:ReceiveMessage',
+            'sqs:DeleteMessage',
+            'sqs:GetQueueAttributes',
+            'sqs:ChangeMessageVisibility',
+          ],
+          resources: [messaging.reAlertQueue.queueArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
     this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
+    this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
 
     // ── Kinesis Consumer Lambda ───────────────────────────────────────────────
     const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {

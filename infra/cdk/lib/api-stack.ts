@@ -79,6 +79,19 @@ export class ApiStack extends cdk.Stack {
       authorizer: jwtAuthorizer,
     });
 
+    // ── Routes — RE ──────────────────────────────────────────────────────────
+    const reIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
+      'ReIntegration',
+      compute.reService.cloudMapService!,
+      { vpcLink }
+    );
+    httpApi.addRoutes({
+      path: '/v1/replenishment/{proxy+}',
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
+      integration: reIntegration,
+      authorizer: jwtAuthorizer,
+    });
+
     // ── SSM Outputs ───────────────────────────────────────────────────────────
     new ssm.StringParameter(this, 'ApiEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,
