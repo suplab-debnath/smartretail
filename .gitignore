@@ -61,3 +61,9 @@ Thumbs.db
 logs/
 tmp/
 temp/
+
+# -- Claude
+.claude/worktrees/*
+
+
+
