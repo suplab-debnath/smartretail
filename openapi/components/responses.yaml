@@ -1,0 +1,41 @@
+BadRequest:
+  description: Validation error — one or more fields failed validation
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'
+
+Unauthorized:
+  description: Missing or invalid authentication token
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'
+
+Forbidden:
+  description: Authenticated but insufficient role for this operation
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'
+
+NotFound:
+  description: Resource not found
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'
+
+Conflict:
+  description: State conflict (duplicate event, invalid state transition, or optimistic lock failure)
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'
+
+InternalServerError:
+  description: Unexpected internal error
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/ErrorResponse'

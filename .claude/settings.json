@@ -1,0 +1,46 @@
+{
+  "agents": [
+    {
+      "name": "java-standards",
+      "description": "Java 21 + Spring Boot 3.3 coding standards for SmartRetail services. Covers hexagonal architecture, package structure, Spring Data JDBC patterns, and ArchUnit rules.",
+      "contextFiles": [
+        ".claude/standards/java.md"
+      ]
+    },
+    {
+      "name": "openapi-standards",
+      "description": "OpenAPI 3.1 design rules for contract-first REST API development. Covers schema design, naming conventions, error shapes, and code-generation constraints.",
+      "contextFiles": [
+        ".claude/standards/openapi.md"
+      ]
+    },
+    {
+      "name": "maven-standards",
+      "description": "Maven 3.9 build standards including openapi-generator plugin config, multi-module layout, and code-generation workflow for SmartRetail services.",
+      "contextFiles": [
+        ".claude/standards/maven.md"
+      ]
+    },
+    {
+      "name": "frontend-standards",
+      "description": "React 18 + TypeScript 5 standards for SmartRetail MFEs. Covers component patterns, Tailwind CSS usage, Recharts integration, and @aws-amplify/auth patterns.",
+      "contextFiles": [
+        ".claude/standards/frontend.md"
+      ]
+    },
+    {
+      "name": "sql-standards",
+      "description": "SQL and Flyway migration standards. Covers schema ownership rules, naming conventions, versioned migration scripts, and cross-schema join prohibition.",
+      "contextFiles": [
+        ".claude/standards/sql.md"
+      ]
+    },
+    {
+      "name": "testing-standards",
+      "description": "Testing standards for SmartRetail services. Covers unit, integration, and ArchUnit test patterns for Spring Boot services and React MFEs.",
+      "contextFiles": [
+        ".claude/standards/testing.md"
+      ]
+    }
+  ]
+}

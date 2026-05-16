@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartretail?currentSchema=sales
+    username: smartretail_admin
+    password: local_dev_password
+
+smartretail:
+  localstack:
+    endpoint: http://localhost:4566
+  dynamodb:
+    idempotency-table: smartretail-idempotency-keys-local
+  s3:
+    events-bucket: smartretail-events-local
+  eventbridge:
+    bus-name: smartretail-events-local

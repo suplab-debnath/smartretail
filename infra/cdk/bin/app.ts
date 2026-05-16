@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+import 'source-map-support/register';
+import * as cdk from 'aws-cdk-lib';
+import { NetworkStack }   from '../lib/network-stack';
+import { DataStack }      from '../lib/data-stack';
+import { MessagingStack } from '../lib/messaging-stack';
+import { IdentityStack }  from '../lib/identity-stack';
+import { ComputeStack }   from '../lib/compute-stack';
+import { ApiStack }       from '../lib/api-stack';
+
+const app = new cdk.App();
+
+const env = process.env.SMARTRETAIL_ENV ?? 'dev';
+const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;
+const region  = process.env.CDK_DEFAULT_REGION  ?? 'us-east-1';
+const cdkEnv  = { account, region };
+
+const network   = new NetworkStack(app,   'NetworkStack',   { env: cdkEnv, srEnv: env });
+const data      = new DataStack(app,      'DataStack',      { env: cdkEnv, srEnv: env, network });
+const messaging = new MessagingStack(app, 'MessagingStack', { env: cdkEnv, srEnv: env });
+const identity  = new IdentityStack(app,  'IdentityStack',  { env: cdkEnv, srEnv: env });
+const compute   = new ComputeStack(app,   'ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
+                  new ApiStack(app,       'ApiStack',       { env: cdkEnv, srEnv: env, network, compute, identity });
+
+app.synth();

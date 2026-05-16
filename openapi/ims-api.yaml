@@ -1,0 +1,368 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Inventory Management Service API
+  version: "1.0.0"
+  description: |
+    Manages real-time inventory positions across all Distribution Centres.
+    Consumes SalesTransactionEvents from SQS (published by SIS via EventBridge),
+    decrements on_hand with optimistic locking, raises stock alerts when
+    ATP (Available-To-Promise) falls below reorder_point, and publishes
+    InventoryAlertEvents to EventBridge for the Replenishment Engine.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8081
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: inventory-positions
+    description: Real-time inventory position queries
+  - name: stock-alerts
+    description: Active stock alert queries
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AlertType:
+      type: string
+      description: Category of the stock alert
+      enum:
+        - LOW_STOCK
+        - OVERSTOCK
+      example: LOW_STOCK
+
+    AlertSeverity:
+      type: string
+      description: |
+        Severity of a LOW_STOCK alert based on ATP vs reorder_point:
+        CRITICAL = ATP <= 0, HIGH = ATP < (reorder_point × 0.5), MEDIUM = otherwise
+      enum:
+        - CRITICAL
+        - HIGH
+        - MEDIUM
+      example: HIGH
+
+    AlertStatus:
+      type: string
+      description: Lifecycle status of a stock alert
+      enum:
+        - ACTIVE
+        - RESOLVED
+      example: ACTIVE
+
+    InventoryPosition:
+      type: object
+      description: Current inventory position for a SKU at a Distribution Centre
+      required:
+        - positionId
+        - skuId
+        - dcId
+        - onHand
+        - inTransit
+        - reserved
+        - reorderPoint
+        - safetyStock
+        - version
+        - lastUpdatedAt
+      additionalProperties: false
+      properties:
+        positionId:
+          type: string
+          format: uuid
+          description: Surrogate primary key for this inventory position
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        skuId:
+          type: string
+          description: Stock Keeping Unit identifier
+          example: "SKU-4423"
+        dcId:
+          type: string
+          description: Distribution Centre identifier
+          example: "DC-LONDON"
+        onHand:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Physical units currently in the DC (decremented on each sale)
+          example: 145
+        inTransit:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Units on approved purchase orders not yet received
+          example: 50
+        reserved:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Units earmarked for open customer orders
+          example: 20
+        reorderPoint:
+          type: integer
+          format: int32
+          minimum: 0
+          description: ATP threshold below which a LOW_STOCK alert is raised
+          example: 100
+        safetyStock:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Minimum buffer stock to maintain
+          example: 30
+        version:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Optimistic lock version — incremented on every update
+          example: 12
+        lastUpdatedAt:
+          type: string
+          format: date-time
+          description: Timestamp of the most recent update to this position
+          example: "2026-05-15T14:23:00Z"
+
+    InventoryPositionPage:
+      type: object
+      description: Paginated list of inventory positions
+      required:
+        - positions
+        - page
+        - size
+        - totalElements
+      additionalProperties: false
+      properties:
+        positions:
+          type: array
+          description: Inventory positions on this page
+          items:
+            $ref: '#/components/schemas/InventoryPosition'
+        page:
+          type: integer
+          format: int32
+          description: Current page number (0-indexed)
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Number of results on this page
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of matching inventory positions
+          example: 42
+
+    StockAlert:
+      type: object
+      description: A stock alert raised when ATP drops below the reorder point
+      required:
+        - alertId
+        - positionId
+        - skuId
+        - dcId
+        - alertType
+        - severity
+        - thresholdValue
+        - actualValue
+        - status
+        - raisedAt
+      additionalProperties: false
+      properties:
+        alertId:
+          type: string
+          format: uuid
+          description: Unique identifier for this stock alert
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        positionId:
+          type: string
+          format: uuid
+          description: Foreign key to the inventory position that triggered this alert
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        skuId:
+          type: string
+          description: Stock Keeping Unit identifier (denormalised for query convenience)
+          example: "SKU-4423"
+        dcId:
+          type: string
+          description: Distribution Centre identifier (denormalised for query convenience)
+          example: "DC-LONDON"
+        alertType:
+          $ref: '#/components/schemas/AlertType'
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        thresholdValue:
+          type: integer
+          format: int32
+          description: The reorder_point value at the time the alert was raised
+          example: 100
+        actualValue:
+          type: integer
+          format: int32
+          description: The ATP value that triggered the alert
+          example: 45
+        status:
+          $ref: '#/components/schemas/AlertStatus'
+        raisedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the alert was first created
+          example: "2026-05-15T14:23:00Z"
+        resolvedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the alert was resolved (null if still ACTIVE)
+          example: null
+
+    StockAlertPage:
+      type: object
+      description: Paginated list of stock alerts
+      required:
+        - alerts
+        - page
+        - size
+        - totalElements
+      additionalProperties: false
+      properties:
+        alerts:
+          type: array
+          description: Stock alerts on this page
+          items:
+            $ref: '#/components/schemas/StockAlert'
+        page:
+          type: integer
+          format: int32
+          description: Current page number (0-indexed)
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Number of results on this page
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of matching alerts
+          example: 3
+
+    ErrorResponse:
+      $ref: './components/schemas.yaml#/ErrorResponse'
+
+  parameters:
+    Page:
+      $ref: './components/parameters.yaml#/Page'
+    Size:
+      $ref: './components/parameters.yaml#/Size'
+
+  responses:
+    BadRequest:
+      $ref: './components/responses.yaml#/BadRequest'
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/Forbidden'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+
+paths:
+  /v1/inventory/positions:
+    get:
+      tags:
+        - inventory-positions
+      operationId: listInventoryPositions
+      summary: List inventory positions
+      description: |
+        Returns paginated inventory positions.
+        STORE_MANAGER role: dcId is required (enforced at service layer).
+        SC_PLANNER and ADMIN roles: dcId is optional.
+      parameters:
+        - name: dcId
+          in: query
+          description: Filter by Distribution Centre identifier (required for STORE_MANAGER role)
+          required: false
+          schema:
+            type: string
+            example: "DC-LONDON"
+        - name: skuId
+          in: query
+          description: Filter by Stock Keeping Unit identifier
+          required: false
+          schema:
+            type: string
+            example: "SKU-4423"
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Paginated list of inventory positions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryPositionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/inventory/alerts:
+    get:
+      tags:
+        - stock-alerts
+      operationId: listStockAlerts
+      summary: List stock alerts
+      description: |
+        Returns paginated stock alerts, defaulting to ACTIVE status.
+        Accessible by STORE_MANAGER, SC_PLANNER, and ADMIN roles.
+      parameters:
+        - name: dcId
+          in: query
+          description: Filter alerts by Distribution Centre identifier
+          required: false
+          schema:
+            type: string
+            example: "DC-LONDON"
+        - name: severity
+          in: query
+          description: Filter alerts by severity level
+          required: false
+          schema:
+            $ref: '#/components/schemas/AlertSeverity'
+        - name: status
+          in: query
+          description: Filter alerts by lifecycle status (defaults to ACTIVE)
+          required: false
+          schema:
+            $ref: '#/components/schemas/AlertStatus'
+          example: ACTIVE
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Paginated list of stock alerts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockAlertPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

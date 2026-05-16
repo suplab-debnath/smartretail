@@ -1,0 +1,190 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Sales Ingestion Service API
+  version: "1.0.0"
+  description: |
+    Receives POS and e-commerce sales transaction events from the Kinesis Consumer Lambda.
+    Performs idempotency checks via DynamoDB, persists events to the sales schema,
+    archives raw payloads to S3, and publishes SalesTransactionEvent to EventBridge
+    for downstream consumption by IMS.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: ingest
+    description: Sales transaction event ingestion
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Channel:
+      type: string
+      description: Sales channel through which the transaction was made
+      enum:
+        - POS
+        - ECOMMERCE
+      example: POS
+
+    SalesEventRequest:
+      type: object
+      description: A single sales transaction event submitted by the Kinesis Consumer Lambda
+      additionalProperties: false
+      required:
+        - transactionId
+        - storeId
+        - skuId
+        - dcId
+        - quantity
+        - unitPrice
+        - channel
+        - eventTimestamp
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+          description: Client-generated unique identifier; used for idempotency (SHA-256 checked against DynamoDB)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        storeId:
+          type: string
+          maxLength: 50
+          description: Identifier of the store where the transaction occurred
+          example: "STORE-001"
+        skuId:
+          type: string
+          maxLength: 50
+          description: Stock Keeping Unit identifier for the sold product
+          example: "SKU-4423"
+        dcId:
+          type: string
+          maxLength: 50
+          description: Distribution Centre identifier that fulfils this store
+          example: "DC-LONDON"
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Number of units sold; must be a positive integer
+          example: 5
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+          description: Sale price per unit in the store's local currency
+          example: 12.99
+        channel:
+          $ref: '#/components/schemas/Channel'
+        eventTimestamp:
+          type: string
+          format: date-time
+          description: |
+            ISO-8601 timestamp of when the transaction occurred at the point of sale.
+            Must not be more than 5 minutes in the future.
+          example: "2026-05-15T14:23:00Z"
+
+    IngestResponse:
+      type: object
+      description: Acknowledgement returned when a sales event is accepted for processing
+      required:
+        - transactionId
+        - status
+      additionalProperties: false
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+          description: Echo of the submitted transactionId
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          description: Processing status of the accepted event
+          enum:
+            - ACCEPTED
+          example: ACCEPTED
+
+    ErrorResponse:
+      $ref: './components/schemas.yaml#/ErrorResponse'
+
+  responses:
+    BadRequest:
+      $ref: './components/responses.yaml#/BadRequest'
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Conflict:
+      $ref: './components/responses.yaml#/Conflict'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+
+paths:
+  /v1/ingest/events:
+    post:
+      tags:
+        - ingest
+      operationId: ingestSalesEvent
+      summary: Ingest a sales transaction event
+      description: |
+        Accepts a single POS or e-commerce sales transaction.
+        Called exclusively by the Kinesis Consumer Lambda — not by MFEs.
+
+        Processing (synchronous within the request):
+        1. SHA-256(transactionId) → DynamoDB GetItem (idempotency check)
+        2. If duplicate → 409 DUPLICATE_EVENT; no side effects
+        3. Write to sales.sales_events
+        4. Archive raw payload to S3
+        5. Write idempotency key to DynamoDB (TTL 48 h)
+        6. Publish SalesTransactionEvent to EventBridge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesEventRequest'
+            example:
+              transactionId: "550e8400-e29b-41d4-a716-446655440000"
+              storeId: "STORE-001"
+              skuId: "SKU-4423"
+              dcId: "DC-LONDON"
+              quantity: 5
+              unitPrice: 12.99
+              channel: "POS"
+              eventTimestamp: "2026-05-15T14:23:00Z"
+      responses:
+        '202':
+          description: Event accepted and processing initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              example:
+                transactionId: "550e8400-e29b-41d4-a716-446655440000"
+                status: ACCEPTED
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Duplicate event — transactionId already processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorCode: DUPLICATE_EVENT
+                message: "Event 550e8400-e29b-41d4-a716-446655440000 already processed"
+                timestamp: "2026-05-15T14:23:05Z"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
