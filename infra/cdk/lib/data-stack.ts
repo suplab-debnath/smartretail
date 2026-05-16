@@ -13,7 +13,7 @@ export interface DataStackProps extends cdk.StackProps {
 }
 
 export class DataStack extends cdk.Stack {
-  public readonly rdsProxy: rds.DatabaseProxy;
+  public readonly dbEndpoint: string;
   public readonly idempotencyTable: dynamodb.Table;
   public readonly eventsBucketName: string;
 
@@ -30,7 +30,8 @@ export class DataStack extends cdk.Stack {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_18_3,
       }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
+      allocatedStorage: 20,
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [network.sgRds],
@@ -44,23 +45,15 @@ export class DataStack extends cdk.Stack {
       storageEncrypted: true,
     });
 
-    // ── RDS Proxy ─────────────────────────────────────────────────────────────
-    this.rdsProxy = new rds.DatabaseProxy(this, 'SmartRetailRdsProxy', {
-      proxyTarget: rds.ProxyTarget.fromInstance(rdsInstance),
-      vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [network.sgRdsProxy],
-      iamAuth: true,
-      requireTLS: true,
-      idleClientTimeout: cdk.Duration.minutes(30),
-      dbProxyName: `smartretail-proxy-${srEnv}`,
-    });
+    this.dbEndpoint = rdsInstance.instanceEndpoint.hostname;
 
     // ── DynamoDB ──────────────────────────────────────────────────────────────
     this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
       tableName: `smartretail-idempotency-keys-${srEnv}`,
       partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      billingMode: dynamodb.BillingMode.PROVISIONED,
+      readCapacity: 1,
+      writeCapacity: 1,
       timeToLiveAttribute: 'expires_at',
       removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
@@ -93,7 +86,6 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/proxy-endpoint', this.rdsProxy.endpoint);
     put('rds/instance-endpoint', rdsInstance.instanceEndpoint.hostname);
     put('rds/secret-arn', rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);

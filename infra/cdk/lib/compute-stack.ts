@@ -62,7 +62,7 @@ export class ComputeStack extends cdk.Stack {
     const commonEnv = {
       SMARTRETAIL_ENV: srEnv,
       AWS_REGION: cdk.Stack.of(this).region,
-      RDS_PROXY_ENDPOINT: data.rdsProxy.endpoint,
+      RDS_PROXY_ENDPOINT: data.dbEndpoint,
     };
 
     const sisConfig: ServiceConfig = {

@@ -11,9 +11,10 @@ Resources:
     Type: AWS::Kinesis::Stream
     Properties:
       Name: !Sub smartretail-events-${SrEnv}
+      ShardCount: 1
       StreamModeDetails:
-        StreamMode: ON_DEMAND
-      RetentionPeriodHours: 168
+        StreamMode: PROVISIONED
+      RetentionPeriodHours: 24
 
   SmartRetailBus:
     Type: AWS::Events::EventBus
