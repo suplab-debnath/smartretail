@@ -1,0 +1,385 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Aggregated Reporting Service API
+  version: "1.0.0"
+  description: |
+    Read-only aggregation service that assembles dashboard payloads for each persona.
+    ARS queries the forecasting, inventory, replenishment, sales, and supplier schemas
+    using parallel queries merged in Java — no cross-schema SQL JOINs.
+    Role-based access is enforced per endpoint.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8083
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: dashboard
+    description: Persona-specific dashboard payloads
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      $ref: './components/schemas.yaml#/ErrorResponse'
+
+    Trend:
+      type: string
+      description: Direction of movement vs the prior comparison period
+      enum:
+        - IMPROVING
+        - STABLE
+        - DEGRADING
+      example: IMPROVING
+
+    DirectionTrend:
+      type: string
+      description: Direction of movement for count-based KPIs
+      enum:
+        - INCREASING
+        - STABLE
+        - DECREASING
+      example: DECREASING
+
+    MapeDataPoint:
+      type: object
+      description: MAPE value for a single completed forecast run
+      required:
+        - runDate
+        - mape
+      additionalProperties: false
+      properties:
+        runDate:
+          type: string
+          format: date
+          description: Calendar date of the forecast run (UTC)
+          example: "2026-05-15"
+        mape:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Mean Absolute Percentage Error for this run (0.0–1.0 scale)
+          example: 0.0823
+
+    ForecastAccuracyKpi:
+      type: object
+      description: Forecast accuracy derived from the most recent completed forecast run
+      required:
+        - latestMape
+        - trend
+        - history
+      additionalProperties: false
+      properties:
+        latestMape:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: MAPE of the most recent COMPLETED forecast run
+          example: 0.0823
+        trend:
+          $ref: '#/components/schemas/Trend'
+        history:
+          type: array
+          description: MAPE values for the last 30 completed forecast runs, newest first
+          items:
+            $ref: '#/components/schemas/MapeDataPoint'
+
+    StockoutAlertDataPoint:
+      type: object
+      description: Daily count of CRITICAL stock alerts for the Stockout Frequency chart
+      required:
+        - alertDate
+        - criticalCount
+      additionalProperties: false
+      properties:
+        alertDate:
+          type: string
+          format: date
+          description: Calendar date (UTC) on which these alerts were raised
+          example: "2026-05-15"
+        criticalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of CRITICAL alerts raised on this date
+          example: 3
+
+    CycleTimeDataPoint:
+      type: object
+      description: Weekly average replenishment cycle time for the Cycle Time chart
+      required:
+        - weekStart
+        - averageDays
+        - poCount
+      additionalProperties: false
+      properties:
+        weekStart:
+          type: string
+          format: date
+          description: Monday of the ISO week (UTC)
+          example: "2026-05-12"
+        averageDays:
+          type: number
+          format: double
+          minimum: 0
+          description: Average calendar days from PO creation to DISPATCHED/COMPLETED in this week
+          example: 3.4
+        poCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of completed purchase orders in this week
+          example: 5
+
+    StockoutFrequencyKpi:
+      type: object
+      description: Count of CRITICAL stock alerts in the last 30 days vs the prior 30-day window
+      required:
+        - last30Days
+        - trend
+        - history
+      additionalProperties: false
+      properties:
+        last30Days:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of CRITICAL stock alerts raised in the last 30 days
+          example: 12
+        trend:
+          $ref: '#/components/schemas/DirectionTrend'
+        history:
+          type: array
+          description: Daily CRITICAL alert counts for the last 30 days, newest first
+          items:
+            $ref: '#/components/schemas/StockoutAlertDataPoint'
+
+    ReplenishmentCycleTimeKpi:
+      type: object
+      description: Average calendar days from purchase order creation to DISPATCHED/COMPLETED status
+      required:
+        - averageDays
+        - trend
+        - history
+      additionalProperties: false
+      properties:
+        averageDays:
+          type: number
+          format: double
+          minimum: 0
+          description: Average days from PO creation to DISPATCHED/COMPLETED over the last 90 days
+          example: 3.2
+        trend:
+          $ref: '#/components/schemas/Trend'
+        history:
+          type: array
+          description: Weekly average cycle time for the last 90 days, newest first
+          items:
+            $ref: '#/components/schemas/CycleTimeDataPoint'
+
+    ExecutiveKpis:
+      type: object
+      description: All KPI blocks for the executive persona dashboard
+      required:
+        - forecastAccuracy
+        - stockoutFrequency
+        - replenishmentCycleTime
+      additionalProperties: false
+      properties:
+        forecastAccuracy:
+          $ref: '#/components/schemas/ForecastAccuracyKpi'
+        stockoutFrequency:
+          $ref: '#/components/schemas/StockoutFrequencyKpi'
+        replenishmentCycleTime:
+          $ref: '#/components/schemas/ReplenishmentCycleTimeKpi'
+
+    ExecutiveDashboardResponse:
+      type: object
+      description: |
+        Executive Insights Dashboard payload.
+        Data is assembled from parallel reads across the forecasting, inventory,
+        and replenishment schemas — never via cross-schema SQL joins.
+      required:
+        - kpis
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        kpis:
+          $ref: '#/components/schemas/ExecutiveKpis'
+        dataFreshness:
+          type: string
+          format: date-time
+          description: Earliest completed_at / created_at timestamp across all contributing queries
+          example: "2026-05-15T14:23:00Z"
+
+  responses:
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/Forbidden'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+
+paths:
+  /v1/dashboard/executive:
+    get:
+      tags:
+        - dashboard
+      operationId: getExecutiveDashboard
+      summary: Executive Insights Dashboard
+      description: |
+        Returns MAPE trend, stockout frequency, and replenishment cycle time KPIs
+        for the Executive Insights Dashboard (Flow 8).
+
+        Allowed roles: EXECUTIVE, SC_PLANNER, ADMIN.
+        SC_PLANNER and ADMIN are included so they can view executive-level metrics
+        without switching accounts.
+
+        Data sources (parallel queries, merged in Java):
+        - forecasting.forecast_runs — last 30 COMPLETED runs, MAPE values
+        - inventory.stock_alerts — CRITICAL alert counts, last 30 and prior 30 days
+        - replenishment.purchase_orders — average DRAFT→DISPATCHED cycle time, last 90 days
+      responses:
+        '200':
+          description: Executive dashboard KPIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutiveDashboardResponse'
+              example:
+                kpis:
+                  forecastAccuracy:
+                    latestMape: 0.0823
+                    trend: IMPROVING
+                    history:
+                      - runDate: "2026-05-15"
+                        mape: 0.0823
+                      - runDate: "2026-05-14"
+                        mape: 0.0891
+                      - runDate: "2026-05-13"
+                        mape: 0.0956
+                  stockoutFrequency:
+                    last30Days: 12
+                    trend: DECREASING
+                  replenishmentCycleTime:
+                    averageDays: 3.2
+                    trend: STABLE
+                dataFreshness: "2026-05-15T14:23:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/dashboard/store-manager:
+    get:
+      tags:
+        - dashboard
+      operationId: getStoreManagerDashboard
+      summary: Store Manager Dashboard (Flow 4 — not yet implemented)
+      description: |
+        Returns inventory summary, stock alerts, forecast summary, and pending
+        replenishment count for the Store Manager Dashboard.
+        Allowed roles: STORE_MANAGER, ADMIN.
+        Implementation planned for Flow 4.
+      parameters:
+        - name: dcId
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+          description: Distribution Centre identifier — scoped to the requesting manager's DC
+          example: "DC-LONDON"
+      responses:
+        '200':
+          description: Store Manager dashboard payload
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Store Manager dashboard — schema defined in Flow 4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '501':
+          description: Not yet implemented — available in Flow 4
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/dashboard/sc-planner:
+    get:
+      tags:
+        - dashboard
+      operationId: getScPlannerDashboard
+      summary: SC Planner Dashboard (Flow 4 — not yet implemented)
+      description: |
+        Returns pending approvals, inventory overview, and supplier performance preview
+        for the Supply Chain Planner Dashboard.
+        Allowed roles: SC_PLANNER, ADMIN.
+        Implementation planned for Flow 4.
+      responses:
+        '200':
+          description: SC Planner dashboard payload
+          content:
+            application/json:
+              schema:
+                type: object
+                description: SC Planner dashboard — schema defined in Flow 4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '501':
+          description: Not yet implemented — available in Flow 4
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/dashboard/supplier-performance:
+    get:
+      tags:
+        - dashboard
+      operationId: getSupplierPerformanceDashboard
+      summary: Supplier Performance Scorecard (Flow 9 — not yet implemented)
+      description: |
+        Returns on-time delivery rate, SLA compliance, and lead time variance per supplier.
+        Allowed roles: SC_PLANNER, ADMIN.
+        Implementation planned for Flow 9.
+      responses:
+        '200':
+          description: Supplier performance scorecard payload
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Supplier performance scorecard — schema defined in Flow 9
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '501':
+          description: Not yet implemented — available in Flow 9
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

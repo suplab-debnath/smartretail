@@ -176,188 +176,358 @@ interface Alert {
 ---
  
 ## MFE 2: SC Planner Console
- 
+ 
 Location: `mfe/sc-planner/`
 Cognito pool: Internal
 Required role: SC_PLANNER (or ADMIN)
- 
+ 
 ### Pages / Routes
- 
+ 
 ```
-/               → redirect to /dashboard
-/dashboard      → main dashboard with tabs
-/dashboard/approvals    → PO approval queue tab
-/dashboard/inventory    → inventory overview tab
-/dashboard/performance  → supplier performance tab (Flow 9)
+/                           → redirect to /dashboard
+/dashboard                  → main dashboard with tabs
+/dashboard/exceptions       → exception queue tab (Flow 9.1)
+/dashboard/inventory        → inventory overview by DC tab (Flow 9.2)
+/dashboard/forecast         → demand forecast view tab (Flow 9.3)
+/dashboard/approvals        → PO approval workflows tab (Flow 9.5)
+/dashboard/supplier-orders  → supplier order tracking tab (Flow 9.6)
+/dashboard/performance      → supplier performance scorecard tab (Flow 9)
 /callback, /logout
 ```
- 
-### Tabs
- 
-#### Tab 1: Pending Approvals (Flow 3)
- 
-Components:
-- PendingApprovalTable — list of PENDING_APPROVAL POs
-- PurchaseOrderDetail — expandable detail with line items
-- ApproveButton — triggers POST /v1/replenishment/orders/{poId}/approve
-- RejectButton + RejectModal — triggers POST /v1/replenishment/orders/{poId}/reject
-- OptimisticUpdate — immediately marks PO as processing in UI, then confirms/reverts on API response
- 
+ 
+### Tabs and Surfaces
+ 
+#### Tab 1: Exception Queue (Flow 9.1)
+ 
+Prioritised list of active LOW_STOCK and OVERSTOCK alerts awaiting planner action.
+ 
+```typescript
+// GET /v1/inventory/alerts?status=ACTIVE
+// Sorted by severity: CRITICAL → HIGH → MEDIUM
+// Severity classification badge on each row
+ 
+interface Alert {
+  alertId: string;
+  skuId: string;
+  dcId: string;
+  alertType: 'LOW_STOCK' | 'OVERSTOCK';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  onHand: number;
+  reorderPoint: number;
+  raisedAt: string;
+}
+ 
+// Components:
+// - ExceptionQueueTable: sortable by severity, DC, SKU, raised time
+// - SeverityBadge: CRITICAL=red, HIGH=amber, MEDIUM=yellow
+// - AlertTypeTag: LOW_STOCK / OVERSTOCK
+// - ActionButton: links to Replenishment Action Trigger (Tab 6)
+```
+ 
+#### Tab 2: Inventory Overview by DC (Flow 9.2)
+ 
+On-hand, in-transit, and reorder status per Distribution Centre.
+ 
+```typescript
+// GET /v1/inventory/positions?dcId={selectedDc}
+// GET /v1/inventory/alerts?status=ACTIVE&dcId={selectedDc}
+ 
+// Components:
+// - DcSelector: dropdown DC-LONDON | DC-MANCHESTER | DC-BIRMINGHAM
+// - InventoryGrid: cards per SKU showing on_hand / in_transit / reserved
+// - ReorderStatusChip: OK / REORDER_SOON / CRITICAL per SKU
+//   CRITICAL: ATP <= 0
+//   REORDER_SOON: ATP < reorder_point
+//   OK: ATP >= reorder_point
+```
+ 
+#### Tab 3: Demand Forecast View (Flow 9.3)
+ 
+SKU × DC level forecast with P10/P50/P90 probability bands, units sold vs forecast, and accuracy indicator.
+ 
+```typescript
+// GET /v1/dashboard/sc-planner (forecastAccuracy block)
+// GET /v1/inventory/positions (units sold proxy via on_hand change)
+// GET /v1/forecast/{skuId}/{dcId} (forecast bands per horizon)
+ 
+interface ForecastBand {
+  forecastDate: string;
+  p10: number;
+  p50: number;
+  p90: number;
+  actualUnits?: number;   // null for future dates
+}
+ 
+// Components:
+// - SkuDcSelector: choose SKU × DC combination
+// - ForecastAreaChart: Recharts AreaChart with 3 band areas (P10/P50/P90)
+//   + ActualUnits line overlay
+// - ForecastAccuracyIndicator: MAPE % badge — green < 10%, amber 10–20%, red > 20%
+// - HorizonSelector: 7 / 14 / 30 day horizon toggle
+```
+ 
+#### Tab 4: Stockout Risk Indicators (Flow 9.4)
+ 
+Derived risk flags per SKU based on ATP vs reorder_point. Used to prioritise planner attention.
+ 
+```typescript
+// Data derived from GET /v1/inventory/positions (no separate endpoint)
+// Risk classification:
+//   CRITICAL: ATP <= 0
+//   HIGH:     ATP < reorder_point × 0.5
+//   MODERATE: ATP < reorder_point
+ 
+// Components:
+// - StockoutRiskTable: sortable by risk level, SKU, DC
+//   Columns: SKU | DC | Category | On-Hand | ATP | Reorder Point | Risk
+// - RiskFlag: MODERATE=yellow chip | HIGH=orange chip | CRITICAL=red chip
+// - BulkTriggerButton: select multiple HIGH/CRITICAL SKUs → initiate replenishment
+```
+ 
+#### Tab 5: Approval Workflows (Flow 9.5 / Flow 3)
+ 
+PO drafts pending planner sign-off before supplier dispatch. Full test covered in Flow 3.
+ 
 ```typescript
 interface PurchaseOrder {
-  poId: string;
-  supplierId: string;
-  skuId: string;
-  dcId: string;
-  quantity: number;
-  totalValue: number;
-  workflowStatus: string;
-  version: number;
-  createdAt: string;
+  poId: string;
+  supplierId: string;
+  skuId: string;
+  dcId: string;
+  quantity: number;
+  totalValue: number;
+  workflowStatus: string;
+  version: number;
+  createdAt: string;
 }
- 
-// X-Idempotency-Key: generated client-side (crypto.randomUUID())
-//   stored per poId in component state to prevent double-click double-approve
-```
- 
-**Approve flow:**
-1. User clicks "Approve"
-2. Disable button immediately (prevent double-click)
-3. Generate idempotency key (crypto.randomUUID())
-4. POST /v1/replenishment/orders/{poId}/approve with X-Idempotency-Key header
-5. On 200: remove PO from pending list, show success toast
-6. On 409 (INVALID_STATUS_TRANSITION): show error toast "PO status changed — refresh list"
-7. On 4xx/5xx: show error toast, re-enable button
- 
-**Reject flow:**
-1. User clicks "Reject" → modal opens asking for rejection reason (required)
-2. User submits → POST /v1/replenishment/orders/{poId}/reject with reason in body
-3. On 200: remove PO from list, show success toast "PO rejected"
- 
-#### Tab 2: Inventory Overview
- 
-```typescript
-// GET /v1/inventory/positions (no dcId filter — planner sees all)
-// GET /v1/inventory/alerts?status=ACTIVE
- 
+ 
 // Components:
-// - DcSummaryGrid: cards per DC showing alert counts
-// - SkuAlertTable: sortable table by severity, skuId, dcId
+// - PendingApprovalTable: list of PENDING_APPROVAL POs
+// - PurchaseOrderDetail: expandable with line items
+// - ApproveButton: POST /v1/replenishment/orders/{poId}/approve
+//   + X-Idempotency-Key (crypto.randomUUID(), stored per poId)
+// - RejectButton + RejectModal: POST /v1/replenishment/orders/{poId}/reject
+// - OptimisticUpdate: immediate UI response before API confirmation
+ 
+// Approve flow:
+// 1. Disable button immediately (prevent double-click)
+// 2. POST approve with X-Idempotency-Key
+// 3. 200 → remove PO from list, show success toast
+// 4. 409 INVALID_STATUS_TRANSITION → show error toast "PO status changed — refresh"
+// 5. 4xx/5xx → error toast, re-enable button
 ```
- 
-#### Tab 3: Supplier Performance (Flow 9)
- 
+ 
+#### Tab 6: Supplier Order Tracking (Flow 9.6)
+ 
+PO list with supplier, ETA, fulfilment status, and shipment progress.
+ 
 ```typescript
-// GET /v1/dashboard/supplier-performance
- 
-interface SupplierPerformance {
-  supplierId: string;
-  supplierName: string;
-  onTimeDeliveryRate: number;   // 0.0 to 1.0
-  poAcknowledgementSlaCompliance: number;
-  openExceptions: number;
-  avgLeadTimeVarianceDays: number;
-  totalPoCount: number;
-  totalPoValue: number;
+// GET /v1/dashboard/supplier-performance (for PO / shipment data)
+// GET /v1/replenishment/orders?status=APPROVED (for active POs)
+ 
+interface SupplierOrder {
+  poId: string;
+  supplierId: string;
+  supplierName: string;
+  skuId: string;
+  dcId: string;
+  quantity: number;
+  workflowStatus: string;
+  confirmedAt?: string;
+  dispatchedAt?: string;
+  eta?: string;
+  shipmentStatus: 'PENDING' | 'CONFIRMED' | 'DISPATCHED' | 'DELIVERED' | 'EXCEPTION';
 }
- 
+ 
 // Components:
-// - SupplierScorecardTable
-//   Columns: Supplier Name | On-Time % | SLA Compliance | Open Exceptions | Avg Lead Time Variance | Total PO Value
-//   Color coding:
-//     on-time >= 90%: green
-//     on-time 75-90%: amber
-//     on-time < 75%: red
-//   Sortable by all columns
-//   Recharts BarChart below table showing on-time rates per supplier
- 
-// Poll: 5 minutes (supplier data changes less frequently)
+// - SupplierOrderTable: sortable by supplier, ETA, status
+//   Columns: Supplier | SKU | DC | Qty | Status | ETA | Shipment Progress
+// - ShipmentProgressBar: visual step indicator (CONFIRMED → DISPATCHED → DELIVERED)
+// - ExceptionBadge: red flag on exception rows
+// - StatusFilter: dropdown PENDING / CONFIRMED / DISPATCHED / DELIVERED / EXCEPTION
 ```
- 
-### SC Planner Dashboard API Call
- 
+ 
+#### Tab 7: Replenishment Action Trigger (Flow 9.7)
+ 
+Manual override — initiate replenishment for flagged items.
+ 
+```typescript
+// POST /v1/replenishment/orders
+// Creates a DRAFT PO that RE will process (bypasses automatic FIFO trigger)
+ 
+interface TriggerReplenishmentRequest {
+  skuId: string;
+  dcId: string;
+  quantity: number;   // planner-specified override quantity
+  notes?: string;
+}
+ 
+// Components:
+// - ReplenishmentTriggerModal: opens from ExceptionQueue or StockoutRisk tables
+//   Fields: SKU (pre-filled), DC (pre-filled), Quantity (editable), Notes
+// - QuantitySuggestion: displays recommended quantity from replenishment_rules
+// - ConfirmButton: POST /v1/replenishment/orders
+//   201 → success toast "Replenishment order DRAFT-{poId} created"
+//   409 → "A PENDING order already exists for this SKU/DC"
+```
+ 
+#### Tab 8: Forecast Adjustment Controls (Flow 9.8)
+ 
+Incorporate promotional uplift signals (PPS-driven) into the demand forecast view.
+ 
+```typescript
+// Client-side computation — no separate API endpoint
+// Applies promotional uplift % to P50 forecast values
+// Uplift signal comes from Pricing & Promotions Service (PPS) events
+ 
+interface PromotionalUplift {
+  skuId: string;
+  dcId: string;
+  upliftPercent: number;   // e.g. 25 = 25% uplift on P50
+  promotionStartDate: string;
+  promotionEndDate: string;
+  source: 'MANUAL' | 'PPS_EVENT';
+}
+ 
+// Components:
+// - UpliftInputPanel: numeric input for uplift % + date range picker
+// - AdjustedForecastOverlay: dashed line on ForecastAreaChart showing P50 × (1 + uplift/100)
+// - UpliftBadge: "Promo uplift applied: +25%" displayed on chart header
+// - ResetButton: clears uplift and returns to raw P50
+```
+ 
+### SC Planner Dashboard Summary API Call
+ 
 ```typescript
 // GET /v1/dashboard/sc-planner
-// Shows:
-// - pendingApprovalCount (badge on Approvals tab)
-// - activeAlertCount (badge on Inventory tab)
-// - forecastAccuracy.latestMape + status
-// - dataFreshness
- 
-// Called on mount. Tab-specific data fetched when tab is activated.
+// Called on mount — drives tab badges
+// Returns:
+//   pendingApprovalCount  → badge on Approval Workflows tab
+//   activeAlertCount      → badge on Exception Queue tab
+//   forecastAccuracy      → MAPE % shown in Forecast View tab header
+//   dataFreshness         → footer timestamp
+ 
+// Tab-specific data fetched when each tab is first activated (lazy load)
+// Poll interval: 2 minutes (planners act on near-real-time data)
 ```
- 
+ 
 ---
- 
+ 
 ## MFE 3: Executive Insights Dashboard
- 
+ 
 Location: `mfe/executive/`
 Cognito pool: Internal
 Required role: EXECUTIVE (or SC_PLANNER/ADMIN)
- 
+ 
 ### Pages / Routes
- 
+ 
 ```
-/               → redirect to /dashboard
-/dashboard      → executive KPI dashboard
+/               → redirect to /dashboard
+/dashboard      → executive KPI dashboard
 /callback, /logout
 ```
- 
+ 
 ### Dashboard Layout
- 
-Single page, no tabs. Three sections:
- 
-#### Section 1: KPI Scorecards (top row — 3 cards)
- 
+ 
+Single page, scrollable. Four sections:
+ 
+#### Section 1: KPI Scorecard Row (top — 4 cards)
+ 
 ```typescript
-// Card 1: Forecast Accuracy
-//   - Latest MAPE value formatted as percentage: (1 - MAPE) × 100
-//   - Trend badge: IMPROVING / STABLE / DEGRADING
-//   - Colour: green if < 10% error, amber if 10-20%, red if > 20%
- 
-// Card 2: Stockout Frequency
-//   - Count of CRITICAL stock alerts in last 30 days
-//   - Trend arrow: up or down vs previous 30 days
- 
-// Card 3: Replenishment Cycle Time
-//   - Average days from DRAFT to DISPATCHED
-//   - Trend: STABLE / IMPROVING / DEGRADING
+// Card 1: Fulfilment Rate
+//   - Platform-wide order fill rate %
+//   - Trend arrow vs prior period
+//   - Source: replenishment.purchase_orders COMPLETED / total
+ 
+// Card 2: On-Time Delivery %
+//   - Aggregate supplier OTD across all 5 suppliers
+//   - Colour: green ≥ 90%, amber 75–90%, red < 75%
+//   - Source: supplier.shipment_updates vs lead_time_days
+ 
+// Card 3: Forecast Accuracy (MAPE)
+//   - Latest MAPE formatted as accuracy %: (1 − MAPE) × 100
+//   - Trend badge: IMPROVING / STABLE / DEGRADING
+//   - Source: forecasting.forecast_runs latest row
+ 
+// Card 4: Replenishment Lead Time
+//   - Average days from stock alert raised to supplier PO confirmed
+//   - Trend: STABLE / IMPROVING / DEGRADING
+//   - Source: avg(supplier_pos.confirmed_at − stock_alerts.raised_at)
 ```
- 
-#### Section 2: MAPE Trend Chart (Flow 8)
- 
+ 
+#### Section 2: Stockout Incidents (Flow 8.2)
+ 
+```typescript
+// Recharts BarChart — CRITICAL stock alert count by DC and product category
+// X-axis: last 30 days (grouped by week)
+// Y-axis: stockout incident count
+// Series: one bar series per DC (DC-LONDON, DC-MANCHESTER, DC-BIRMINGHAM)
+// Stacked by product category: Beverages / Snacks / Dry Goods / Chilled
+// Tooltip: date range + DC + category + count
+// Source: GET /v1/dashboard/executive → kpis.stockoutIncidents
+```
+ 
+#### Section 3: Forecast Accuracy MAPE Trend (Flow 8.3)
+ 
 ```typescript
 // Recharts LineChart
 // X-axis: date (last 30 days)
 // Y-axis: MAPE value (0.0 to 0.20)
 // Reference line at MAPE = 0.15 (threshold — red dashed)
-// Data points: one per forecast_run from seed data
+// Data: one point per forecast_run from seed data (30 points)
 // Tooltip: date + MAPE value + "Within threshold / Threshold breached"
- 
-// Data source: GET /v1/dashboard/executive
-// Uses kpis.forecastAccuracy.history array
+// Source: GET /v1/dashboard/executive → kpis.forecastAccuracy.history
 ```
- 
-#### Section 3: Forecast Accuracy History Table
- 
+ 
+#### Section 4: Supplier Performance Comparison + Delivery Histogram (Flow 8.5 / 8.6)
+ 
 ```typescript
-// Simple table below the chart
-// Columns: Date | MAPE | Status | Run Duration
-// Last 10 rows
-// Status: green "Within threshold" or red "Threshold breached"
+// Left panel: SupplierRankingTable
+//   Columns: Rank | Supplier | OTD % | Fill Rate | Avg Lead Time | Open Exceptions
+//   Colour coding:
+//     OTD ≥ 90%: green
+//     OTD 75–90%: amber
+//     OTD < 75%: red
+//   Sortable by all columns
+//   Source: GET /v1/dashboard/executive → kpis.supplierPerformance
+ 
+// Right panel: Recharts BarChart — Delivery Performance Histogram
+//   X-axis: 5 suppliers
+//   Y-axis: shipment count
+//   3 grouped bars per supplier: Early | On-Time | Late
+//   Colour: Early=blue, On-Time=green, Late=red
+//   Source: same supplier performance data
 ```
- 
+ 
+#### Section 5: Secondary KPI Row (bottom — 3 cards)
+ 
+```typescript
+// Card 5: Stockout Frequency
+//   - Count of CRITICAL stock alerts in last 30 days
+//   - Trend arrow vs previous 30 days
+ 
+// Card 6: Inventory Carrying Cost Trend (Flow 8.7)
+//   - Directional view: current period total value-at-risk vs prior period
+//   - Source: sum(inventory_positions.on_hand × cost_per_unit from replenishment_rules)
+//   - Displayed as % change: "+3.2% vs prior period"
+ 
+// Card 7: Top Stockout SKUs (Flow 8.9)
+//   - Mini-table: top 5 highest-impact stockout items in the period
+//   - Columns: SKU | Category | DC | Stockout Days | Estimated Impact
+//   - Estimated impact = stockout_days × p50_forecast × cost_per_unit
+```
+ 
 ### API Call
- 
+ 
 ```typescript
 // GET /v1/dashboard/executive
 // No parameters required
 // Poll every 5 minutes (executive data changes slowly)
-// Show "Last updated: HH:MM" in footer
+// Show "Last updated: HH:MM" in footer (dataFreshness from response)
 ```
- 
+ 
 ---
- 
+ 
 ## Config Injection (all MFEs)
  
 Each MFE reads API Gateway endpoint from `window.SMARTRETAIL_CONFIG`:

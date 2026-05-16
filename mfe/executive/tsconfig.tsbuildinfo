@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/components/executivedashboard.tsx","./src/components/forecasthistorytable.tsx","./src/components/kpicard.tsx","./src/components/mapetrendchart.tsx","./src/hooks/useexecutivedashboard.ts"],"version":"5.9.3"}

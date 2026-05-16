@@ -3,7 +3,7 @@
 A prototype of an event-driven retail supply chain platform built on AWS.
 It demonstrates a complete POS-to-inventory pipeline using Kinesis, Lambda, ECS Fargate, EventBridge, SQS, RDS PostgreSQL, and DynamoDB.
 
-> **Implementation status:** Flow 1 is implemented and tested. Flows 2–9 are specified but not yet built.
+> **Implementation status:** Flows 1 and 2 are implemented and tested. Flows 3–9 are specified but not yet built.
 
 ---
 
@@ -59,6 +59,69 @@ SIS — Sales Ingestion Service    (ECS Fargate, port 8080)
 | 1.10 | `InventoryAlertEvent` published to EventBridge |
 
 **Idempotency test:** Re-send the same `transactionId` → SIS returns `409 Conflict`. No new `sales_events` row. DynamoDB key already exists.
+
+---
+
+## What Flow 2 Does
+
+**Pre-condition:** Flow 1 must have completed and published an `InventoryAlertEvent` to the RE FIFO queue.
+
+```
+smartretail-re-alert-{env}.fifo          ← receives InventoryAlertEvent from Flow 1
+    │  FIFO SQS consumer (message group = dcId#skuId — ordering per DC+SKU)
+    ▼
+RE — Replenishment Engine    (ECS Fargate, port 8082)
+    ├── Look up replenishment_rules      RDS → replenishment.replenishment_rules (by skuId + dcId)
+    ├── Compute quantity                 max(reorderPoint − onHand, moq)
+    ├── Compute totalValue               quantity × costPerUnit
+    ├── Decision: auto-approve?
+    │       if totalValue ≤ autoApproveThreshold  →  workflow_status = APPROVED
+    │       if totalValue > autoApproveThreshold  →  workflow_status = PENDING_APPROVAL
+    ├── INSERT purchase_orders           RDS → replenishment.purchase_orders  (version = 0)
+    ├── INSERT po_line_items             RDS → replenishment.po_line_items
+    └── Publish domain event             EventBridge → PurchaseOrderEvent
+```
+
+Two sub-scenarios are tested:
+
+### Scenario 2a — Auto-approve (`totalValue ≤ autoApproveThreshold`)
+
+Seed data: `SKU-BEV-001 / DC-LONDON` has `auto_approve_threshold = 50000`. Expected `totalValue ≈ 850`.
+
+| Check | What to verify |
+|-------|---------------|
+| 2a.1 | RE consumes alert (`"InventoryAlertEvent received"` in logs) |
+| 2a.2 | Replenishment rule found (`"Rule found for SKU/DC: lead_time=X, threshold=Y"`) |
+| 2a.3 | Auto-approve decision logged (`"totalValue <= autoApproveThreshold — auto-approving"`) |
+| 2a.4 | `replenishment.purchase_orders` row inserted with `workflow_status = APPROVED`, `version = 0` |
+| 2a.5 | `replenishment.po_line_items` row inserted |
+| 2a.6 | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED` |
+
+### Scenario 2b — Manual approval required (`totalValue > autoApproveThreshold`)
+
+Seed data: `SKU-BEV-003 / DC-LONDON` has `auto_approve_threshold = 0` — always requires manual approval.
+
+| Check | What to verify |
+|-------|---------------|
+| 2b.1 | `replenishment.purchase_orders` row inserted with `workflow_status = PENDING_APPROVAL`, `version = 0` |
+| 2b.2 | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = PENDING_APPROVAL` |
+
+**EventBridge event published by RE:**
+```json
+{
+  "source": "smartretail.re",
+  "detail-type": "PurchaseOrderEvent",
+  "detail": {
+    "poId": "uuid",
+    "supplierId": "uuid",
+    "skuId": "SKU-BEV-001",
+    "dcId": "DC-LONDON",
+    "workflowStatus": "APPROVED",
+    "quantity": 100,
+    "totalValue": 850.00
+  }
+}
+```
 
 ---
 
@@ -131,18 +194,33 @@ done
 # All should return: {"status":"UP"}
 ```
 
-### 4. Run the Flow 1 smoke test
+### 4. Run the smoke tests
 
 ```bash
 make test-flow1
 # Expected: ✅ 5 passed  ❌ 0 failed
+
+make test-flow2
+# Expected: ✅ 2 passed  ❌ 0 failed
+# Pre-condition: Flow 1 must have run first (RE queue must have an InventoryAlertEvent)
 ```
 
-Or trigger manually:
+Trigger Flow 1 manually:
 ```bash
 python3 scripts/publish-pos-event.py \
   --transaction-id $(python3 -c "import uuid; print(uuid.uuid4())") \
   --direct-api http://localhost:8080
+```
+
+Verify Flow 2 RDS state directly:
+```bash
+# Auto-approve PO (SKU-BEV-001)
+docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
+  -c "SELECT po_id, workflow_status, version FROM replenishment.purchase_orders WHERE sku_id = 'SKU-BEV-001' AND dc_id = 'DC-LONDON' ORDER BY created_at DESC LIMIT 1;"
+
+# Manual approval PO (SKU-BEV-003)
+docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
+  -c "SELECT po_id, workflow_status, version FROM replenishment.purchase_orders WHERE sku_id = 'SKU-BEV-003' AND dc_id = 'DC-LONDON' ORDER BY created_at DESC LIMIT 1;"
 ```
 
 ### 5. Stop
@@ -204,6 +282,22 @@ curl "http://localhost:8081/v1/inventory/positions?dcId=DC-LONDON"
 ```bash
 curl "http://localhost:8081/v1/inventory/alerts?status=ACTIVE"
 ```
+
+### RE — GET /v1/replenishment/orders
+
+```bash
+# All purchase orders
+curl "http://localhost:8082/v1/replenishment/orders"
+
+# Filter by status
+curl "http://localhost:8082/v1/replenishment/orders?status=PENDING_APPROVAL"
+curl "http://localhost:8082/v1/replenishment/orders?status=APPROVED"
+
+# Single PO with line items
+curl "http://localhost:8082/v1/replenishment/orders/{poId}"
+```
+
+Flow 2 is entirely event-driven (SQS consumer). The RE service creates purchase orders autonomously — no REST call required to trigger it.
 
 ---
 
@@ -338,7 +432,7 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | Flow | Description | Status |
 |------|-------------|--------|
 | **1** | POS event → SIS → RDS → IMS → stock alert → EventBridge | ✅ Implemented |
-| 2 | Inventory alert → RE auto-approve → RDS state transition | 🔲 Specified |
+| **2** | Inventory alert → RE auto-approve → RDS state transition | ✅ Implemented |
 | 3 | SC Planner MFE → RE approve/reject → RDS → EventBridge | 🔲 Specified |
 | 4 | ARS → Store Manager Dashboard MFE | 🔲 Specified |
 | 8 | Executive Dashboard — MAPE trend + forecast accuracy | 🔲 Specified |
