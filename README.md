@@ -45,18 +45,18 @@ SIS — Sales Ingestion Service    (ECS Fargate, port 8080)
 
 **Observable evidence (all 10 checks must pass):**
 
-| Check | What to verify |
-|-------|---------------|
-| 1.1 | Kinesis record ingested |
-| 1.2 | Lambda invoked (CloudWatch Logs) |
-| 1.3 | DynamoDB idempotency key written |
-| 1.4 | SIS processes event (`"SalesTransactionEvent processed"` in logs) |
-| 1.5 | `sales.sales_events` row created in RDS |
-| 1.6 | Raw event archived to S3 |
-| 1.7 | EventBridge event received by IMS SQS queue |
-| 1.8 | `inventory.inventory_positions.on_hand` decremented |
-| 1.9 | `inventory.stock_alerts` row created (if ATP < reorder_point) |
-| 1.10 | `InventoryAlertEvent` published to EventBridge |
+| Check | What to verify                                                    |
+| ----- | ----------------------------------------------------------------- |
+| 1.1   | Kinesis record ingested                                           |
+| 1.2   | Lambda invoked (CloudWatch Logs)                                  |
+| 1.3   | DynamoDB idempotency key written                                  |
+| 1.4   | SIS processes event (`"SalesTransactionEvent processed"` in logs) |
+| 1.5   | `sales.sales_events` row created in RDS                           |
+| 1.6   | Raw event archived to S3                                          |
+| 1.7   | EventBridge event received by IMS SQS queue                       |
+| 1.8   | `inventory.inventory_positions.on_hand` decremented               |
+| 1.9   | `inventory.stock_alerts` row created (if ATP < reorder_point)     |
+| 1.10  | `InventoryAlertEvent` published to EventBridge                    |
 
 **Idempotency test:** Re-send the same `transactionId` → SIS returns `409 Conflict`. No new `sales_events` row. DynamoDB key already exists.
 
@@ -88,23 +88,23 @@ Two sub-scenarios are tested:
 
 Seed data: `SKU-BEV-001 / DC-LONDON` has `auto_approve_threshold = 50000`. Expected `totalValue ≈ 850`.
 
-| Check | What to verify |
-|-------|---------------|
-| 2a.1 | RE consumes alert (`"InventoryAlertEvent received"` in logs) |
-| 2a.2 | Replenishment rule found (`"Rule found for SKU/DC: lead_time=X, threshold=Y"`) |
-| 2a.3 | Auto-approve decision logged (`"totalValue <= autoApproveThreshold — auto-approving"`) |
-| 2a.4 | `replenishment.purchase_orders` row inserted with `workflow_status = APPROVED`, `version = 0` |
-| 2a.5 | `replenishment.po_line_items` row inserted |
-| 2a.6 | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED` |
+| Check | What to verify                                                                                |
+| ----- | --------------------------------------------------------------------------------------------- |
+| 2a.1  | RE consumes alert (`"InventoryAlertEvent received"` in logs)                                  |
+| 2a.2  | Replenishment rule found (`"Rule found for SKU/DC: lead_time=X, threshold=Y"`)                |
+| 2a.3  | Auto-approve decision logged (`"totalValue <= autoApproveThreshold — auto-approving"`)        |
+| 2a.4  | `replenishment.purchase_orders` row inserted with `workflow_status = APPROVED`, `version = 0` |
+| 2a.5  | `replenishment.po_line_items` row inserted                                                    |
+| 2a.6  | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED`                |
 
 ### Scenario 2b — Manual approval required (`totalValue > autoApproveThreshold`)
 
 Seed data: `SKU-BEV-003 / DC-LONDON` has `auto_approve_threshold = 0` — always requires manual approval.
 
-| Check | What to verify |
-|-------|---------------|
-| 2b.1 | `replenishment.purchase_orders` row inserted with `workflow_status = PENDING_APPROVAL`, `version = 0` |
-| 2b.2 | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = PENDING_APPROVAL` |
+| Check | What to verify                                                                                        |
+| ----- | ----------------------------------------------------------------------------------------------------- |
+| 2b.1  | `replenishment.purchase_orders` row inserted with `workflow_status = PENDING_APPROVAL`, `version = 0` |
+| 2b.2  | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = PENDING_APPROVAL`                |
 
 **EventBridge event published by RE:**
 ```json
@@ -159,19 +159,19 @@ Executive Insights Dashboard MFE   (localhost:5175 / CloudFront)
 
 **Observable evidence (all 11 checks must pass):**
 
-| Check | What to verify |
-|-------|---------------|
-| 8.1 | Fulfilment Rate KPI card renders with platform-wide fill rate % |
-| 8.2 | Stockout Incidents card renders; 30-day trend chart by DC and category visible |
-| 8.3 | MAPE Trend LineChart renders ≥30 data points; 0.15 threshold reference line visible |
-| 8.4 | On-Time Delivery % KPI card renders aggregate OTD % |
-| 8.5 | Supplier Performance Comparison table renders 5 suppliers ranked by OTD (Metro Food last at 71%, Chill Chain first at 95%) |
-| 8.6 | Delivery Performance Histogram renders Early / On-Time / Delayed grouped bars |
-| 8.7 | Inventory Carrying Cost Trend card shows % change vs prior period |
-| 8.8 | Replenishment Lead Time KPI card renders average PO cycle days |
-| 8.9 | Top Stockout SKUs table renders ≥5 items with DC, category, and count |
-| 8.10 | EXECUTIVE role cannot call SC Planner API (`GET /v1/dashboard/sc-planner` → 403) |
-| 8.11 | `dataFreshness` timestamp displayed on all dashboard sections |
+| Check | What to verify                                                                                                             |
+| ----- | -------------------------------------------------------------------------------------------------------------------------- |
+| 8.1   | Fulfilment Rate KPI card renders with platform-wide fill rate %                                                            |
+| 8.2   | Stockout Incidents card renders; 30-day trend chart by DC and category visible                                             |
+| 8.3   | MAPE Trend LineChart renders ≥30 data points; 0.15 threshold reference line visible                                        |
+| 8.4   | On-Time Delivery % KPI card renders aggregate OTD %                                                                        |
+| 8.5   | Supplier Performance Comparison table renders 5 suppliers ranked by OTD (Metro Food last at 71%, Chill Chain first at 95%) |
+| 8.6   | Delivery Performance Histogram renders Early / On-Time / Delayed grouped bars                                              |
+| 8.7   | Inventory Carrying Cost Trend card shows % change vs prior period                                                          |
+| 8.8   | Replenishment Lead Time KPI card renders average PO cycle days                                                             |
+| 8.9   | Top Stockout SKUs table renders ≥5 items with DC, category, and count                                                      |
+| 8.10  | EXECUTIVE role cannot call SC Planner API (`GET /v1/dashboard/sc-planner` → 403)                                           |
+| 8.11  | `dataFreshness` timestamp displayed on all dashboard sections                                                              |
 
 **No write path.** The Executive Dashboard is entirely read-only. All data comes from pre-seeded RDS rows via ARS cross-schema aggregation. ARS merges results in Java — no SQL joins across schemas.
 
@@ -180,15 +180,15 @@ Executive Insights Dashboard MFE   (localhost:5175 / CloudFront)
 ## Prerequisites
 
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Java | 21 | `sdk install java 21.0.3-tem` |
-| Maven | 3.9.x | `sdk install maven` |
-| Docker Desktop | 4.x | https://www.docker.com/products/docker-desktop |
-| Node.js | 20.x | `nvm install 20` |
-| AWS CLI | v2 | https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html |
-| Python | 3.11+ | For test scripts |
-| psql | any | PostgreSQL client |
+| Tool           | Version | Install                                                             |
+| -------------- | ------- | ------------------------------------------------------------------- |
+| Java           | 21      | `sdk install java 21.0.3-tem`                                       |
+| Maven          | 3.9.x   | `sdk install maven`                                                 |
+| Docker Desktop | 4.x     | https://www.docker.com/products/docker-desktop                      |
+| Node.js        | 20.x    | `nvm install 20`                                                    |
+| AWS CLI        | v2      | https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html |
+| Python         | 3.11+   | For test scripts                                                    |
+| psql           | any     | PostgreSQL client                                                   |
 
 ---
 
@@ -298,17 +298,17 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 
 ## Port Assignments (local mode)
 
-| Service | Port |
-|---------|------|
-| SIS — Sales Ingestion | 8080 |
-| IMS — Inventory Management | 8081 |
-| RE — Replenishment Engine | 8082 |
-| ARS — Analytics & Reporting | 8083 |
-| PostgreSQL | 5432 |
+| Service                       | Port |
+| ----------------------------- | ---- |
+| SIS — Sales Ingestion         | 8080 |
+| IMS — Inventory Management    | 8081 |
+| RE — Replenishment Engine     | 8082 |
+| ARS — Analytics & Reporting   | 8083 |
+| PostgreSQL                    | 5432 |
 | LocalStack (all AWS services) | 4566 |
-| Store Manager MFE | 5173 |
-| SC Planner MFE | 5174 |
-| Executive MFE | 5175 |
+| Store Manager MFE             | 5173 |
+| SC Planner MFE                | 5174 |
+| Executive MFE                 | 5175 |
 
 ---
 
@@ -384,25 +384,25 @@ curl -s http://localhost:8083/v1/dashboard/executive | python3 -m json.tool
 #   },
 #   "dataFreshness": "2026-05-16T11:00:00Z"
 # }
-
+```
 ---
 
 ## Technology Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Services | Java + Spring Boot | 21 / 3.3.x |
-| Build | Maven | 3.9.x |
-| DB access | Spring Data JDBC | 3.3.x |
-| Schema migrations | Flyway | 10.x |
-| IaC | AWS CDK TypeScript | 2.x |
-| MFE | React + TypeScript | 18 / 5.x |
-| MFE styling | Tailwind CSS | 3.x |
-| MFE charts | Recharts | 2.x |
-| MFE auth | @aws-amplify/auth | 6.x |
-| Lambda | Java | 21 |
-| Local AWS | LocalStack | 3.x |
-| Local DB | PostgreSQL Docker | 15 |
+| Layer             | Technology         | Version    |
+| ----------------- | ------------------ | ---------- |
+| Services          | Java + Spring Boot | 21 / 3.3.x |
+| Build             | Maven              | 3.9.x      |
+| DB access         | Spring Data JDBC   | 3.3.x      |
+| Schema migrations | Flyway             | 10.x       |
+| IaC               | AWS CDK TypeScript | 2.x        |
+| MFE               | React + TypeScript | 18 / 5.x   |
+| MFE styling       | Tailwind CSS       | 3.x        |
+| MFE charts        | Recharts           | 2.x        |
+| MFE auth          | @aws-amplify/auth  | 6.x        |
+| Lambda            | Java               | 21         |
+| Local AWS         | LocalStack         | 3.x        |
+| Local DB          | PostgreSQL Docker  | 15         |
 
 ---
 
@@ -430,14 +430,14 @@ com.smartretail.{service}/
 
 **RDS schemas (one per bounded context):**
 
-| Schema | Owner |
-|--------|-------|
-| `sales` | SIS |
-| `inventory` | IMS |
-| `replenishment` | RE |
-| `forecasting` | DFS (stub) |
-| `supplier` | SUP (stub) |
-| `promotions` | PPS (stub) |
+| Schema          | Owner      |
+| --------------- | ---------- |
+| `sales`         | SIS        |
+| `inventory`     | IMS        |
+| `replenishment` | RE         |
+| `forecasting`   | DFS (stub) |
+| `supplier`      | SUP (stub) |
+| `promotions`    | PPS (stub) |
 
 No cross-schema SQL joins anywhere. ARS reads multiple schemas via separate queries merged in Java.
 
@@ -483,10 +483,10 @@ smartretail/
 
 No code changes required to switch between modes.
 
-| Mode | Profile | AWS services | Database | Auth |
-|------|---------|-------------|----------|------|
-| `local` | `local` | LocalStack :4566 | Postgres Docker :5432 | Mock bypass |
-| `aws` | `aws` | Real AWS (us-east-1) | RDS via RDS Proxy | Cognito JWT |
+| Mode    | Profile | AWS services         | Database              | Auth        |
+| ------- | ------- | -------------------- | --------------------- | ----------- |
+| `local` | `local` | LocalStack :4566     | Postgres Docker :5432 | Mock bypass |
+| `aws`   | `aws`   | Real AWS (us-east-1) | RDS via RDS Proxy     | Cognito JWT |
 
 ```bash
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # local mode
@@ -497,29 +497,29 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 ## Documentation
 
-| Document | Contents |
-|----------|----------|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | All confirmed architecture decisions |
-| [`docs/FLOWS.md`](docs/FLOWS.md) | Flow specifications + observable evidence checklists |
-| [`docs/API_CONTRACTS.md`](docs/API_CONTRACTS.md) | REST endpoints, request/response shapes, EventBridge events |
-| [`docs/SCHEMAS.md`](docs/SCHEMAS.md) | All 6 RDS schemas + DynamoDB table |
-| [`docs/SERVICE_SPECS.md`](docs/SERVICE_SPECS.md) | Per-service hexagonal package structure + code patterns |
-| [`docs/CDK_SPEC.md`](docs/CDK_SPEC.md) | CDK TypeScript stack specifications |
-| [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md) | Local development guide (full detail) |
-| [`docs/BUILD_SEQUENCE.md`](docs/BUILD_SEQUENCE.md) | Exact commands for local and AWS build/deploy |
-| [`docs/SEED_DATA.md`](docs/SEED_DATA.md) | Reference data, test users, seed SQL |
-| [`docs/MFE_SPECS.md`](docs/MFE_SPECS.md) | React MFE components, API calls, auth library |
-| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Developer onboarding, daily workflow, debugging |
+| Document                                             | Contents                                                    |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)       | All confirmed architecture decisions                        |
+| [`docs/FLOWS.md`](docs/FLOWS.md)                     | Flow specifications + observable evidence checklists        |
+| [`docs/API_CONTRACTS.md`](docs/API_CONTRACTS.md)     | REST endpoints, request/response shapes, EventBridge events |
+| [`docs/SCHEMAS.md`](docs/SCHEMAS.md)                 | All 6 RDS schemas + DynamoDB table                          |
+| [`docs/SERVICE_SPECS.md`](docs/SERVICE_SPECS.md)     | Per-service hexagonal package structure + code patterns     |
+| [`docs/CDK_SPEC.md`](docs/CDK_SPEC.md)               | CDK TypeScript stack specifications                         |
+| [`docs/LOCAL_DEV.md`](docs/LOCAL_DEV.md)             | Local development guide (full detail)                       |
+| [`docs/BUILD_SEQUENCE.md`](docs/BUILD_SEQUENCE.md)   | Exact commands for local and AWS build/deploy               |
+| [`docs/SEED_DATA.md`](docs/SEED_DATA.md)             | Reference data, test users, seed SQL                        |
+| [`docs/MFE_SPECS.md`](docs/MFE_SPECS.md)             | React MFE components, API calls, auth library               |
+| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Developer onboarding, daily workflow, debugging             |
 
 ---
 
 ## Flows Roadmap
 
-| Flow | Description | Status |
-|------|-------------|--------|
-| **1** | POS event → SIS → RDS → IMS → stock alert → EventBridge | ✅ Implemented |
-| **2** | Inventory alert → RE auto-approve → RDS state transition | ✅ Implemented |
-| 3 | SC Planner MFE → RE approve/reject → RDS → EventBridge | 🔲 Specified |
-| 4 | ARS → Store Manager Dashboard MFE | 🔲 Specified |
-| **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs | ✅ Implemented |
-| 9 | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🔲 Specified |
+| Flow  | Description                                                                                                                                                                                          | Status        |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| **1** | POS event → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                              | ✅ Implemented |
+| **2** | Inventory alert → RE auto-approve → RDS state transition                                                                                                                                             | ✅ Implemented |
+| 3     | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                               | 🔲 Specified   |
+| 4     | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | 🔲 Specified   |
+| **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs                   | ✅ Implemented |
+| 9     | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🔲 Specified   |
