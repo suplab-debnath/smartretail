@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SmartRetail Data Stack
+
+Parameters:
+  SrEnv:
+    Type: String
+
+Resources:
+
+  SmartRetailDbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub smartretail-db-secret-${SrEnv}
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"smartretail_admin"}'
+        GenerateStringKey: password
+        ExcludePunctuation: true
+
+  SmartRetailDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.medium
+      Engine: postgres
+      EngineVersion: '18.3'
+      AllocatedStorage: 100
+      StorageEncrypted: true
+      MultiAZ: false
+      MasterUsername: smartretail_admin
+      ManageMasterUserPassword: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      DBName: smartretail
+
+  SmartRetailDbProxy:
+    Type: AWS::RDS::DBProxy
+    Properties:
+      DBProxyName: !Sub smartretail-proxy-${SrEnv}
+      EngineFamily: POSTGRESQL
+      RequireTLS: true
+      RoleArn: arn:aws:iam::123456789012:role/rds-proxy-role
+      VpcSubnetIds:
+        - subnet-xxxxxxxx
+      Auth:
+        - IAMAuth: REQUIRED
+          SecretArn: !Ref SmartRetailDbSecret
+
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub smartretail-idempotency-keys-${SrEnv}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: event_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: event_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
+  EventsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub smartretail-events-${SrEnv}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+Outputs:
+  DbProxyEndpoint:
+    Value: !GetAtt SmartRetailDbProxy.Endpoint
+
+  IdempotencyTableName:
+    Value: !Ref IdempotencyTable

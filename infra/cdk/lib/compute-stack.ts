@@ -1,15 +1,15 @@
-import * as cdk              from 'aws-cdk-lib';
-import * as ec2              from 'aws-cdk-lib/aws-ec2';
-import * as ecs              from 'aws-cdk-lib/aws-ecs';
-import * as ecr              from 'aws-cdk-lib/aws-ecr';
-import * as iam              from 'aws-cdk-lib/aws-iam';
-import * as logs             from 'aws-cdk-lib/aws-logs';
-import * as lambda           from 'aws-cdk-lib/aws-lambda';
+import * as cdk from 'aws-cdk-lib';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
-import * as ssm              from 'aws-cdk-lib/aws-ssm';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { NetworkStack }   from './network-stack';
-import { DataStack }      from './data-stack';
+import { NetworkStack } from './network-stack';
+import { DataStack } from './data-stack';
 import { MessagingStack } from './messaging-stack';
 
 export interface ComputeStackProps extends cdk.StackProps {
@@ -33,14 +33,21 @@ export class ComputeStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
+
+    cdk.Tags.of(this).add('Name', 'smartretail-compute');
+
     const { srEnv, network, data, messaging } = props;
 
     // ── ECS Cluster ───────────────────────────────────────────────────────────
     this.cluster = new ecs.Cluster(this, 'SmartRetailCluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
-      containerInsights: true,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
       enableFargateCapacityProviders: true,
+    });
+
+    this.cluster.addDefaultCloudMapNamespace({
+      name: 'smartretail.local',
     });
 
     const ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
@@ -52,8 +59,8 @@ export class ComputeStack extends cdk.Stack {
 
     // ── Service definitions ───────────────────────────────────────────────────
     const commonEnv = {
-      SMARTRETAIL_ENV:    srEnv,
-      AWS_REGION:        'us-east-1',
+      SMARTRETAIL_ENV: srEnv,
+      AWS_REGION: cdk.Stack.of(this).region,
       RDS_PROXY_ENDPOINT: data.rdsProxy.endpoint,
     };
 
@@ -61,11 +68,11 @@ export class ComputeStack extends cdk.Stack {
       name: 'sis', port: 8080,
       envVars: {
         ...commonEnv,
-        DB_SCHEMA:               'sales',
-        DB_USERNAME:             'smartretail_admin',
-        IDEMPOTENCY_TABLE_NAME:  data.idempotencyTable.tableName,
-        EVENTS_BUCKET_NAME:      data.eventsBucketName,
-        EVENTBRIDGE_BUS_NAME:    messaging.eventBus.eventBusName,
+        DB_SCHEMA: 'sales',
+        DB_USERNAME: 'smartretail_admin',
+        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
+        EVENTS_BUCKET_NAME: data.eventsBucketName,
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
         new iam.PolicyStatement({
@@ -82,7 +89,7 @@ export class ComputeStack extends cdk.Stack {
         }),
         new iam.PolicyStatement({
           actions: ['rds-db:connect'],
-          resources: [`arn:aws:rds-db:us-east-1:${this.account}:dbuser:*/smartretail_admin`],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
         }),
       ],
     };
@@ -91,9 +98,9 @@ export class ComputeStack extends cdk.Stack {
       name: 'ims', port: 8081,
       envVars: {
         ...commonEnv,
-        DB_SCHEMA:            'inventory',
-        DB_USERNAME:          'smartretail_admin',
-        IMS_SALES_QUEUE_URL:  messaging.imsSalesQueue.queueUrl,
+        DB_SCHEMA: 'inventory',
+        DB_USERNAME: 'smartretail_admin',
+        IMS_SALES_QUEUE_URL: messaging.imsSalesQueue.queueUrl,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
@@ -107,7 +114,7 @@ export class ComputeStack extends cdk.Stack {
         }),
         new iam.PolicyStatement({
           actions: ['rds-db:connect'],
-          resources: [`arn:aws:rds-db:us-east-1:${this.account}:dbuser:*/smartretail_admin`],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
         }),
       ],
     };
@@ -126,11 +133,12 @@ export class ComputeStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
       ],
     });
     lambdaRole.addToPolicy(new iam.PolicyStatement({
       actions: ['kinesis:GetRecords', 'kinesis:GetShardIterator',
-                'kinesis:DescribeStream', 'kinesis:ListShards'],
+        'kinesis:DescribeStream', 'kinesis:ListShards'],
       resources: [messaging.kinesisStream.streamArn],
     }));
     lambdaRole.addToPolicy(new iam.PolicyStatement({
@@ -138,31 +146,29 @@ export class ComputeStack extends cdk.Stack {
       resources: [data.idempotencyTable.tableArn],
     }));
 
-    const kinesisConsumerFn = new lambda.Function(this, 'KinesisConsumer', {
+    const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
-      runtime: lambda.Runtime.JAVA_21,
-      handler: 'com.smartretail.lambda.kinesis.KinesisConsumerHandler::handleRequest',
-      code: lambda.Code.fromEcrImage(kinesisConsumerRepo),
+      code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [network.sgEcsTasks],
+      securityGroups: [network.sgLambda],
       timeout: cdk.Duration.seconds(300),
       memorySize: 512,
       role: lambdaRole,
       environment: {
-        SIS_ENDPOINT:           `http://smartretail-sis-${srEnv}.${this.cluster.clusterName}:8080`,
+        SIS_ENDPOINT: `http://smartretail-sis-${srEnv}.smartretail.local:8080`,
         IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        ENV:                    srEnv,
+        ENV: srEnv,
       },
     });
 
     kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(
       messaging.kinesisStream, {
-        startingPosition: lambda.StartingPosition.LATEST,
-        batchSize: 100,
-        bisectBatchOnError: true,
-        retryAttempts: 3,
-      }
+      startingPosition: lambda.StartingPosition.LATEST,
+      batchSize: 100,
+      bisectBatchOnError: true,
+      retryAttempts: 3,
+    }
     ));
 
     // SSM outputs
@@ -182,6 +188,11 @@ export class ComputeStack extends cdk.Stack {
       repositoryName: `smartretail-${config.name}-${srEnv}`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       emptyOnDelete: true,
+      lifecycleRules: [
+        {
+          maxImageCount: 10,
+        },
+      ],
     });
 
     const taskRole = new iam.Role(this, `${config.name}TaskRole`, {
@@ -220,7 +231,7 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
-    return new ecs.FargateService(this, `${config.name}Service`, {
+    const service = new ecs.FargateService(this, `${config.name}Service`, {
       cluster: this.cluster,
       taskDefinition: taskDef,
       serviceName: `smartretail-${config.name}-${srEnv}`,
@@ -230,6 +241,20 @@ export class ComputeStack extends cdk.Stack {
       securityGroups: [network.sgEcsTasks],
       healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
+      cloudMapOptions: {
+        name: `smartretail-${config.name}-${srEnv}`,
+      },
     });
+
+    const scaling = service.autoScaleTaskCount({
+      minCapacity: 1,
+      maxCapacity: 10,
+    });
+
+    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, {
+      targetUtilizationPercent: 70,
+    });
+
+    return service;
   }
 }

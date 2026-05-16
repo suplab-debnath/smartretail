@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SmartRetail API Stack
+
+Parameters:
+  SrEnv:
+    Type: String
+
+Resources:
+
+  VpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub smartretail-vpc-link-${SrEnv}
+      SecurityGroupIds:
+        - sg-xxxxxxxx
+      SubnetIds:
+        - subnet-xxxxxxxx
+
+  SmartRetailApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub smartretail-api-${SrEnv}
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+        AllowOrigins:
+          - '*'
+
+  JwtAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      AuthorizerType: JWT
+      IdentitySource:
+        - $request.header.Authorization
+      JwtConfiguration:
+        Audience:
+          - cognito-client-id
+        Issuer: https://cognito-idp.us-east-1.amazonaws.com/pool-id
+      Name: CognitoJwtAuthorizer
+
+  SisIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref VpcLink
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: http://smartretail-sis-dev.smartretail.local:8080
+
+  SisRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      RouteKey: POST /v1/ingest/{proxy+}
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref SisIntegration
+
+Outputs:
+  ApiEndpoint:
+    Value: !GetAtt SmartRetailApi.ApiEndpoint

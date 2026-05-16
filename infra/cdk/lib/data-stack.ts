@@ -1,9 +1,9 @@
-import * as cdk      from 'aws-cdk-lib';
-import * as ec2      from 'aws-cdk-lib/aws-ec2';
-import * as rds      from 'aws-cdk-lib/aws-rds';
+import * as cdk from 'aws-cdk-lib';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as rds from 'aws-cdk-lib/aws-rds';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as s3       from 'aws-cdk-lib/aws-s3';
-import * as ssm      from 'aws-cdk-lib/aws-ssm';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
 
@@ -19,19 +19,22 @@ export class DataStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
+
+    cdk.Tags.of(this).add('Name', 'smartretail-data');
+
     const { srEnv, network } = props;
     const account = this.account;
 
-    // ── RDS Aurora PostgreSQL ─────────────────────────────────────────────────
+    // ── RDS PostgreSQL ─────────────────────────────────────────────────
     const rdsInstance = new rds.DatabaseInstance(this, 'SmartRetailRds', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_15_4,
+        version: rds.PostgresEngineVersion.VER_18_3,
       }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [network.sgRds],
-      multiAz: true,
+      multiAz: srEnv === 'prod',
       databaseName: 'smartretail',
       credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin'),
       backupRetention: cdk.Duration.days(7),
@@ -59,7 +62,7 @@ export class DataStack extends cdk.Stack {
       partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       timeToLiveAttribute: 'expires_at',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
     // ── S3 Buckets ────────────────────────────────────────────────────────────
@@ -90,10 +93,10 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/proxy-endpoint',            this.rdsProxy.endpoint);
-    put('rds/instance-endpoint',         rdsInstance.instanceEndpoint.hostname);
-    put('rds/secret-arn',                rdsInstance.secret!.secretArn);
+    put('rds/proxy-endpoint', this.rdsProxy.endpoint);
+    put('rds/instance-endpoint', rdsInstance.instanceEndpoint.hostname);
+    put('rds/secret-arn', rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
-    put('s3/events-bucket-name',         eventsBucket.bucketName);
+    put('s3/events-bucket-name', eventsBucket.bucketName);
   }
 }

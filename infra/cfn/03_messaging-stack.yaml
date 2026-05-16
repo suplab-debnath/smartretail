@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SmartRetail Messaging Stack
+
+Parameters:
+  SrEnv:
+    Type: String
+
+Resources:
+
+  SmartRetailStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub smartretail-events-${SrEnv}
+      StreamModeDetails:
+        StreamMode: ON_DEMAND
+      RetentionPeriodHours: 168
+
+  SmartRetailBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub smartretail-events-${SrEnv}
+
+  ImsSalesDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub smartretail-ims-sales-${SrEnv}-dlq
+
+  ImsSalesQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub smartretail-ims-sales-${SrEnv}
+      VisibilityTimeout: 120
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ImsSalesDlq.Arn
+        maxReceiveCount: 3
+
+  ReAlertDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub smartretail-re-alert-${SrEnv}-dlq.fifo
+      FifoQueue: true
+
+  ReAlertQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub smartretail-re-alert-${SrEnv}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+
+  SalesTransactionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub smartretail-sales-to-ims-${SrEnv}
+      EventBusName: !Ref SmartRetailBus
+      EventPattern:
+        source:
+          - smartretail.sis
+        detail-type:
+          - SalesTransactionEvent
+      Targets:
+        - Arn: !GetAtt ImsSalesQueue.Arn
+          Id: ImsSalesQueueTarget
+
+Outputs:
+  EventBusArn:
+    Value: !GetAtt SmartRetailBus.Arn

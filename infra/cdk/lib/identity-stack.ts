@@ -1,6 +1,6 @@
-import * as cdk     from 'aws-cdk-lib';
-import * as cognito  from 'aws-cdk-lib/aws-cognito';
-import * as ssm      from 'aws-cdk-lib/aws-ssm';
+import * as cdk from 'aws-cdk-lib';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 export interface IdentityStackProps extends cdk.StackProps {
@@ -8,12 +8,15 @@ export interface IdentityStackProps extends cdk.StackProps {
 }
 
 export class IdentityStack extends cdk.Stack {
-  public readonly internalPool:   cognito.UserPool;
+  public readonly internalPool: cognito.UserPool;
   public readonly internalClient: cognito.UserPoolClient;
-  public readonly supplierPool:   cognito.UserPool;
+  public readonly supplierPool: cognito.UserPool;
 
   constructor(scope: Construct, id: string, props: IdentityStackProps) {
     super(scope, id, props);
+
+    cdk.Tags.of(this).add('Name', 'smartretail-identity');
+
     const { srEnv } = props;
 
     // ── Internal User Pool ────────────────────────────────────────────────────
@@ -30,7 +33,7 @@ export class IdentityStack extends cdk.Stack {
         requireSymbols: true,
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
     ['STORE_MANAGER', 'SC_PLANNER', 'EXECUTIVE', 'ADMIN'].forEach(group => {
@@ -44,7 +47,7 @@ export class IdentityStack extends cdk.Stack {
       userPoolClientName: `smartretail-internal-client-${srEnv}`,
       authFlows: { userSrp: true },
       accessTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.hours(8),
+      refreshTokenValidity: cdk.Duration.hours(7),
       preventUserExistenceErrors: true,
     });
 
@@ -58,14 +61,14 @@ export class IdentityStack extends cdk.Stack {
       customAttributes: {
         supplierId: new cognito.StringAttribute({ mutable: false }),
       },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
     const supplierClient = this.supplierPool.addClient('SupplierAppClient', {
       userPoolClientName: `smartretail-supplier-client-${srEnv}`,
       authFlows: { userSrp: true },
       accessTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.hours(8),
+      refreshTokenValidity: cdk.Duration.hours(7),
       preventUserExistenceErrors: true,
     });
 
@@ -76,9 +79,9 @@ export class IdentityStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('internal-pool-id',   this.internalPool.userPoolId);
+    put('internal-pool-id', this.internalPool.userPoolId);
     put('internal-client-id', this.internalClient.userPoolClientId);
-    put('supplier-pool-id',   this.supplierPool.userPoolId);
+    put('supplier-pool-id', this.supplierPool.userPoolId);
     put('supplier-client-id', supplierClient.userPoolClientId);
   }
 }

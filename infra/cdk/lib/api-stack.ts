@@ -1,13 +1,13 @@
-import * as cdk      from 'aws-cdk-lib';
+import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apiIntegrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import * as apiAuthorizers  from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import * as cognito  from 'aws-cdk-lib/aws-cognito';
-import * as ec2      from 'aws-cdk-lib/aws-ec2';
-import * as ssm      from 'aws-cdk-lib/aws-ssm';
+import * as apiAuthorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { NetworkStack }  from './network-stack';
-import { ComputeStack }  from './compute-stack';
+import { NetworkStack } from './network-stack';
+import { ComputeStack } from './compute-stack';
 import { IdentityStack } from './identity-stack';
 
 export interface ApiStackProps extends cdk.StackProps {
@@ -20,6 +20,9 @@ export interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
+
+    cdk.Tags.of(this).add('Name', 'smartretail-api');
+
     const { srEnv, network, compute, identity } = props;
 
     // ── VPC Link ──────────────────────────────────────────────────────────────
@@ -36,7 +39,7 @@ export class ApiStack extends cdk.Stack {
       corsPreflight: {
         allowHeaders: ['Content-Type', 'Authorization'],
         allowMethods: [apigateway.CorsHttpMethod.GET, apigateway.CorsHttpMethod.POST,
-                       apigateway.CorsHttpMethod.PUT, apigateway.CorsHttpMethod.PATCH],
+        apigateway.CorsHttpMethod.PUT, apigateway.CorsHttpMethod.PATCH],
         allowOrigins: ['*'],
         maxAge: cdk.Duration.seconds(300),
       },
@@ -46,8 +49,8 @@ export class ApiStack extends cdk.Stack {
     const issuerUrl = `https://cognito-idp.us-east-1.amazonaws.com/${identity.internalPool.userPoolId}`;
     const jwtAuthorizer = new apiAuthorizers.HttpJwtAuthorizer(
       'CognitoJwtAuthorizer', issuerUrl, {
-        jwtAudience: [identity.internalClient.userPoolClientId],
-      }
+      jwtAudience: [identity.internalClient.userPoolClientId],
+    }
     );
 
     // ── Routes — SIS ─────────────────────────────────────────────────────────

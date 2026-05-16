@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
-import * as ec2  from 'aws-cdk-lib/aws-ec2';
-import * as ssm  from 'aws-cdk-lib/aws-ssm';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 export interface NetworkStackProps extends cdk.StackProps {
@@ -9,14 +9,18 @@ export interface NetworkStackProps extends cdk.StackProps {
 
 export class NetworkStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
-  public readonly sgEcsTasks:       ec2.SecurityGroup;
-  public readonly sgRdsProxy:       ec2.SecurityGroup;
-  public readonly sgRds:            ec2.SecurityGroup;
+  public readonly sgEcsTasks: ec2.SecurityGroup;
+  public readonly sgLambda: ec2.SecurityGroup;
+  public readonly sgRdsProxy: ec2.SecurityGroup;
+  public readonly sgRds: ec2.SecurityGroup;
   public readonly sgApiGatewayLink: ec2.SecurityGroup;
-  public readonly sgVpcEndpoints:   ec2.SecurityGroup;
+  public readonly sgVpcEndpoints: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
     super(scope, id, props);
+
+    cdk.Tags.of(this).add('Name', 'smartretail-network')
+
     const { srEnv } = props;
 
     // ── VPC ──────────────────────────────────────────────────────────────────
@@ -25,9 +29,9 @@ export class NetworkStack extends cdk.Stack {
       maxAzs: 3,
       natGateways: 3,
       subnetConfiguration: [
-        { name: 'Public',      subnetType: ec2.SubnetType.PUBLIC,            cidrMask: 24 },
-        { name: 'PrivateApp',  subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
-        { name: 'PrivateData', subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  cidrMask: 24 },
+        { name: 'Public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
+        { name: 'PrivateApp', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
+        { name: 'PrivateData', subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
       ],
       enableDnsHostnames: true,
       enableDnsSupport: true,
@@ -37,15 +41,19 @@ export class NetworkStack extends cdk.Stack {
     this.sgApiGatewayLink = new ec2.SecurityGroup(this, 'SgApiGatewayLink', {
       vpc: this.vpc, description: 'VPC Link from API Gateway to ECS', allowAllOutbound: true,
     });
-    this.sgApiGatewayLink.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8080));
+    this.sgApiGatewayLink.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8081));
 
     this.sgEcsTasks = new ec2.SecurityGroup(this, 'SgEcsTasks', {
-      vpc: this.vpc, description: 'ECS task security group', allowAllOutbound: false,
+      vpc: this.vpc, description: 'ECS task security group', allowAllOutbound: true,
     });
-    this.sgEcsTasks.addIngressRule(this.sgApiGatewayLink, ec2.Port.tcp(8080));
+    this.sgEcsTasks.addIngressRule(this.sgApiGatewayLink, ec2.Port.tcp(8081));
+
+    this.sgLambda = new ec2.SecurityGroup(this, 'SgLambda', {
+      vpc: this.vpc, description: 'Lambda security group', allowAllOutbound: true,
+    });
 
     this.sgRdsProxy = new ec2.SecurityGroup(this, 'SgRdsProxy', {
-      vpc: this.vpc, description: 'RDS Proxy security group', allowAllOutbound: false,
+      vpc: this.vpc, description: 'RDS Proxy security group', allowAllOutbound: true,
     });
     this.sgRdsProxy.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(5432));
 
@@ -60,13 +68,13 @@ export class NetworkStack extends cdk.Stack {
     this.sgVpcEndpoints.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(443));
 
     // Allow ECS tasks to reach VPC endpoints and egress via NAT
-    this.sgEcsTasks.addEgressRule(this.sgRdsProxy,     ec2.Port.tcp(5432));
+    this.sgEcsTasks.addEgressRule(this.sgRdsProxy, ec2.Port.tcp(5432));
     this.sgEcsTasks.addEgressRule(this.sgVpcEndpoints, ec2.Port.tcp(443));
-    this.sgEcsTasks.addEgressRule(ec2.Peer.anyIpv4(),  ec2.Port.tcp(443)); // for SDK calls via NAT
-    this.sgRdsProxy.addEgressRule(this.sgRds,          ec2.Port.tcp(5432));
+    this.sgEcsTasks.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443)); // for SDK calls via NAT
+    this.sgRdsProxy.addEgressRule(this.sgRds, ec2.Port.tcp(5432));
 
     // ── VPC Endpoints ─────────────────────────────────────────────────────────
-    this.vpc.addGatewayEndpoint('S3Endpoint',       { service: ec2.GatewayVpcEndpointAwsService.S3 });
+    this.vpc.addGatewayEndpoint('S3Endpoint', { service: ec2.GatewayVpcEndpointAwsService.S3 });
     this.vpc.addGatewayEndpoint('DynamoDBEndpoint', { service: ec2.GatewayVpcEndpointAwsService.DYNAMODB });
 
     const interfaceServices = [
@@ -77,6 +85,10 @@ export class NetworkStack extends cdk.Stack {
       ec2.InterfaceVpcEndpointAwsService.ECR,
       ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER,
       ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
+      ec2.InterfaceVpcEndpointAwsService.STS,
+      ec2.InterfaceVpcEndpointAwsService.ECS,
+      ec2.InterfaceVpcEndpointAwsService.ECS_AGENT,
+      ec2.InterfaceVpcEndpointAwsService.ECS_TELEMETRY,
     ];
     interfaceServices.forEach((svc, i) => {
       this.vpc.addInterfaceEndpoint(`InterfaceEndpoint${i}`, {
@@ -93,12 +105,12 @@ export class NetworkStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('vpc-id',                    this.vpc.vpcId);
-    put('private-app-subnet-ids',    this.vpc.privateSubnets.map(s => s.subnetId).join(','));
-    put('private-data-subnet-ids',   this.vpc.isolatedSubnets.map(s => s.subnetId).join(','));
-    put('sg-ecs-tasks-id',           this.sgEcsTasks.securityGroupId);
-    put('sg-rds-proxy-id',           this.sgRdsProxy.securityGroupId);
-    put('sg-rds-id',                 this.sgRds.securityGroupId);
-    put('sg-api-gateway-link-id',    this.sgApiGatewayLink.securityGroupId);
+    put('vpc-id', this.vpc.vpcId);
+    put('private-app-subnet-ids', this.vpc.privateSubnets.map(s => s.subnetId).join(','));
+    put('private-data-subnet-ids', this.vpc.isolatedSubnets.map(s => s.subnetId).join(','));
+    put('sg-ecs-tasks-id', this.sgEcsTasks.securityGroupId);
+    put('sg-rds-proxy-id', this.sgRdsProxy.securityGroupId);
+    put('sg-rds-id', this.sgRds.securityGroupId);
+    put('sg-api-gateway-link-id', this.sgApiGatewayLink.securityGroupId);
   }
 }

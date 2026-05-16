@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SmartRetail Compute Stack
+
+Parameters:
+  SrEnv:
+    Type: String
+
+Resources:
+
+  SmartRetailCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub smartretail-${SrEnv}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  SisRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub smartretail-sis-${SrEnv}
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  SisTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub smartretail-sis-${SrEnv}
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt EcsExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: sis
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/smartretail-sis-${SrEnv}:latest
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: aws
+            - Name: SMARTRETAIL_ENV
+              Value: !Ref SrEnv
+
+  SisService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub smartretail-sis-${SrEnv}
+      Cluster: !Ref SmartRetailCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref SisTaskDefinition
+      EnableExecuteCommand: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - sg-xxxxxxxx
+          Subnets:
+            - subnet-xxxxxxxx
+
+  KinesisConsumerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      PackageType: Image
+      FunctionName: !Sub smartretail-kinesis-consumer-${SrEnv}
+      Role: arn:aws:iam::123456789012:role/lambda-role
+      Code:
+        ImageUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/smartretail-kinesis-consumer-${SrEnv}:latest
+      Timeout: 300
+      MemorySize: 512
+
+Outputs:
+  ClusterName:
+    Value: !Ref SmartRetailCluster
