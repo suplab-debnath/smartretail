@@ -3,7 +3,7 @@
 A prototype of an event-driven retail supply chain platform built on AWS.
 It demonstrates a complete POS-to-inventory pipeline using Kinesis, Lambda, ECS Fargate, EventBridge, SQS, RDS PostgreSQL, and DynamoDB.
 
-> **Implementation status:** Flows 1 and 2 are implemented and tested. Flows 3–9 are specified but not yet built.
+> **Implementation status:** Flows 1, 2, and 8 are implemented and tested. Flows 3, 4, and 9 are specified but not yet built.
 
 ---
 
@@ -125,7 +125,60 @@ Seed data: `SKU-BEV-003 / DC-LONDON` has `auto_approve_threshold = 0` — always
 
 ---
 
+## What Flow 8 Does
+
+**Pre-condition:** Seed data (`make local-seed`) must be applied. Flow 8 is read-only — no write path is exercised.
+
+```
+Seed data (V7__seed_data.sql)
+    ├── forecasting.forecast_runs        30 daily MAPE values (0.1187 → 0.0823, improving)
+    ├── forecasting.demand_forecasts     180 rows: 20 SKUs × 3 DCs × 3 horizons (P10/P50/P90)
+    ├── inventory.stock_alerts           21 pre-seeded alerts (1 CRITICAL, 5 HIGH, 15 MEDIUM)
+    ├── replenishment.purchase_orders    50 completed POs across 5 suppliers (last 90 days)
+    └── supplier.supplier_pos +          shipment records with early / on-time / late delivery
+        supplier.shipment_updates
+            │
+            ▼  GET /v1/dashboard/executive
+ARS — Analytics & Reporting Service   (ECS Fargate, port 8083)
+    ├── Read forecasting.forecast_runs          → Forecast Accuracy (MAPE) trend
+    ├── Read inventory.stock_alerts             → Stockout Incidents by DC + category
+    ├── Read replenishment.purchase_orders      → Fulfilment Rate + Replenishment Lead Time
+    ├── Read supplier.supplier_pos +            → On-Time Delivery %, Supplier Comparison,
+    │        supplier.shipment_updates             Delivery Histogram, Top Stockout SKUs
+    └── Compute inventory carrying cost         → on_hand × cost_per_unit per replenishment_rules
+    (all schema reads are separate queries — no cross-schema SQL joins)
+            │
+            ▼  JSON response
+Executive Insights Dashboard MFE   (localhost:5175 / CloudFront)
+    ├── Section 1: KPI Scorecard row        Fulfilment Rate | OTD % | MAPE | Lead Time
+    ├── Section 2: Stockout Incidents       BarChart by DC and category (30-day trend)
+    ├── Section 3: MAPE Trend               LineChart, 30 points, 0.15 threshold line
+    ├── Section 4: Supplier Comparison      Ranked table + Delivery Histogram (Early/On-Time/Late)
+    └── Section 5: Secondary KPIs          Stockout Frequency | Carrying Cost Trend | Top Stockout SKUs
+```
+
+**Observable evidence (all 11 checks must pass):**
+
+| Check | What to verify |
+|-------|---------------|
+| 8.1 | Fulfilment Rate KPI card renders with platform-wide fill rate % |
+| 8.2 | Stockout Incidents card renders; 30-day trend chart by DC and category visible |
+| 8.3 | MAPE Trend LineChart renders ≥30 data points; 0.15 threshold reference line visible |
+| 8.4 | On-Time Delivery % KPI card renders aggregate OTD % |
+| 8.5 | Supplier Performance Comparison table renders 5 suppliers ranked by OTD (Metro Food last at 71%, Chill Chain first at 95%) |
+| 8.6 | Delivery Performance Histogram renders Early / On-Time / Delayed grouped bars |
+| 8.7 | Inventory Carrying Cost Trend card shows % change vs prior period |
+| 8.8 | Replenishment Lead Time KPI card renders average PO cycle days |
+| 8.9 | Top Stockout SKUs table renders ≥5 items with DC, category, and count |
+| 8.10 | EXECUTIVE role cannot call SC Planner API (`GET /v1/dashboard/sc-planner` → 403) |
+| 8.11 | `dataFreshness` timestamp displayed on all dashboard sections |
+
+**No write path.** The Executive Dashboard is entirely read-only. All data comes from pre-seeded RDS rows via ARS cross-schema aggregation. ARS merges results in Java — no SQL joins across schemas.
+
+---
+
 ## Prerequisites
+
 
 | Tool | Version | Install |
 |------|---------|---------|
@@ -203,6 +256,10 @@ make test-flow1
 make test-flow2
 # Expected: ✅ 2 passed  ❌ 0 failed
 # Pre-condition: Flow 1 must have run first (RE queue must have an InventoryAlertEvent)
+
+make test-flow8
+# Expected: ✅ 11 passed  ❌ 0 failed
+# Pre-condition: make local-seed must have run (seed data required)
 ```
 
 Trigger Flow 1 manually:
@@ -221,6 +278,13 @@ docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
 # Manual approval PO (SKU-BEV-003)
 docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
   -c "SELECT po_id, workflow_status, version FROM replenishment.purchase_orders WHERE sku_id = 'SKU-BEV-003' AND dc_id = 'DC-LONDON' ORDER BY created_at DESC LIMIT 1;"
+```
+
+Verify Flow 8 via the Executive Dashboard MFE at http://localhost:5175 (sign in as `exec1@test.com`):
+```bash
+# Or directly via ARS
+curl -s http://localhost:8083/v1/dashboard/executive | python3 -m json.tool
+# Expected: kpis block with fulfilmentRate, onTimeDelivery, forecastAccuracy (9 surfaces)
 ```
 
 ### 5. Stop
@@ -298,6 +362,28 @@ curl "http://localhost:8082/v1/replenishment/orders/{poId}"
 ```
 
 Flow 2 is entirely event-driven (SQS consumer). The RE service creates purchase orders autonomously — no REST call required to trigger it.
+
+### ARS — GET /v1/dashboard/executive
+
+Returns all nine Executive Dashboard KPI surfaces in one response. Requires seed data (`make local-seed`).
+
+```bash
+curl -s http://localhost:8083/v1/dashboard/executive | python3 -m json.tool
+# Returns:
+# {
+#   "kpis": {
+#     "fulfilmentRate": { "value": 0.94, "trend": "STABLE" },
+#     "onTimeDelivery": { "value": 0.86, "trend": "IMPROVING" },
+#     "forecastAccuracy": { "latestMape": 0.0823, "status": "WITHIN_THRESHOLD", "history": [...30 points] },
+#     "replenishmentLeadTime": { "avgDays": 6.2, "trend": "STABLE" },
+#     "stockoutIncidents": { "last30Days": 12, "byDc": {...}, "byCategory": {...} },
+#     "supplierPerformance": [ ...5 suppliers ranked by OTD ],
+#     "deliveryHistogram": { "early": {...}, "onTime": {...}, "late": {...} },
+#     "inventoryCarryingCost": { "currentPeriod": 128450.00, "priorPeriod": 124230.00, "changePercent": 3.4 },
+#     "topStockoutSkus": [ ...top 5 SKUs ]
+#   },
+#   "dataFreshness": "2026-05-16T11:00:00Z"
+# }
 
 ---
 
@@ -435,5 +521,5 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | **2** | Inventory alert → RE auto-approve → RDS state transition | ✅ Implemented |
 | 3 | SC Planner MFE → RE approve/reject → RDS → EventBridge | 🔲 Specified |
 | 4 | ARS → Store Manager Dashboard MFE | 🔲 Specified |
-| 8 | Executive Dashboard — MAPE trend + forecast accuracy | 🔲 Specified |
-| 9 | SC Planner — supplier performance scorecard | 🔲 Specified |
+| **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs | ✅ Implemented |
+| 9 | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🔲 Specified |
