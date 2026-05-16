@@ -9,12 +9,20 @@ import com.smartretail.ars.adapter.in.web.generated.model.ForecastAccuracyKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.MapeDataPoint;
 import com.smartretail.ars.adapter.in.web.generated.model.OnTimeDeliveryKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.ReplenishmentCycleTimeKpi;
+import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerDashboardResponse;
+import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerForecastAccuracy;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutAlertDataPoint;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutFrequencyKpi;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceEntry;
 import com.smartretail.ars.adapter.in.web.generated.model.Trend;
+import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerSupplierEntry;
 import com.smartretail.ars.domain.model.ExecutiveDashboard;
+import com.smartretail.ars.domain.model.ScPlannerDashboard;
+import com.smartretail.ars.domain.model.SupplierPerformanceDashboard;
 import com.smartretail.ars.port.inbound.ExecutiveDashboardPort;
+import com.smartretail.ars.port.inbound.ScPlannerDashboardPort;
+import com.smartretail.ars.port.inbound.SupplierPerformancePort;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,50 +38,60 @@ import java.util.List;
 import java.util.Set;
 
 @RestController
-@Tag(name = "dashboard", description = "Persona-specific dashboard payloads")
+@Tag(name = "dashboard", description = "Persona-specific aggregated dashboard payloads")
 public class DashboardController implements DashboardApi {
 
     private static final Set<String> EXECUTIVE_ROLES = Set.of("EXECUTIVE", "SC_PLANNER", "ADMIN");
     private static final Set<String> PLANNER_ROLES   = Set.of("SC_PLANNER", "ADMIN");
 
     private final ExecutiveDashboardPort executiveDashboardPort;
+    private final ScPlannerDashboardPort scPlannerDashboardPort;
+    private final SupplierPerformancePort supplierPerformancePort;
 
     @Autowired
     private HttpServletRequest httpRequest;
 
-    public DashboardController(ExecutiveDashboardPort executiveDashboardPort) {
-        this.executiveDashboardPort = executiveDashboardPort;
+    public DashboardController(
+            ExecutiveDashboardPort executiveDashboardPort,
+            ScPlannerDashboardPort scPlannerDashboardPort,
+            SupplierPerformancePort supplierPerformancePort) {
+        this.executiveDashboardPort  = executiveDashboardPort;
+        this.scPlannerDashboardPort  = scPlannerDashboardPort;
+        this.supplierPerformancePort = supplierPerformancePort;
     }
+
+    // ── Executive Dashboard (Flow 8) ─────────────────────────────────────────
 
     @Override
     public ResponseEntity<ExecutiveDashboardResponse> getExecutiveDashboard() {
-        if (!hasAnyRole(EXECUTIVE_ROLES)) {
-            return ResponseEntity.status(403).build();
-        }
-        ExecutiveDashboard dashboard = executiveDashboardPort.assemble();
-        return ResponseEntity.ok(toResponse(dashboard));
+        if (!hasAnyRole(EXECUTIVE_ROLES)) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(toExecutiveResponse(executiveDashboardPort.assemble()));
     }
+
+    // ── Store Manager Dashboard (Flow 4) ─────────────────────────────────────
 
     @Override
     public ResponseEntity<Object> getStoreManagerDashboard(String dcId) {
         return ResponseEntity.status(501).build();
     }
 
-    @Override
-    public ResponseEntity<Object> getScPlannerDashboard() {
-        if (!hasAnyRole(PLANNER_ROLES)) {
-            return ResponseEntity.status(403).build();
-        }
-        return ResponseEntity.status(501).build();
-    }
+    // ── SC Planner Dashboard (Flow 9) ────────────────────────────────────────
 
     @Override
-    public ResponseEntity<Object> getSupplierPerformanceDashboard() {
-        if (!hasAnyRole(PLANNER_ROLES)) {
-            return ResponseEntity.status(403).build();
-        }
-        return ResponseEntity.status(501).build();
+    public ResponseEntity<ScPlannerDashboardResponse> getScPlannerDashboard() {
+        if (!hasAnyRole(PLANNER_ROLES)) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(toScPlannerResponse(scPlannerDashboardPort.assemble()));
     }
+
+    // ── Supplier Performance Scorecard (Flow 9) ──────────────────────────────
+
+    @Override
+    public ResponseEntity<SupplierPerformanceDashboardResponse> getSupplierPerformanceDashboard() {
+        if (!hasAnyRole(PLANNER_ROLES)) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(toSupplierPerfResponse(supplierPerformancePort.assemble()));
+    }
+
+    // ── Role extraction ───────────────────────────────────────────────────────
 
     private boolean hasAnyRole(Set<String> allowed) {
         return extractRoles().stream().anyMatch(allowed::contains);
@@ -81,7 +99,7 @@ public class DashboardController implements DashboardApi {
 
     /**
      * Local mode: role from X-Dev-Role header (defaults to EXECUTIVE).
-     * AWS mode: role from cognito:groups JWT claim.
+     * AWS mode:   roles from cognito:groups JWT claim.
      */
     private Set<String> extractRoles() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -93,53 +111,72 @@ public class DashboardController implements DashboardApi {
         return Set.of(header != null ? header : "EXECUTIVE");
     }
 
-    private ExecutiveDashboardResponse toResponse(ExecutiveDashboard domain) {
+    // ── Mappers ───────────────────────────────────────────────────────────────
+
+    private ExecutiveDashboardResponse toExecutiveResponse(ExecutiveDashboard d) {
         ForecastAccuracyKpi forecastKpi = new ForecastAccuracyKpi(
-                domain.forecastAccuracy().latestMape().doubleValue(),
-                Trend.valueOf(domain.forecastAccuracy().trend().name()),
-                domain.forecastAccuracy().history().stream()
+                d.forecastAccuracy().latestMape().doubleValue(),
+                Trend.valueOf(d.forecastAccuracy().trend().name()),
+                d.forecastAccuracy().history().stream()
                         .map(p -> new MapeDataPoint(p.runDate(), p.mape().doubleValue()))
                         .toList()
         );
-
-        List<StockoutAlertDataPoint> stockoutHistory = domain.stockoutFrequency().history().stream()
-                .map(p -> new StockoutAlertDataPoint(p.alertDate(), p.criticalCount()))
-                .toList();
         StockoutFrequencyKpi stockoutKpi = new StockoutFrequencyKpi(
-                domain.stockoutFrequency().last30Days(),
-                DirectionTrend.valueOf(domain.stockoutFrequency().trend().name()),
-                stockoutHistory
+                d.stockoutFrequency().last30Days(),
+                DirectionTrend.valueOf(d.stockoutFrequency().trend().name()),
+                d.stockoutFrequency().history().stream()
+                        .map(p -> new StockoutAlertDataPoint(p.alertDate(), p.criticalCount()))
+                        .toList()
         );
-
-        List<CycleTimeDataPoint> cycleHistory = domain.replenishmentCycleTime().history().stream()
-                .map(p -> new CycleTimeDataPoint(p.weekStart(), p.averageDays().doubleValue(), p.poCount()))
-                .toList();
         ReplenishmentCycleTimeKpi cycleKpi = new ReplenishmentCycleTimeKpi(
-                domain.replenishmentCycleTime().averageDays().doubleValue(),
-                Trend.valueOf(domain.replenishmentCycleTime().trend().name()),
-                cycleHistory
+                d.replenishmentCycleTime().averageDays().doubleValue(),
+                Trend.valueOf(d.replenishmentCycleTime().trend().name()),
+                d.replenishmentCycleTime().history().stream()
+                        .map(p -> new CycleTimeDataPoint(p.weekStart(), p.averageDays().doubleValue(), p.poCount()))
+                        .toList()
         );
-
         OnTimeDeliveryKpi otdKpi = new OnTimeDeliveryKpi(
-                domain.onTimeDelivery().rate().doubleValue(),
-                Trend.valueOf(domain.onTimeDelivery().trend().name())
+                d.onTimeDelivery().rate().doubleValue(),
+                Trend.valueOf(d.onTimeDelivery().trend().name())
         );
-
-        List<SupplierPerformanceEntry> supplierKpis = domain.supplierPerformance().stream()
+        List<SupplierPerformanceEntry> supplierKpis = d.supplierPerformance().stream()
                 .map(s -> new SupplierPerformanceEntry(
+                        s.supplierId(), s.supplierName(),
+                        s.otdRate().doubleValue(), s.fillRate().doubleValue(),
+                        s.earlyCount(), s.onTimeCount(), s.lateCount(), s.openExceptions()))
+                .toList();
+        ExecutiveKpis kpis = new ExecutiveKpis(forecastKpi, stockoutKpi, cycleKpi, otdKpi, supplierKpis);
+        return new ExecutiveDashboardResponse(kpis, d.dataFreshness().atOffset(ZoneOffset.UTC));
+    }
+
+    private ScPlannerDashboardResponse toScPlannerResponse(ScPlannerDashboard d) {
+        ScPlannerForecastAccuracy acc = new ScPlannerForecastAccuracy(
+                d.forecastAccuracy().latestMape().doubleValue(),
+                d.forecastAccuracy().mapeThreshold().doubleValue(),
+                d.forecastAccuracy().lastRunAt().atOffset(ZoneOffset.UTC),
+                ScPlannerForecastAccuracy.StatusEnum.valueOf(d.forecastAccuracy().status().name())
+        );
+        return new ScPlannerDashboardResponse(
+                d.pendingApprovalCount(),
+                d.activeAlertCount(),
+                acc,
+                d.dataFreshness().atOffset(ZoneOffset.UTC)
+        );
+    }
+
+    private SupplierPerformanceDashboardResponse toSupplierPerfResponse(SupplierPerformanceDashboard d) {
+        List<ScPlannerSupplierEntry> entries = d.suppliers().stream()
+                .map(s -> new ScPlannerSupplierEntry(
                         s.supplierId(),
                         s.supplierName(),
-                        s.otdRate().doubleValue(),
-                        s.fillRate().doubleValue(),
-                        s.earlyCount(),
-                        s.onTimeCount(),
-                        s.lateCount(),
-                        s.openExceptions()
+                        s.onTimeDeliveryRate().doubleValue(),
+                        s.poAcknowledgementSlaCompliance().doubleValue(),
+                        s.openExceptions(),
+                        s.avgLeadTimeVarianceDays().doubleValue(),
+                        s.totalPoCount(),
+                        s.totalPoValue().doubleValue()
                 ))
                 .toList();
-
-        ExecutiveKpis kpis = new ExecutiveKpis(forecastKpi, stockoutKpi, cycleKpi, otdKpi, supplierKpis);
-        OffsetDateTime freshness = domain.dataFreshness().atOffset(ZoneOffset.UTC);
-        return new ExecutiveDashboardResponse(kpis, freshness);
+        return new SupplierPerformanceDashboardResponse(entries, d.dataFreshness().atOffset(ZoneOffset.UTC));
     }
 }

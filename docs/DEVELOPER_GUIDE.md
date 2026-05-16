@@ -30,6 +30,8 @@ curl http://localhost:8080/actuator/health  # {"status":"UP"}
 curl http://localhost:8081/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health  # DFS
+curl http://localhost:8085/actuator/health  # SUP
  
 # Seed data loaded
 PGPASSWORD=local_dev_password psql -h localhost -U smartretail_admin -d smartretail \
@@ -483,19 +485,19 @@ PR checklist before merging:
  
 ## Asking Claude Code for Help
  
-When using Claude Code with these documents:
+When using Claude Code with these documents:  
  
-**Always tell it which flow you are building:**
+**Always tell it which flow you are building:**  
 > "I am implementing Flow 2 (inventory alert → RE → PO generation).
 > Read FLOWS.md section Flow 2, SCHEMAS.md replenishment schema,
 > API_CONTRACTS.md RE section, and SERVICE_SPECS.md RE section.
-> Generate the InventoryAlertFifoListener and GeneratePurchaseOrderUseCase."
- 
-**Always reference the architecture rules:**
+> Generate the InventoryAlertFifoListener and GeneratePurchaseOrderUseCase."  
+
+**Always reference the architecture rules:**  
 > "Implement the ApprovalWorkflowUseCase following the hexagonal pattern
 > in SERVICE_SPECS.md. The domain class must have zero AWS imports.
 > Include optimistic locking as specified in SCHEMAS.md purchase_orders."
- 
+
 **Tell it your mode:**
 > "I am running in LOCAL mode with LocalStack. Use application-local.yml
 > configuration. Do not generate IAM auth config — use static credentials

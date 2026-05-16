@@ -45,6 +45,20 @@ public class ReplenishmentReadRepository implements ReplenishmentReadPort {
             ORDER BY week_start DESC
             """;
 
+    private static final String COUNT_PENDING_SQL = """
+            SELECT COUNT(*) FROM replenishment.purchase_orders
+            WHERE workflow_status = 'PENDING_APPROVAL'
+            """;
+
+    private static final String PO_METRICS_SQL = """
+            SELECT supplier_id::UUID,
+                   COUNT(*)::INT    AS total_po_count,
+                   SUM(total_value) AS total_po_value
+            FROM replenishment.purchase_orders
+            WHERE created_at >= NOW() - (:days || ' days')::INTERVAL
+            GROUP BY supplier_id
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public ReplenishmentReadRepository(NamedParameterJdbcTemplate jdbc) {
@@ -82,6 +96,25 @@ public class ReplenishmentReadRepository implements ReplenishmentReadPort {
                         rs.getObject("week_start", LocalDate.class),
                         rs.getBigDecimal("average_days"),
                         rs.getInt("po_count")
+                )
+        );
+    }
+
+    @Override
+    public int countPendingApprovals() {
+        Integer count = jdbc.queryForObject(COUNT_PENDING_SQL, new MapSqlParameterSource(), Integer.class);
+        return count != null ? count : 0;
+    }
+
+    @Override
+    public List<PoMetricsRow> findPoMetricsBySupplierId(int days) {
+        return jdbc.query(
+                PO_METRICS_SQL,
+                new MapSqlParameterSource("days", days),
+                (rs, rowNum) -> new PoMetricsRow(
+                        rs.getObject("supplier_id", UUID.class),
+                        rs.getInt("total_po_count"),
+                        rs.getBigDecimal("total_po_value")
                 )
         );
     }

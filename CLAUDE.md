@@ -84,7 +84,7 @@ smartretail/
 │    │  └── api-stack.ts
 │    └── package.json
 ├── services/
-│   ├── sis/  ims/  re/  ars/
+│   ├── sis/  ims/  re/  ars/  dfs/  sup/
 ├── lambdas/kinesis-consumer/
 ├── migrations
 │  └── flyway/
@@ -207,6 +207,8 @@ Enforced by ArchUnit tests. Violations fail the build.
 | IMS | 8081 |
 | RE | 8082 |
 | ARS | 8083 |
+| DFS | 8084 |
+| SUP | 8085 |
 | PostgreSQL | 5432 |
 | LocalStack | 4566 |
 | Store Manager MFE | 5173 |

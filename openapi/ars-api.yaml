@@ -5,9 +5,17 @@ info:
   version: "1.0.0"
   description: |
     Read-only aggregation service that assembles dashboard payloads for each persona.
-    ARS queries the forecasting, inventory, replenishment, sales, and supplier schemas
+    ARS queries the forecasting, inventory, replenishment, and supplier schemas
     using parallel queries merged in Java — no cross-schema SQL JOINs.
     Role-based access is enforced per endpoint.
+
+    ARS is responsible for:
+      /v1/dashboard/*          — persona-specific aggregated KPI payloads
+
+    Inventory alerts/positions  → IMS  (port 8081, ims-api.yaml)
+    Replenishment orders (CRUD) → RE   (port 8082, re-api.yaml)
+    Demand forecast bands       → DFS  (port 8084, dfs-api.yaml)
+    Supplier order tracking     → SUP  (port 8085, sup-api.yaml)
   contact:
     name: SmartRetail Platform Team
 
@@ -19,7 +27,7 @@ servers:
 
 tags:
   - name: dashboard
-    description: Persona-specific dashboard payloads
+    description: Persona-specific aggregated dashboard payloads
 
 security:
   - BearerAuth: []
@@ -34,6 +42,8 @@ components:
   schemas:
     ErrorResponse:
       $ref: './components/schemas.yaml#/ErrorResponse'
+
+    # ── Shared enums ────────────────────────────────────────────────────────────
 
     Trend:
       type: string
@@ -52,6 +62,8 @@ components:
         - STABLE
         - DECREASING
       example: DECREASING
+
+    # ── Executive KPI schemas (Flow 8) ──────────────────────────────────────────
 
     MapeDataPoint:
       type: object
@@ -211,7 +223,7 @@ components:
 
     SupplierPerformanceEntry:
       type: object
-      description: Delivery performance metrics for a single supplier
+      description: Delivery performance metrics for a single supplier (Executive view)
       required:
         - supplierId
         - supplierName
@@ -226,54 +238,45 @@ components:
         supplierId:
           type: string
           format: uuid
-          description: Supplier UUID
           example: "11111111-0000-0000-0000-000000000001"
         supplierName:
           type: string
-          description: Human-readable supplier name
           example: "Acme Beverages Ltd"
         otdRate:
           type: number
           format: double
           minimum: 0
           maximum: 1
-          description: On-time delivery rate for this supplier (0.0–1.0)
           example: 0.92
         fillRate:
           type: number
           format: double
           minimum: 0
           maximum: 1
-          description: PO fill rate — completed POs / total POs (0.0–1.0)
           example: 1.0
         earlyCount:
           type: integer
           format: int32
           minimum: 0
-          description: Shipments dispatched more than 1 day before ETA
           example: 2
         onTimeCount:
           type: integer
           format: int32
           minimum: 0
-          description: Shipments dispatched on or before ETA
           example: 7
         lateCount:
           type: integer
           format: int32
           minimum: 0
-          description: Shipments dispatched after ETA
           example: 1
         openExceptions:
           type: integer
           format: int32
           minimum: 0
-          description: Number of late-dispatched (overdue) supplier POs
           example: 1
 
     ExecutiveKpis:
       type: object
-      description: All KPI blocks for the executive persona dashboard
       required:
         - forecastAccuracy
         - stockoutFrequency
@@ -315,6 +318,152 @@ components:
           description: Earliest completed_at / created_at timestamp across all contributing queries
           example: "2026-05-15T14:23:00Z"
 
+    # ── SC Planner Dashboard schemas (Flow 9) ───────────────────────────────────
+
+    ScPlannerForecastAccuracy:
+      type: object
+      description: Compact forecast accuracy summary for SC Planner dashboard header
+      required:
+        - latestMape
+        - mapeThreshold
+        - lastRunAt
+        - status
+      additionalProperties: false
+      properties:
+        latestMape:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.0823
+        mapeThreshold:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.15
+        lastRunAt:
+          type: string
+          format: date-time
+          example: "2026-05-15T02:00:00Z"
+        status:
+          type: string
+          enum:
+            - WITHIN_THRESHOLD
+            - ABOVE_THRESHOLD
+          example: WITHIN_THRESHOLD
+
+    ScPlannerDashboardResponse:
+      type: object
+      description: |
+        SC Planner dashboard summary — drives tab badges and header metrics.
+        Parallel reads from inventory.stock_alerts, replenishment.purchase_orders,
+        and forecasting.forecast_runs — no cross-schema SQL joins.
+      required:
+        - pendingApprovalCount
+        - activeAlertCount
+        - forecastAccuracy
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        pendingApprovalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: POs in PENDING_APPROVAL status
+          example: 3
+        activeAlertCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Stock alerts in ACTIVE status
+          example: 43
+        forecastAccuracy:
+          $ref: '#/components/schemas/ScPlannerForecastAccuracy'
+        dataFreshness:
+          type: string
+          format: date-time
+          example: "2026-05-15T14:23:00Z"
+
+    # ── Supplier Performance Scorecard schemas (Flow 9) ─────────────────────────
+
+    ScPlannerSupplierEntry:
+      type: object
+      description: Full supplier performance metrics for SC Planner scorecard
+      required:
+        - supplierId
+        - supplierName
+        - onTimeDeliveryRate
+        - poAcknowledgementSlaCompliance
+        - openExceptions
+        - avgLeadTimeVarianceDays
+        - totalPoCount
+        - totalPoValue
+      additionalProperties: false
+      properties:
+        supplierId:
+          type: string
+          format: uuid
+          example: "11111111-0000-0000-0000-000000000001"
+        supplierName:
+          type: string
+          example: "Acme Beverages Ltd"
+        onTimeDeliveryRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Dispatched within lead_time_days of approval
+          example: 0.92
+        poAcknowledgementSlaCompliance:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.92
+        openExceptions:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 2
+        avgLeadTimeVarianceDays:
+          type: number
+          format: double
+          description: Positive = late, negative = early
+          example: 1.3
+        totalPoCount:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 45
+        totalPoValue:
+          type: number
+          format: double
+          minimum: 0
+          description: Total GBP value of POs in the last 90 days
+          example: 234500.00
+
+    SupplierPerformanceDashboardResponse:
+      type: object
+      description: |
+        Supplier performance scorecard for SC Planner.
+        Three separate queries (supplier names, replenishment PO metrics, shipment metrics)
+        merged in Java by supplierId — no cross-schema SQL joins.
+      required:
+        - suppliers
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        suppliers:
+          type: array
+          description: Sorted by onTimeDeliveryRate ascending (worst first)
+          items:
+            $ref: '#/components/schemas/ScPlannerSupplierEntry'
+        dataFreshness:
+          type: string
+          format: date-time
+          example: "2026-05-15T14:23:00Z"
+
   responses:
     Unauthorized:
       $ref: './components/responses.yaml#/Unauthorized'
@@ -324,6 +473,9 @@ components:
       $ref: './components/responses.yaml#/InternalServerError'
 
 paths:
+
+  # ── Executive Dashboard (Flow 8) ─────────────────────────────────────────────
+
   /v1/dashboard/executive:
     get:
       tags:
@@ -331,17 +483,12 @@ paths:
       operationId: getExecutiveDashboard
       summary: Executive Insights Dashboard
       description: |
-        Returns MAPE trend, stockout frequency, and replenishment cycle time KPIs
-        for the Executive Insights Dashboard (Flow 8).
-
+        Returns MAPE trend, stockout frequency, and replenishment cycle time KPIs.
         Allowed roles: EXECUTIVE, SC_PLANNER, ADMIN.
-        SC_PLANNER and ADMIN are included so they can view executive-level metrics
-        without switching accounts.
-
         Data sources (parallel queries, merged in Java):
-        - forecasting.forecast_runs — last 30 COMPLETED runs, MAPE values
-        - inventory.stock_alerts — CRITICAL alert counts, last 30 and prior 30 days
-        - replenishment.purchase_orders — average DRAFT→DISPATCHED cycle time, last 90 days
+        - forecasting.forecast_runs — last 30 COMPLETED runs
+        - inventory.stock_alerts — CRITICAL alert counts
+        - replenishment.purchase_orders — average cycle time, last 90 days
       responses:
         '200':
           description: Executive dashboard KPIs
@@ -349,31 +496,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExecutiveDashboardResponse'
-              example:
-                kpis:
-                  forecastAccuracy:
-                    latestMape: 0.0823
-                    trend: IMPROVING
-                    history:
-                      - runDate: "2026-05-15"
-                        mape: 0.0823
-                      - runDate: "2026-05-14"
-                        mape: 0.0891
-                      - runDate: "2026-05-13"
-                        mape: 0.0956
-                  stockoutFrequency:
-                    last30Days: 12
-                    trend: DECREASING
-                  replenishmentCycleTime:
-                    averageDays: 3.2
-                    trend: STABLE
-                dataFreshness: "2026-05-15T14:23:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  # ── Store Manager Dashboard (Flow 4) ─────────────────────────────────────────
 
   /v1/dashboard/store-manager:
     get:
@@ -382,8 +512,6 @@ paths:
       operationId: getStoreManagerDashboard
       summary: Store Manager Dashboard (Flow 4 — not yet implemented)
       description: |
-        Returns inventory summary, stock alerts, forecast summary, and pending
-        replenishment count for the Store Manager Dashboard.
         Allowed roles: STORE_MANAGER, ADMIN.
         Implementation planned for Flow 4.
       parameters:
@@ -393,7 +521,6 @@ paths:
           schema:
             type: string
             maxLength: 50
-          description: Distribution Centre identifier — scoped to the requesting manager's DC
           example: "DC-LONDON"
       responses:
         '200':
@@ -414,61 +541,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # ── SC Planner Dashboard (Flow 9) ────────────────────────────────────────────
+
   /v1/dashboard/sc-planner:
     get:
       tags:
         - dashboard
       operationId: getScPlannerDashboard
-      summary: SC Planner Dashboard (Flow 4 — not yet implemented)
+      summary: SC Planner Dashboard Summary
       description: |
-        Returns pending approvals, inventory overview, and supplier performance preview
-        for the Supply Chain Planner Dashboard.
+        Returns pending approval count, active alert count, and forecast accuracy
+        for the SC Planner Console header and tab badges (Flow 9).
         Allowed roles: SC_PLANNER, ADMIN.
-        Implementation planned for Flow 4.
+        Parallel reads — no cross-schema SQL joins:
+        - replenishment.purchase_orders: COUNT PENDING_APPROVAL
+        - inventory.stock_alerts: COUNT ACTIVE
+        - forecasting.forecast_runs: latest MAPE
       responses:
         '200':
-          description: SC Planner dashboard payload
+          description: SC Planner dashboard summary
           content:
             application/json:
               schema:
-                type: object
-                description: SC Planner dashboard — schema defined in Flow 4
+                $ref: '#/components/schemas/ScPlannerDashboardResponse'
+              example:
+                pendingApprovalCount: 3
+                activeAlertCount: 43
+                forecastAccuracy:
+                  latestMape: 0.0823
+                  mapeThreshold: 0.15
+                  lastRunAt: "2026-05-15T02:00:00Z"
+                  status: WITHIN_THRESHOLD
+                dataFreshness: "2026-05-15T14:23:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '501':
-          description: Not yet implemented — available in Flow 4
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Supplier Performance Scorecard (Flow 9) ──────────────────────────────────
 
   /v1/dashboard/supplier-performance:
     get:
       tags:
         - dashboard
       operationId: getSupplierPerformanceDashboard
-      summary: Supplier Performance Scorecard (Flow 9 — not yet implemented)
+      summary: Supplier Performance Scorecard
       description: |
-        Returns on-time delivery rate, SLA compliance, and lead time variance per supplier.
+        Returns OTD rate, SLA compliance, open exceptions, and lead time variance
+        per supplier for the SC Planner Console scorecard tab (Flow 9).
         Allowed roles: SC_PLANNER, ADMIN.
-        Implementation planned for Flow 9.
+        Three separate queries merged in Java by supplierId — no cross-schema SQL joins:
+        - supplier.supplier_records: active supplier names
+        - replenishment.purchase_orders: PO counts and values (last 90 days)
+        - supplier.supplier_pos + supplier.shipment_updates: OTD metrics
       responses:
         '200':
-          description: Supplier performance scorecard payload
+          description: Supplier performance scorecard
           content:
             application/json:
               schema:
-                type: object
-                description: Supplier performance scorecard — schema defined in Flow 9
+                $ref: '#/components/schemas/SupplierPerformanceDashboardResponse'
+              example:
+                suppliers:
+                  - supplierId: "11111111-0000-0000-0000-000000000005"
+                    supplierName: "Metro Food Distributors"
+                    onTimeDeliveryRate: 0.71
+                    poAcknowledgementSlaCompliance: 0.80
+                    openExceptions: 3
+                    avgLeadTimeVarianceDays: 2.1
+                    totalPoCount: 10
+                    totalPoValue: 85000.00
+                  - supplierId: "11111111-0000-0000-0000-000000000004"
+                    supplierName: "Chill Chain Logistics"
+                    onTimeDeliveryRate: 0.95
+                    poAcknowledgementSlaCompliance: 0.98
+                    openExceptions: 0
+                    avgLeadTimeVarianceDays: -0.3
+                    totalPoCount: 10
+                    totalPoValue: 120000.00
+                dataFreshness: "2026-05-15T14:23:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '501':
-          description: Not yet implemented — available in Flow 9
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

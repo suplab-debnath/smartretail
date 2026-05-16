@@ -1,0 +1,198 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Supplier Service API
+  version: "1.0.0"
+  description: |
+    Read-only service that exposes supplier order tracking with shipment progress.
+    Queries run within the supplier schema only — no cross-schema SQL joins.
+    JWT role-based access enforced at the service layer.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8085
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: supplier-orders
+    description: Supplier order tracking with shipment progress
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      $ref: './components/schemas.yaml#/ErrorResponse'
+
+    ShipmentStatus:
+      type: string
+      description: Supplier PO shipment progress status
+      enum:
+        - PENDING
+        - CONFIRMED
+        - DISPATCHED
+        - DELIVERED
+        - EXCEPTION
+      example: DISPATCHED
+
+    SupplierOrder:
+      type: object
+      description: |
+        Supplier PO with its latest shipment update and supplier name.
+        Assembled from queries within the supplier schema only.
+      required:
+        - supplierPoId
+        - poId
+        - supplierId
+        - supplierName
+        - skuId
+        - dcId
+        - quantity
+        - shipmentStatus
+      additionalProperties: false
+      properties:
+        supplierPoId:
+          type: string
+          format: uuid
+          description: Supplier PO UUID
+          example: "d1b2c3d4-0000-0000-0000-000000000001"
+        poId:
+          type: string
+          format: uuid
+          description: Linked replenishment purchase order UUID
+          example: "c1b2c3d4-0000-0000-0000-000000000001"
+        supplierId:
+          type: string
+          format: uuid
+          description: Supplier UUID
+          example: "11111111-0000-0000-0000-000000000001"
+        supplierName:
+          type: string
+          description: Human-readable supplier name
+          example: "Acme Beverages Ltd"
+        skuId:
+          type: string
+          description: Stock-keeping unit identifier
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          description: Destination distribution centre
+          example: "DC-LONDON"
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Ordered quantity (units)
+          example: 500
+        shipmentStatus:
+          $ref: '#/components/schemas/ShipmentStatus'
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the supplier confirmed the order
+          example: null
+        dispatchedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the supplier dispatched the shipment
+          example: null
+        eta:
+          type: string
+          format: date
+          nullable: true
+          description: Expected delivery date
+          example: "2026-05-20"
+        lastUpdateAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the most recent shipment update
+          example: "2026-05-16T08:00:00Z"
+
+    SupplierOrderListResponse:
+      type: object
+      description: List of supplier orders for SC Planner tracking view
+      required:
+        - orders
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        orders:
+          type: array
+          description: EXCEPTION rows first, then sorted by eta ascending
+          items:
+            $ref: '#/components/schemas/SupplierOrder'
+        dataFreshness:
+          type: string
+          format: date-time
+          description: MAX(last_update_at) across returned supplier POs
+          example: "2026-05-15T14:23:00Z"
+
+  responses:
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/Forbidden'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+
+paths:
+  /v1/supplier/orders:
+    get:
+      tags:
+        - supplier-orders
+      operationId: getSupplierOrders
+      summary: List supplier orders with shipment progress
+      description: |
+        Returns supplier POs joined with their latest shipment update and supplier name.
+        All queries run within the supplier schema — no cross-schema SQL joins.
+        Sorted by eta ascending, with EXCEPTION status rows first.
+        Allowed roles: SC_PLANNER, ADMIN.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ShipmentStatus'
+          description: Filter by shipment status. Omit to return all statuses.
+          example: DISPATCHED
+      responses:
+        '200':
+          description: List of supplier orders with shipment progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierOrderListResponse'
+              example:
+                orders:
+                  - supplierPoId: "d1b2c3d4-0000-0000-0000-000000000001"
+                    poId: "c1b2c3d4-0000-0000-0000-000000000001"
+                    supplierId: "11111111-0000-0000-0000-000000000001"
+                    supplierName: "Acme Beverages Ltd"
+                    skuId: "SKU-BEV-001"
+                    dcId: "DC-LONDON"
+                    quantity: 500
+                    shipmentStatus: DISPATCHED
+                    confirmedAt: "2026-04-16T10:00:00Z"
+                    dispatchedAt: "2026-04-17T08:00:00Z"
+                    eta: "2026-04-19"
+                    lastUpdateAt: "2026-04-18T08:00:00Z"
+                dataFreshness: "2026-05-15T14:23:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

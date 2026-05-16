@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -20,6 +21,15 @@ public class ForecastReadRepository implements ForecastReadPort {
               AND mape IS NOT NULL
             ORDER BY started_at DESC
             LIMIT :limit
+            """;
+
+    private static final String LATEST_MAPE_SQL = """
+            SELECT mape, completed_at
+            FROM forecasting.forecast_runs
+            WHERE status = 'COMPLETED'
+              AND mape IS NOT NULL
+            ORDER BY started_at DESC
+            LIMIT 1
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -39,4 +49,22 @@ public class ForecastReadRepository implements ForecastReadPort {
                 )
         );
     }
+
+    @Override
+    public LatestMape findLatestMape() {
+        List<LatestMape> results = jdbc.query(
+                LATEST_MAPE_SQL,
+                new MapSqlParameterSource(),
+                (rs, rowNum) -> new LatestMape(
+                        rs.getBigDecimal("mape"),
+                        rs.getObject("completed_at", java.sql.Timestamp.class) != null
+                                ? rs.getObject("completed_at", java.sql.Timestamp.class).toInstant()
+                                : Instant.now()
+                )
+        );
+        return results.isEmpty()
+                ? new LatestMape(BigDecimal.ZERO, Instant.now())
+                : results.getFirst();
+    }
+
 }

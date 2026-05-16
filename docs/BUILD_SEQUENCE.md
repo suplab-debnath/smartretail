@@ -27,7 +27,7 @@ npm run build --prefix mfe/shared/auth
  
 # 3. Build Java services (creates JAR files)
 mvn clean package -DskipTests \
-    -pl services/sis,services/ims,services/re,services/ars \
+    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
     -am --no-transfer-progress
  
 # 4. Start Docker Compose (Postgres + LocalStack)
@@ -99,6 +99,14 @@ cd services/ars && SPRING_PROFILES_ACTIVE=local \
     DB_SCHEMA=ars_readonly DB_USERNAME=ars_readonly \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
  
+# Terminal 5:
+cd services/dfs && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+    mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8084"
+
+# Terminal 6:
+cd services/sup && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+    mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8085"
+
 # 11. Verify all services healthy
 curl http://localhost:8080/actuator/health  # SIS
 curl http://localhost:8081/actuator/health  # IMS
@@ -106,6 +114,10 @@ curl http://localhost:8082/actuator/health  # RE
 curl http://localhost:8083/actuator/health  # ARS
 # All should return: {"status":"UP"}
  
+curl http://localhost:8084/actuator/health  # DFS
+curl http://localhost:8085/actuator/health  # SUP
+# All should return: {"status":"UP"}
+
 # 12. Run Flow 1 smoke test (local mode)
 SMARTRETAIL_ENV=local SIS_ENDPOINT=http://localhost:8080 \
     python3 scripts/publish-pos-event.py \
@@ -165,7 +177,7 @@ cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)
 ```bash
 # Build Java JARs (needed for CDK to package Lambda and seed task)
 mvn clean package -DskipTests \
-    -pl services/sis,services/ims,services/re,services/ars,lambdas/kinesis-consumer \
+    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,lambdas/kinesis-consumer \
     -am --no-transfer-progress
  
 # Verify JARs created
@@ -319,7 +331,7 @@ echo "✅ All test users created"
 cdk deploy ComputeStack --require-approval never
  
 # Wait for ECS services to stabilize (takes 3-5 minutes)
-for svc in sis ims re ars; do
+for svc in sis ims re ars dfs sup; do
     aws ecs wait services-stable \
         --cluster smartretail-dev \
         --services smartretail-${svc}-dev

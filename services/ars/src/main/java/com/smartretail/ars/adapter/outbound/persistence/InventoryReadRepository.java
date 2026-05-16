@@ -28,6 +28,10 @@ public class InventoryReadRepository implements InventoryReadPort {
             ORDER BY alert_date DESC
             """;
 
+    private static final String COUNT_ACTIVE_SQL = """
+            SELECT COUNT(*) FROM inventory.stock_alerts WHERE status = 'ACTIVE'
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public InventoryReadRepository(NamedParameterJdbcTemplate jdbc) {
@@ -54,5 +58,11 @@ public class InventoryReadRepository implements InventoryReadPort {
                         rs.getInt("critical_count")
                 )
         );
+    }
+
+    @Override
+    public int countActiveAlerts() {
+        Integer count = jdbc.queryForObject(COUNT_ACTIVE_SQL, new MapSqlParameterSource(), Integer.class);
+        return count != null ? count : 0;
     }
 }

@@ -1,0 +1,84 @@
+import { useState } from 'react'
+import { useInventoryPositions } from '../hooks/useInventoryPositions'
+import type { InventoryPosition } from '../types'
+
+type DcId = 'DC-LONDON' | 'DC-MANCHESTER' | 'DC-BIRMINGHAM'
+
+function reorderStatus(pos: InventoryPosition): { label: string; cls: string } {
+  if (pos.atp <= 0) return { label: 'CRITICAL', cls: 'bg-red-100 text-red-700' }
+  if (pos.atp < pos.reorderPoint) return { label: 'REORDER SOON', cls: 'bg-amber-100 text-amber-700' }
+  return { label: 'OK', cls: 'bg-green-100 text-green-700' }
+}
+
+interface PositionCardProps {
+  pos: InventoryPosition
+}
+
+function PositionCard({ pos }: PositionCardProps) {
+  const { label, cls } = reorderStatus(pos)
+  return (
+    <div className="bg-white rounded-lg shadow p-4 border-t-4 border-gray-200">
+      <div className="flex items-start justify-between mb-2">
+        <span className="font-mono text-sm font-semibold text-gray-800">{pos.skuId}</span>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>
+          {label}
+        </span>
+      </div>
+      <dl className="grid grid-cols-2 gap-1 text-xs text-gray-600">
+        <dt className="text-gray-500">On-Hand</dt>
+        <dd className="text-right font-medium">{pos.onHand.toLocaleString()}</dd>
+        <dt className="text-gray-500">In-Transit</dt>
+        <dd className="text-right font-medium">{pos.inTransit.toLocaleString()}</dd>
+        <dt className="text-gray-500">Reserved</dt>
+        <dd className="text-right font-medium">{pos.reserved.toLocaleString()}</dd>
+        <dt className="text-gray-500">ATP</dt>
+        <dd className={`text-right font-bold ${pos.atp <= 0 ? 'text-red-600' : pos.atp < pos.reorderPoint ? 'text-amber-600' : 'text-green-600'}`}>
+          {pos.atp.toLocaleString()}
+        </dd>
+      </dl>
+    </div>
+  )
+}
+
+export function InventoryOverviewTab() {
+  const [selectedDc, setSelectedDc] = useState<DcId>('DC-LONDON')
+  const { data, loading, error } = useInventoryPositions(selectedDc)
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-3">
+        <label className="text-sm font-medium text-gray-700">Distribution Centre:</label>
+        <select
+          value={selectedDc}
+          onChange={e => setSelectedDc(e.target.value as DcId)}
+          className="border border-gray-300 rounded px-2 py-1 text-sm"
+        >
+          {(['DC-LONDON', 'DC-MANCHESTER', 'DC-BIRMINGHAM'] as DcId[]).map(dc => (
+            <option key={dc} value={dc}>{dc}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="p-8 text-gray-500">Loading inventory positions…</div>}
+      {error && <div className="p-8 text-red-500">Error loading positions: {error}</div>}
+
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {(data?.positions ?? []).map(pos => (
+              <PositionCard key={pos.positionId} pos={pos} />
+            ))}
+            {(data?.positions ?? []).length === 0 && (
+              <div className="col-span-3 py-12 text-center text-gray-400">No inventory positions found</div>
+            )}
+          </div>
+          {data?.dataFreshness && (
+            <p className="mt-4 text-xs text-gray-400">
+              Data as of {new Date(data.dataFreshness).toLocaleTimeString()}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

@@ -21,5 +21,7 @@
         <module>ims</module>
         <module>re</module>
         <module>ars</module>
+        <module>dfs</module>
+        <module>sup</module>
     </modules>
 </project>

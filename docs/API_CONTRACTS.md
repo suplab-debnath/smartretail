@@ -538,5 +538,76 @@ GET /actuator/info      → 200 { "service": "...", "version": "..." }
  
 No auth required on health endpoints.
 These are the ECS health check targets.
+
+---
+
+## DFS — Demand Forecasting Service
+
+Base URL (local): `http://localhost:8084`
+OpenAPI spec: `openapi/dfs-api.yaml`
+Roles allowed: `SC_PLANNER`, `ADMIN`
+
+### GET /v1/forecast/{skuId}/{dcId}
+
+Returns P10/P50/P90 demand forecast bands from the latest COMPLETED forecast run.
+
+**Path parameters:**
+- `skuId` — stock-keeping unit identifier (max 50 chars)
+- `dcId` — distribution centre identifier (max 50 chars)
+
+**Query parameters:**
+- `horizonDays` — 7, 14, or 30 (default: 30)
+
+**Response 200:**
+```json
+{
+  "skuId": "SKU-BEV-001",
+  "dcId": "DC-LONDON",
+  "horizonDays": 30,
+  "latestMape": 0.0823,
+  "bands": [
+    { "forecastDate": "2026-05-22", "p10": 85, "p50": 110, "p90": 140, "actualUnits": null }
+  ],
+  "dataFreshness": "2026-05-15T02:00:00Z"
+}
+```
+
+---
+
+## SUP — Supplier Service
+
+Base URL (local): `http://localhost:8085`
+OpenAPI spec: `openapi/sup-api.yaml`
+Roles allowed: `SC_PLANNER`, `ADMIN`
+
+### GET /v1/supplier/orders
+
+Returns supplier POs with shipment progress. EXCEPTION rows first, then sorted by ETA ascending.
+
+**Query parameters:**
+- `status` — optional filter: `PENDING`, `CONFIRMED`, `DISPATCHED`, `DELIVERED`, `EXCEPTION`
+
+**Response 200:**
+```json
+{
+  "orders": [
+    {
+      "supplierPoId": "d1b2c3d4-0000-0000-0000-000000000001",
+      "poId": "c1b2c3d4-0000-0000-0000-000000000001",
+      "supplierId": "11111111-0000-0000-0000-000000000001",
+      "supplierName": "Acme Beverages Ltd",
+      "skuId": "SKU-BEV-001",
+      "dcId": "DC-LONDON",
+      "quantity": 500,
+      "shipmentStatus": "DISPATCHED",
+      "confirmedAt": "2026-04-16T10:00:00Z",
+      "dispatchedAt": "2026-04-17T08:00:00Z",
+      "eta": "2026-04-19",
+      "lastUpdateAt": "2026-04-18T08:00:00Z"
+    }
+  ],
+  "dataFreshness": "2026-05-15T14:23:00Z"
+}
+```
  
  

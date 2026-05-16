@@ -22,14 +22,14 @@ All follow Hexagonal Architecture (Ports & Adapters).
 | Service | Abbreviation | Owns | REST surface |
 |---------|-------------|------|-------------|
 | Sales Ingestion Service | SIS | sales schema | POST /v1/ingest/events |
-| Demand Forecasting Service | DFS | forecasting schema | GET /v1/forecasts/** |
+| Demand Forecasting Service | DFS | forecasting schema | GET /v1/forecast/** |
 | Inventory Management Service | IMS | inventory schema | GET /v1/inventory/** |
 | Replenishment Engine | RE | replenishment schema | POST/GET /v1/replenishment/** |
-| Supplier Integration Service | SUP | supplier schema | REST via supplier API |
+| Supplier Integration Service | SUP | supplier schema | GET /v1/supplier/** |
 | Pricing & Promotions Service | PPS | promotions schema | None — event-driven only |
 | Analytics & Reporting Service | ARS | None (read-only) | GET /v1/dashboard/** |
  
-**Prototype scope: SIS, IMS, RE, ARS are implemented. DFS, SUP, PPS are stubs.**
+**Prototype scope: SIS, IMS, RE, ARS, DFS, SUP are implemented. PPS is a stub.**
  
 ---
  

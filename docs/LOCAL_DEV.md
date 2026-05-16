@@ -71,6 +71,12 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
  
 cd services/ars
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+
+cd services/dfs
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # port 8084
+
+cd services/sup
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # port 8085
 ```
  
 ### docker-compose.yml
@@ -546,7 +552,7 @@ local-clean:
  
 # ─── Test ─────────────────────────────────────────────────────────────
 test-unit:
-  mvn test -pl services/sis,services/ims,services/re,services/ars
+  mvn test -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup
  
 test-flow1:
   SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow1
@@ -597,7 +603,7 @@ aws-smoke-test:
  
 # ─── Build ────────────────────────────────────────────────────────────
 build-services:
-  mvn clean package -pl services/sis,services/ims,services/re,services/ars \
+  mvn clean package -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
     -am --no-transfer-progress
  
 build-lambda:
@@ -615,7 +621,7 @@ docker-build-sis:
   docker build -t smartretail-sis:local services/sis/
  
 docker-build-all:
-  for svc in sis ims re ars; do \
+  for svc in sis ims re ars dfs sup; do \
     docker build -t smartretail-$$svc:local services/$$svc/; \
   done
 ```
@@ -630,6 +636,8 @@ docker-build-all:
 | IMS ECS | 8081 |
 | RE ECS  | 8082 |
 | ARS ECS | 8083 |
+| DFS ECS | 8084 |
+| SUP ECS | 8085 |
 | PostgreSQL | 5432 |
 | LocalStack | 4566 |
 | Store Manager MFE | 5173 |

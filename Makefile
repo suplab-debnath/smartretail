@@ -1,4 +1,4 @@
-.PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars \
+.PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
         local-mfe-sm local-mfe-scp local-mfe-exec local-down local-clean \
         test-unit test-flow1 test-flow2 test-flow3 test-all \
         aws-bootstrap aws-deploy-network aws-deploy-data aws-deploy-messaging \
@@ -51,6 +51,16 @@ local-ars:
 	    mvn spring-boot:run --no-transfer-progress \
 	    -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
 
+local-dfs:
+	cd services/dfs && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+	    mvn spring-boot:run --no-transfer-progress \
+	    -Dspring-boot.run.jvmArguments="-Dserver.port=8084"
+
+local-sup:
+	cd services/sup && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+	    mvn spring-boot:run --no-transfer-progress \
+	    -Dspring-boot.run.jvmArguments="-Dserver.port=8085"
+
 local-mfe-sm:
 	cd mfe/store-manager && npm run dev -- --port 5173
 
@@ -69,7 +79,7 @@ local-clean:
 # ── Test ──────────────────────────────────────────────────────────────────────
 
 test-unit:
-	mvn test -pl services/sis,services/ims,services/re,services/ars --no-transfer-progress
+	mvn test -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup --no-transfer-progress
 
 test-flow1:
 	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow1
@@ -87,7 +97,7 @@ test-all:
 
 build-services:
 	mvn clean package -DskipTests \
-	    -pl services/sis,services/ims,services/re,services/ars \
+	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
 	    -am --no-transfer-progress
 
 build-lambda:
@@ -106,7 +116,7 @@ docker-build-sis:
 	docker build -t smartretail-sis:local services/sis/
 
 docker-build-all:
-	for svc in sis ims re ars; do \
+	for svc in sis ims re ars dfs sup; do \
 	    docker build -t smartretail-$$svc:local services/$$svc/; \
 	done
 

@@ -237,11 +237,13 @@ make local-sis   # :8080 — Sales Ingestion Service
 make local-ims   # :8081 — Inventory Management Service
 make local-re    # :8082 — Replenishment Engine
 make local-ars   # :8083 — Analytics & Reporting Service
+make local-dfs   # :8084 — Demand Forecasting Service
+make local-sup   # :8085 — Supplier Service
 ```
 
 Health-check all services:
 ```bash
-for port in 8080 8081 8082 8083; do
+for port in 8080 8081 8082 8083 8084 8085; do
   curl -s http://localhost:$port/actuator/health | python3 -m json.tool
 done
 # All should return: {"status":"UP"}
@@ -304,6 +306,8 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 | IMS — Inventory Management    | 8081 |
 | RE — Replenishment Engine     | 8082 |
 | ARS — Analytics & Reporting   | 8083 |
+| DFS — Demand Forecasting      | 8084 |
+| SUP — Supplier Service        | 8085 |
 | PostgreSQL                    | 5432 |
 | LocalStack (all AWS services) | 4566 |
 | Store Manager MFE             | 5173 |
@@ -435,8 +439,8 @@ com.smartretail.{service}/
 | `sales`         | SIS        |
 | `inventory`     | IMS        |
 | `replenishment` | RE         |
-| `forecasting`   | DFS (stub) |
-| `supplier`      | SUP (stub) |
+| `forecasting`   | DFS |
+| `supplier`      | SUP |
 | `promotions`    | PPS (stub) |
 
 No cross-schema SQL joins anywhere. ARS reads multiple schemas via separate queries merged in Java.
@@ -460,7 +464,9 @@ smartretail/
 │   ├── sis/                    ← Sales Ingestion Service
 │   ├── ims/                    ← Inventory Management Service
 │   ├── re/                     ← Replenishment Engine
-│   └── ars/                    ← Analytics & Reporting Service
+│   ├── ars/                    ← Analytics & Reporting Service
+│   ├── dfs/                    ← Demand Forecasting Service
+│   └── sup/                    ← Supplier Service
 ├── lambdas/kinesis-consumer/   ← Kinesis → SIS adapter Lambda
 ├── migrations/flyway/          ← Flyway SQL migrations (V1–V7)
 ├── mfe/
@@ -522,4 +528,4 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | 3     | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                               | 🔲 Specified   |
 | 4     | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | 🔲 Specified   |
 | **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs                   | ✅ Implemented |
-| 9     | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🔲 Specified   |
+| 9     | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | 🚧 In Progress |
