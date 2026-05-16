@@ -62,5 +62,8 @@ logs/
 tmp/
 temp/
 
-# ── Claude ────────────────────────────────────────────────────────────────────
-.claude/worktrees/
+# -- Claude
+.claude/worktrees/*
+
+
+

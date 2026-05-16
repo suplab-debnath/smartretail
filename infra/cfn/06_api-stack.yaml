@@ -5,6 +5,31 @@ Parameters:
   SrEnv:
     Type: String
 
+  ApiGatewaySecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group ID for the VPC Link
+
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: First private subnet for the VPC Link
+
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second private subnet for the VPC Link
+
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID for JWT issuer
+
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID for JWT audience
+
+  CloudMapNamespaceName:
+    Type: String
+    Default: smartretail.local
+    Description: Cloud Map private DNS namespace name
+
 Resources:
 
   VpcLink:
@@ -12,9 +37,10 @@ Resources:
     Properties:
       Name: !Sub smartretail-vpc-link-${SrEnv}
       SecurityGroupIds:
-        - sg-xxxxxxxx
+        - !Ref ApiGatewaySecurityGroupId
       SubnetIds:
-        - subnet-xxxxxxxx
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
 
   SmartRetailApi:
     Type: AWS::ApiGatewayV2::Api
@@ -32,6 +58,7 @@ Resources:
           - PATCH
         AllowOrigins:
           - '*'
+        MaxAge: 300
 
   JwtAuthorizer:
     Type: AWS::ApiGatewayV2::Authorizer
@@ -42,9 +69,18 @@ Resources:
         - $request.header.Authorization
       JwtConfiguration:
         Audience:
-          - cognito-client-id
-        Issuer: https://cognito-idp.us-east-1.amazonaws.com/pool-id
+          - !Ref CognitoClientId
+        Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolId}
       Name: CognitoJwtAuthorizer
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      StageName: $default
+      AutoDeploy: true
+
+  # ── SIS Integration & Routes ────────────────────────────────────────────────
 
   SisIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -53,9 +89,11 @@ Resources:
       ConnectionType: VPC_LINK
       ConnectionId: !Ref VpcLink
       IntegrationType: HTTP_PROXY
-      IntegrationUri: http://smartretail-sis-dev.smartretail.local:8080
+      IntegrationMethod: ANY
+      IntegrationUri: !Sub http://smartretail-sis-${SrEnv}.${CloudMapNamespaceName}:8080/{proxy}
+      PayloadFormatVersion: '1.0'
 
-  SisRoute:
+  SisPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref SmartRetailApi
@@ -67,6 +105,84 @@ Resources:
         - - integrations
           - !Ref SisIntegration
 
+  # ── IMS Integration & Routes ────────────────────────────────────────────────
+
+  ImsIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref VpcLink
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      IntegrationUri: !Sub http://smartretail-ims-${SrEnv}.${CloudMapNamespaceName}:8081/{proxy}
+      PayloadFormatVersion: '1.0'
+
+  ImsGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      RouteKey: GET /v1/inventory/{proxy+}
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref ImsIntegration
+
+  # ── RE Integration & Routes ─────────────────────────────────────────────────
+
+  ReIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref VpcLink
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      IntegrationUri: !Sub http://smartretail-re-${SrEnv}.${CloudMapNamespaceName}:8082/{proxy}
+      PayloadFormatVersion: '1.0'
+
+  ReGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      RouteKey: GET /v1/replenishment/{proxy+}
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref ReIntegration
+
+  RePostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SmartRetailApi
+      RouteKey: POST /v1/replenishment/{proxy+}
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref ReIntegration
+
+  # ── SSM Output ──────────────────────────────────────────────────────────────
+
+  ApiEndpointParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /smartretail/${SrEnv}/api/endpoint
+      Type: String
+      Value: !GetAtt SmartRetailApi.ApiEndpoint
+
 Outputs:
   ApiEndpoint:
     Value: !GetAtt SmartRetailApi.ApiEndpoint
+    Export:
+      Name: !Sub SmartRetail-${SrEnv}-ApiEndpoint
+
+  HttpApiId:
+    Value: !Ref SmartRetailApi
+    Export:
+      Name: !Sub SmartRetail-${SrEnv}-HttpApiId
