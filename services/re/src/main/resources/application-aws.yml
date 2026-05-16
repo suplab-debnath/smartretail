@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${RDS_PROXY_ENDPOINT}:5432/smartretail?currentSchema=replenishment
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${COGNITO_ISSUER_URI}
+
+smartretail:
+  eventbridge:
+    bus-name: ${EVENTBRIDGE_BUS_NAME}
+  sqs:
+    re-alert-queue-url: ${RE_ALERT_QUEUE_URL}
