@@ -40,23 +40,26 @@ public class InventoryReadRepository implements InventoryReadPort {
     // ── Store Manager SQL (all confined to inventory schema) ──────────────────
 
     private static final String ALERT_KPI_SQL = """
-            SELECT severity, COUNT(*)::INT AS cnt
-            FROM inventory.stock_alerts
-            WHERE dc_id = :dcId AND status = 'ACTIVE'
-            GROUP BY severity
+            SELECT a.severity, COUNT(*)::INT AS cnt
+            FROM inventory.stock_alerts a
+            JOIN inventory.inventory_positions p ON a.position_id = p.position_id
+            WHERE p.dc_id = :dcId AND a.status = 'ACTIVE'
+            GROUP BY a.severity
             """;
 
     private static final String COUNT_ACTIVE_BY_DC_SQL = """
-            SELECT COUNT(*) FROM inventory.stock_alerts
-            WHERE dc_id = :dcId AND status = 'ACTIVE'
+            SELECT COUNT(*)
+            FROM inventory.stock_alerts a
+            JOIN inventory.inventory_positions p ON a.position_id = p.position_id
+            WHERE p.dc_id = :dcId AND a.status = 'ACTIVE'
             """;
 
     private static final String ALERTS_BY_DC_SQL = """
-            SELECT a.alert_id, a.sku_id, a.dc_id, a.alert_type, a.severity,
+            SELECT a.alert_id, p.sku_id, p.dc_id, a.alert_type, a.severity,
                    p.on_hand, p.reorder_point, a.raised_at
             FROM inventory.stock_alerts a
             JOIN inventory.inventory_positions p ON a.position_id = p.position_id
-            WHERE a.dc_id = :dcId AND a.status = 'ACTIVE'
+            WHERE p.dc_id = :dcId AND a.status = 'ACTIVE'
             ORDER BY CASE a.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END,
                      a.raised_at DESC
             LIMIT :size OFFSET :offset

@@ -36,8 +36,8 @@ local-migrate:
 	    -Dflyway.locations=filesystem:src/main/resources/db/migration
 
 local-seed:
-	PGPASSWORD=local_dev_password psql -h localhost -U smartretail_admin -d smartretail \
-	    -f migrations/flyway/src/main/resources/db/migration/V7__seed_data.sql
+	docker exec -i smartretail-postgres psql -U smartretail_admin -d smartretail \
+	    < migrations/flyway/src/main/resources/db/migration/V7__seed_data.sql
 
 local-sis:
 	cd services/sis && SPRING_PROFILES_ACTIVE=local DB_SCHEMA=sales DB_USERNAME=smartretail_admin \

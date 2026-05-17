@@ -345,7 +345,7 @@ make local-seed      # Flyway V7: loads reference/test data
 
 Verify:
 ```bash
-PGPASSWORD=local_dev_password psql -h localhost -U smartretail_admin -d smartretail \
+docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
   -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('sales','inventory','replenishment','forecasting','supplier','promotions') ORDER BY 1;"
 # Expected: 6 rows
 ```

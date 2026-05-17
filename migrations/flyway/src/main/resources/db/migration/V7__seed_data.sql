@@ -446,7 +446,8 @@ ON CONFLICT DO NOTHING;
 -- shipment_updates: one SHIPPED record per supplier_po (actual_qty_shipped = ordered quantity)
 INSERT INTO supplier.shipment_updates
   (supplier_po_id, update_type, actual_qty_shipped, created_at)
-SELECT spo.supplier_po_id, 'SHIPPED', po.quantity, spo.dispatched_at + INTERVAL '1 day'
+SELECT spo.supplier_po_id, 'SHIPPED', po.quantity,
+       COALESCE(spo.dispatched_at, spo.eta - INTERVAL '1 day', NOW()) + INTERVAL '1 day'
 FROM supplier.supplier_pos spo
 JOIN replenishment.purchase_orders po ON po.po_id::text = spo.po_id
 ON CONFLICT DO NOTHING;
