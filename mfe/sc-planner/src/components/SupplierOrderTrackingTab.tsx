@@ -9,6 +9,7 @@ const statusBadge: Record<ShipmentStatus, string> = {
   CONFIRMED: 'bg-blue-100 text-blue-700',
   DISPATCHED: 'bg-indigo-100 text-indigo-700',
   DELIVERED: 'bg-green-100 text-green-700',
+  COMPLETED: 'bg-green-200 text-green-800',
   EXCEPTION: 'bg-red-100 text-red-700',
 }
 
