@@ -40,34 +40,34 @@ local-seed:
 	    < migrations/flyway/src/main/resources/db/migration/V7__seed_data.sql
 
 local-sis:
-	cd services/sis && SPRING_PROFILES_ACTIVE=local DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8080"
+	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
+	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
+	    --server.port=8080
 
 local-ims:
-	cd services/ims && SPRING_PROFILES_ACTIVE=local DB_SCHEMA=inventory DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8081"
+	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=inventory DB_USERNAME=smartretail_admin \
+	    java -jar services/ims/target/smartretail-ims-1.0.0-SNAPSHOT.jar \
+	    --server.port=8081
 
 local-re:
-	cd services/re && SPRING_PROFILES_ACTIVE=local DB_SCHEMA=replenishment DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8082"
+	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=replenishment DB_USERNAME=smartretail_admin \
+	    java -jar services/re/target/smartretail-re-1.0.0-SNAPSHOT.jar \
+	    --server.port=8082
 
 local-ars:
-	cd services/ars && SPRING_PROFILES_ACTIVE=local DB_SCHEMA=ars_readonly DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
+	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=ars_readonly DB_USERNAME=smartretail_admin \
+	    java -jar services/ars/target/smartretail-ars-1.0.0-SNAPSHOT.jar \
+	    --server.port=8083
 
 local-dfs:
-	cd services/dfs && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8084"
+	SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+	    java -jar services/dfs/target/smartretail-dfs-1.0.0-SNAPSHOT.jar \
+	    --server.port=8084
 
 local-sup:
-	cd services/sup && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
-	    mvn spring-boot:run --no-transfer-progress \
-	    -Dspring-boot.run.jvmArguments="-Dserver.port=8085"
+	SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+	    java -jar services/sup/target/smartretail-sup-1.0.0-SNAPSHOT.jar \
+	    --server.port=8085
 
 local-mfe-sm:
 	cd mfe/store-manager && npm run dev -- --port 5173
