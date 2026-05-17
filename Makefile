@@ -1,5 +1,7 @@
 .PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
         local-mfe-sm local-mfe-scp local-mfe-exec local-down local-clean \
+        local-demo-server local-mfe-demo local-demo \
+        aws-demo-server aws-demo \
         test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
         aws-bootstrap aws-deploy-network aws-deploy-data aws-deploy-messaging \
         aws-deploy-identity aws-deploy-compute aws-deploy-api aws-deploy-all \
@@ -69,6 +71,23 @@ local-mfe-scp:
 
 local-mfe-exec:
 	cd mfe/executive && npm run dev -- --port 5175
+
+local-demo-server: ## Start demo control server at :3099 (local mode)
+	cd demo-server && npm install --silent && node server.js
+
+local-mfe-demo: ## Start Demo Control Center MFE at :5176
+	cd mfe/demo && npm install --silent && npm run dev
+
+local-demo: ## Start full demo experience — demo-server + demo MFE in parallel
+	@echo "Starting demo-server (:3099) and Demo MFE (:5176)…"
+	@make local-demo-server & make local-mfe-demo
+
+aws-demo-server: ## Start demo control server in AWS mode
+	cd demo-server && npm install --silent && SMARTRETAIL_ENV=aws node server.js
+
+aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
+	@echo "Starting demo-server in AWS mode and Demo MFE…"
+	@make aws-demo-server & cd mfe/demo && npm run dev
 
 local-down:
 	docker compose down

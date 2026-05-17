@@ -447,6 +447,8 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 | Store Manager MFE             | 5173 |
 | SC Planner MFE                | 5174 |
 | Executive MFE                 | 5175 |
+| **Demo Control Center MFE**   | **5176** |
+| **Demo Control Server**       | **3099** |
 
 ---
 
@@ -607,7 +609,9 @@ smartretail/
 │   ├── shared/auth/            ← shared Cognito auth library
 │   ├── store-manager/          ← Store Manager Dashboard MFE (:5173)
 │   ├── sc-planner/             ← SC Planner Console MFE (:5174)
-│   └── executive/              ← Executive Insights Dashboard MFE (:5175)
+│   ├── executive/              ← Executive Insights Dashboard MFE (:5175)
+│   └── demo/                   ← Demo Control Center MFE (:5176)
+├── demo-server/                ← Demo control server (:3099) — triggers scripts, streams SSE
 └── scripts/
     ├── localstack-init.sh      ← creates all LocalStack resources on startup
     ├── publish-pos-event.py    ← Flow 1 trigger / test harness
@@ -663,3 +667,161 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | **4** | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | ✅ Implemented |
 | **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs                   | ✅ Implemented |
 | **9** | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | ✅ Implemented |
+
+---
+
+## Demo Control Center
+
+The Demo Control Center is a single-browser experience for presenting all six flows to a technical audience (architects, engineers). The presenter never touches a terminal — every trigger, verification, and MFE reveal is orchestrated from one window.
+
+```
+┌──────────────┬─────────────────────────────────────────┬──────────────────┐
+│  FLOW RAIL   │           CENTER CANVAS                 │   EVENT LOG      │
+│              │  ┌─────────────────────────────────┐   │                  │
+│ 01 ● Flow 1  │  │  Chapter hero + narrative prose  │   │  ✓ SIS saved     │
+│ 02 ○ Flow 2  │  │  Animated SVG architecture diagram│  │  ✓ IMS alert     │
+│ 03 ○ Flow 3  │  │  Before / After DB state panels  │   │  ✓ RE auto-PO    │
+│ 04 ○ Flow 4  │  │  Evidence checklist (live ticks) │   │  · Waiting…      │
+│ 05 ○ Flow 8  │  │  [ Fire POS Transaction ▶ ]      │   │                  │
+│ 06 ○ Flow 9  │  │  ┌── Store Manager MFE iframe ──┐│   │                  │
+│              │  │  │  (slides in at right moment)  ││   │                  │
+└──────────────┴──┴──┴───────────────────────────────┴┴───┴──────────────────┘
+```
+
+### How it works
+
+Two new processes start alongside the existing services:
+
+| Process | Port | Role |
+| ------- | ---- | ---- |
+| `demo-server` (Node/Express) | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
+| `mfe/demo` (Vite + React) | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes |
+
+The architecture diagram shows every service node (Kinesis → Lambda → SIS → EventBridge → IMS / RE → RDS → ARS → MFEs). Nodes pulse and animated dots travel along edges in real time as SSE log lines arrive. The live evidence checklist auto-checks each item when a matching string appears in the log stream.
+
+### Demo narrative arc
+
+| Chapter | Flow | Title | Key moment |
+| ------- | ---- | ----- | ---------- |
+| 1 | Flow 1 | A Customer Buys Something | Fire POS event — watch Kinesis → SIS → IMS animate; stock alert row appears |
+| 2 | Flow 2 | The System Responds Automatically | RE evaluates the alert; split reveal shows auto-approved PO vs PENDING\_APPROVAL PO |
+| 3 | Flow 3 | The Planner Decides | SC Planner MFE slides in — presenter approves the live PO; EventBridge fires |
+| 4 | Flow 4 | The Store Manager Reacts | Store Manager MFE slides in — DC-LONDON KPIs show the active alert from Chapter 1 |
+| 5 | Flow 8 | Leadership Reviews Performance | Executive Dashboard — MAPE trend improving 0.1187 → 0.0823 across 30 seed days |
+| 6 | Flow 9 | The Planner Optimizes | All 8 SC Planner Console tabs; manual replenishment trigger creates DRAFT PO live |
+
+---
+
+### Running the demo locally
+
+**Prerequisites:** all six backend services and all three operational MFEs must be running (see [Local Quick Start](#local-quick-start-5-minutes) above).
+
+```bash
+# Terminal 1 — demo control server (reads Postgres, spawns scripts)
+make local-demo-server
+
+# Terminal 2 — Demo Control Center MFE
+make local-mfe-demo
+
+# Or both in one command:
+make local-demo
+```
+
+Open **[http://localhost:5176](http://localhost:5176)**.
+
+The service health bar at the top shows a green dot for each service once all six are up. Red dots mean the service is not reachable — fix those before starting the demo.
+
+**Full local startup sequence (copy-paste):**
+
+```bash
+# Step 1 — infrastructure
+make local-up
+make local-migrate
+make local-seed
+
+# Step 2 — backend services (run each in its own terminal or background with &)
+make local-sis &
+make local-ims &
+make local-re  &
+make local-ars &
+make local-dfs &
+make local-sup &
+
+# Step 3 — operational MFEs (needed for iframe reveals in chapters 3, 4, 5, 6)
+make local-mfe-sm   &
+make local-mfe-scp  &
+make local-mfe-exec &
+
+# Step 4 — demo experience
+make local-demo
+```
+
+Open **[http://localhost:5176](http://localhost:5176)** — all health dots should be green.
+
+**Demo flow:**
+1. Click a chapter in the left rail to jump to it.
+2. Use the step progress bar to move through each chapter's steps.
+3. Click trigger buttons (e.g. **Fire POS Transaction**) — the architecture diagram animates and the event log fills in real time.
+4. When a step requires the live MFE, an iframe slides in within the canvas — interact with it directly (approve a PO, browse tabs, trigger replenishment).
+5. Run **Verify FlowN** at the end of each chapter to execute the smoke test and auto-check the evidence checklist.
+
+---
+
+### Running the demo on AWS
+
+The demo-server switches to AWS mode via `SMARTRETAIL_ENV=aws`. In this mode it routes trigger calls to real API Gateway endpoints, reads MFE URLs from environment variables, and falls back to the ARS REST API for before/after DB state (no direct RDS access from a demo laptop).
+
+**Step 1 — deploy the platform to AWS first:**
+
+```bash
+export AWS_PROFILE=smartretail-dev
+export SMARTRETAIL_ENV=dev
+
+make build-all
+make aws-bootstrap
+make aws-deploy-all
+make aws-migrate
+make aws-create-users
+```
+
+**Step 2 — resolve service and MFE URLs from SSM:**
+
+```bash
+export SIS_URL=$(aws ssm get-parameter \
+  --name /smartretail/dev/api-gateway/endpoint --query Parameter.Value --output text)
+export RE_URL=$SIS_URL    # all services are behind the same API Gateway
+export ARS_URL=$SIS_URL
+
+export MFE_SM_URL=$(aws ssm get-parameter \
+  --name /smartretail/dev/mfe/store-manager-url --query Parameter.Value --output text)
+export MFE_SCP_URL=$(aws ssm get-parameter \
+  --name /smartretail/dev/mfe/sc-planner-url --query Parameter.Value --output text)
+export MFE_EXEC_URL=$(aws ssm get-parameter \
+  --name /smartretail/dev/mfe/executive-url --query Parameter.Value --output text)
+```
+
+**Step 3 — start the demo:**
+
+```bash
+make aws-demo
+```
+
+Open **[http://localhost:5176](http://localhost:5176)**. The architecture diagram gains additional edge labels (ALB → VPC Link → ECS → RDS Proxy → RDS) and node tooltips show the live AWS resource IDs pulled from SSM.
+
+**AWS mode differences:**
+- Trigger buttons call real API Gateway endpoints (with `X-Dev-Role` headers for local auth bypass or real Cognito tokens if Cognito is wired)
+- `smoke-test.sh` runs against `SMARTRETAIL_ENV=dev` — reads RDS Proxy endpoint from SSM
+- Before/After DB panels use ARS REST responses instead of direct Postgres queries
+- MFE iframes load from CloudFront URLs instead of localhost ports
+
+---
+
+### Demo troubleshooting
+
+| Symptom | Fix |
+| ------- | --- |
+| All health dots red | `make local-demo-server` must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health` |
+| "Flow X is already running" on trigger | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page |
+| Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one |
+| MFE iframe shows login page instead of dashboard | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services |
+| Event log empty after trigger | demo-server SSE connection dropped; reload the page — the `EventSource` auto-reconnects |

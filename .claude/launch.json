@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5175,
       "cwd": "mfe/executive"
+    },
+    {
+      "name": "demo-mfe",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5176,
+      "cwd": "mfe/demo"
     }
   ]
 }
