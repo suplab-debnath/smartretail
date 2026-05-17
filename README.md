@@ -3,7 +3,7 @@
 A prototype of an event-driven retail supply chain platform built on AWS.
 It demonstrates a complete POS-to-inventory pipeline using Kinesis, Lambda, ECS Fargate, EventBridge, SQS, RDS PostgreSQL, and DynamoDB.
 
-> **Implementation status:** Flows 1, 2, and 8 are implemented and tested. Flows 3, 4, and 9 are specified but not yet built.
+> **Implementation status:** Flows 1, 2, 8 and 9 are implemented and tested. Flows 3 and 4 are specified but not yet built.
 
 ---
 

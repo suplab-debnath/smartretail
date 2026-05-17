@@ -39,11 +39,12 @@ public class SupplierOrderController implements SupplierOrdersApi {
     }
 
     @Override
-    public ResponseEntity<SupplierOrderListResponse> getSupplierOrders(String status) {
+    public ResponseEntity<SupplierOrderListResponse> getSupplierOrders(ShipmentStatus status) {
 
         if (!hasAnyRole(ALLOWED_ROLES)) return ResponseEntity.status(403).build();
 
-        SupplierOrderList result = supplierOrderQueryPort.getSupplierOrders(status);
+        SupplierOrderList result = supplierOrderQueryPort.getSupplierOrders(
+                status != null ? status.getValue() : null);
 
         List<SupplierOrder> orders = result.orders().stream()
                 .map(o -> {

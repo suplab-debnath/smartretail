@@ -31,7 +31,7 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                    sp.sku_id,
                    sp.dc_id,
                    sp.quantity,
-                   sp.status            AS shipment_status,
+                   sp.po_status         AS shipment_status,
                    sp.confirmed_at,
                    sp.dispatched_at,
                    sp.eta,
@@ -45,9 +45,9 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                 ORDER BY created_at DESC
                 LIMIT 1
             ) su ON true
-            WHERE (:status IS NULL OR sp.status = :status)
+            WHERE (:status IS NULL OR sp.po_status = :status)
             ORDER BY
-                CASE WHEN sp.status = 'EXCEPTION' THEN 0 ELSE 1 END,
+                CASE WHEN sp.po_status = 'EXCEPTION' THEN 0 ELSE 1 END,
                 sp.eta ASC NULLS LAST
             """;
 

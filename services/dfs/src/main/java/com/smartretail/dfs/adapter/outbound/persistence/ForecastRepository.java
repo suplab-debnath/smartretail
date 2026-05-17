@@ -43,7 +43,7 @@ public class ForecastRepository implements ForecastReadPort {
 
     private static final String LATEST_RUN_SQL = """
             SELECT fr.mape,
-                   fr.horizon_days,
+                   df.horizon_days,
                    fr.completed_at
             FROM forecasting.forecast_runs fr
             JOIN forecasting.demand_forecasts df ON df.run_id = fr.run_id
