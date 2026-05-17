@@ -13,6 +13,7 @@ import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerDashboardResp
 import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerForecastAccuracy;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutAlertDataPoint;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutFrequencyKpi;
+import com.smartretail.ars.adapter.in.web.generated.model.StoreManagerDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceEntry;
 import com.smartretail.ars.adapter.in.web.generated.model.Trend;
@@ -22,6 +23,7 @@ import com.smartretail.ars.domain.model.ScPlannerDashboard;
 import com.smartretail.ars.domain.model.SupplierPerformanceDashboard;
 import com.smartretail.ars.port.inbound.ExecutiveDashboardPort;
 import com.smartretail.ars.port.inbound.ScPlannerDashboardPort;
+import com.smartretail.ars.port.inbound.StoreManagerDashboardPort;
 import com.smartretail.ars.port.inbound.SupplierPerformancePort;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,12 +43,14 @@ import java.util.Set;
 @Tag(name = "dashboard", description = "Persona-specific aggregated dashboard payloads")
 public class DashboardController implements DashboardApi {
 
-    private static final Set<String> EXECUTIVE_ROLES = Set.of("EXECUTIVE", "SC_PLANNER", "ADMIN");
-    private static final Set<String> PLANNER_ROLES   = Set.of("SC_PLANNER", "ADMIN");
+    private static final Set<String> EXECUTIVE_ROLES    = Set.of("EXECUTIVE", "SC_PLANNER", "ADMIN");
+    private static final Set<String> PLANNER_ROLES      = Set.of("SC_PLANNER", "ADMIN");
+    private static final Set<String> STORE_MANAGER_ROLES = Set.of("STORE_MANAGER", "ADMIN");
 
     private final ExecutiveDashboardPort executiveDashboardPort;
     private final ScPlannerDashboardPort scPlannerDashboardPort;
     private final SupplierPerformancePort supplierPerformancePort;
+    private final StoreManagerDashboardPort storeManagerDashboardPort;
 
     @Autowired
     private HttpServletRequest httpRequest;
@@ -54,10 +58,12 @@ public class DashboardController implements DashboardApi {
     public DashboardController(
             ExecutiveDashboardPort executiveDashboardPort,
             ScPlannerDashboardPort scPlannerDashboardPort,
-            SupplierPerformancePort supplierPerformancePort) {
-        this.executiveDashboardPort  = executiveDashboardPort;
-        this.scPlannerDashboardPort  = scPlannerDashboardPort;
-        this.supplierPerformancePort = supplierPerformancePort;
+            SupplierPerformancePort supplierPerformancePort,
+            StoreManagerDashboardPort storeManagerDashboardPort) {
+        this.executiveDashboardPort    = executiveDashboardPort;
+        this.scPlannerDashboardPort    = scPlannerDashboardPort;
+        this.supplierPerformancePort   = supplierPerformancePort;
+        this.storeManagerDashboardPort = storeManagerDashboardPort;
     }
 
     // ── Executive Dashboard (Flow 8) ─────────────────────────────────────────
@@ -71,8 +77,14 @@ public class DashboardController implements DashboardApi {
     // ── Store Manager Dashboard (Flow 4) ─────────────────────────────────────
 
     @Override
-    public ResponseEntity<Object> getStoreManagerDashboard(String dcId) {
-        return ResponseEntity.status(501).build();
+    public ResponseEntity<StoreManagerDashboardResponse> getStoreManagerDashboard(
+            String dcId, Integer page, Integer size) {
+        if (!hasAnyRole(STORE_MANAGER_ROLES)) return ResponseEntity.status(403).build();
+        int p = page != null ? page : 0;
+        int s = size != null ? size : 10;
+        return ResponseEntity.ok(
+                StoreManagerResponseMapper.toResponse(storeManagerDashboardPort.assemble(dcId, p, s))
+        );
     }
 
     // ── SC Planner Dashboard (Flow 9) ────────────────────────────────────────

@@ -1,6 +1,6 @@
 .PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
         local-mfe-sm local-mfe-scp local-mfe-exec local-down local-clean \
-        test-unit test-flow1 test-flow2 test-flow3 test-all \
+        test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
         aws-bootstrap aws-deploy-network aws-deploy-data aws-deploy-messaging \
         aws-deploy-identity aws-deploy-compute aws-deploy-api aws-deploy-all \
         aws-migrate aws-create-users aws-smoke-test \
@@ -89,6 +89,15 @@ test-flow2:
 
 test-flow3:
 	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow3
+
+test-flow4:
+	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow4
+
+test-flow8:
+	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow8
+
+test-flow9:
+	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow9
 
 test-all:
 	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh all

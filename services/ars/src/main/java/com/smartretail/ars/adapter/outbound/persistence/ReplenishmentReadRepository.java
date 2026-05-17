@@ -118,4 +118,14 @@ public class ReplenishmentReadRepository implements ReplenishmentReadPort {
                 )
         );
     }
+
+    @Override
+    public int countPendingApprovalsByDc(String dcId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM replenishment.purchase_orders WHERE dc_id = :dcId AND workflow_status = 'PENDING_APPROVAL'",
+                new MapSqlParameterSource("dcId", dcId),
+                Integer.class
+        );
+        return count != null ? count : 0;
+    }
 }

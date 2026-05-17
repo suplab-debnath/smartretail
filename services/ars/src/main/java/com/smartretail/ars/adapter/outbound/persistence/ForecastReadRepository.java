@@ -67,4 +67,18 @@ public class ForecastReadRepository implements ForecastReadPort {
                 : results.getFirst();
     }
 
+    @Override
+    public int countSkusWithForecastByDc(String dcId) {
+        Integer count = jdbc.queryForObject(
+                """
+                SELECT COUNT(DISTINCT sku_id)
+                FROM forecasting.demand_forecasts
+                WHERE dc_id = :dcId
+                  AND forecast_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7
+                """,
+                new MapSqlParameterSource("dcId", dcId),
+                Integer.class
+        );
+        return count != null ? count : 0;
+    }
 }

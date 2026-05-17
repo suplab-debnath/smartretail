@@ -14,4 +14,9 @@ public interface ForecastReadPort {
     LatestMape findLatestMape();
 
     record LatestMape(BigDecimal mape, Instant lastRunAt) {}
+
+    // ── Store Manager methods (scoped to a single DC) ──────────────────────────
+
+    /** Count of distinct SKUs with at least one forecast in the next 7 days for {@code dcId}. */
+    int countSkusWithForecastByDc(String dcId);
 }

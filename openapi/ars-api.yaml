@@ -464,6 +464,162 @@ components:
           format: date-time
           example: "2026-05-15T14:23:00Z"
 
+    # ── Store Manager Dashboard schemas (Flow 4) ─────────────────────────────────
+
+    AlertKpi:
+      type: object
+      description: Breakdown of active stock alerts by severity for a distribution centre
+      required:
+        - criticalCount
+        - highCount
+        - mediumCount
+        - totalActive
+      additionalProperties: false
+      properties:
+        criticalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Active alerts with CRITICAL severity
+          example: 2
+        highCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Active alerts with HIGH severity
+          example: 5
+        mediumCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Active alerts with MEDIUM severity
+          example: 8
+        totalActive:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total active alerts across all severities
+          example: 15
+
+    StockAlertSummary:
+      type: object
+      description: Summary of a single active stock alert for the Store Manager alert table
+      required:
+        - alertId
+        - skuId
+        - dcId
+        - alertType
+        - severity
+        - onHand
+        - reorderPoint
+        - raisedAt
+      additionalProperties: false
+      properties:
+        alertId:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        skuId:
+          type: string
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          example: "DC-LONDON"
+        alertType:
+          type: string
+          enum:
+            - LOW_STOCK
+            - OVERSTOCK
+          example: LOW_STOCK
+        severity:
+          type: string
+          enum:
+            - CRITICAL
+            - HIGH
+            - MEDIUM
+          example: CRITICAL
+        onHand:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Current on-hand units at time of alert
+          example: 5
+        reorderPoint:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Reorder point threshold at time of alert
+          example: 50
+        raisedAt:
+          type: string
+          format: date-time
+          example: "2026-05-15T10:30:00Z"
+
+    StoreManagerDashboardResponse:
+      type: object
+      description: |
+        Store Manager Dashboard payload for a specific distribution centre.
+        Assembled from 4 parallel reads across inventory and replenishment schemas,
+        plus a separate forecast coverage calculation — no cross-schema SQL joins.
+      required:
+        - dcId
+        - alertKpi
+        - totalOnHandUnits
+        - pendingReplenishmentCount
+        - forecastCoveragePct
+        - alerts
+        - alertsPage
+        - alertsTotalPages
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        dcId:
+          type: string
+          description: Distribution centre identifier this dashboard is scoped to
+          example: "DC-LONDON"
+        alertKpi:
+          $ref: '#/components/schemas/AlertKpi'
+        totalOnHandUnits:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of on_hand units across all SKUs in this DC
+          example: 12450
+        pendingReplenishmentCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Purchase orders in PENDING_APPROVAL status for this DC
+          example: 3
+        forecastCoveragePct:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: Percentage of DC SKUs with at least one demand forecast in the next 7 days
+          example: 87.5
+        alerts:
+          type: array
+          description: Active stock alerts sorted CRITICAL → HIGH → MEDIUM, paginated
+          items:
+            $ref: '#/components/schemas/StockAlertSummary'
+        alertsPage:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Current page index (0-based)
+          example: 0
+        alertsTotalPages:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total number of pages given the requested page size
+          example: 2
+        dataFreshness:
+          type: string
+          format: date-time
+          example: "2026-05-15T14:23:00Z"
+
   responses:
     Unauthorized:
       $ref: './components/responses.yaml#/Unauthorized'
@@ -510,10 +666,15 @@ paths:
       tags:
         - dashboard
       operationId: getStoreManagerDashboard
-      summary: Store Manager Dashboard (Flow 4 — not yet implemented)
+      summary: Store Manager Dashboard
       description: |
+        Returns KPI cards and active alert table for a specific distribution centre.
         Allowed roles: STORE_MANAGER, ADMIN.
-        Implementation planned for Flow 4.
+        Parallel reads across schemas, merged in Java — no cross-schema SQL joins:
+        - inventory.inventory_positions: sum on_hand for dcId
+        - inventory.stock_alerts: severity counts + paginated alert list for dcId
+        - replenishment.purchase_orders: count PENDING_APPROVAL for dcId
+        - forecasting.demand_forecasts + inventory.inventory_positions: forecast coverage % (two separate queries merged in Java)
       parameters:
         - name: dcId
           in: query
@@ -522,24 +683,43 @@ paths:
             type: string
             maxLength: 50
           example: "DC-LONDON"
+        - $ref: './components/parameters.yaml#/Page'
+        - $ref: './components/parameters.yaml#/Size'
       responses:
         '200':
           description: Store Manager dashboard payload
           content:
             application/json:
               schema:
-                type: object
-                description: Store Manager dashboard — schema defined in Flow 4
+                $ref: '#/components/schemas/StoreManagerDashboardResponse'
+              example:
+                dcId: "DC-LONDON"
+                alertKpi:
+                  criticalCount: 2
+                  highCount: 5
+                  mediumCount: 8
+                  totalActive: 15
+                totalOnHandUnits: 12450
+                pendingReplenishmentCount: 3
+                forecastCoveragePct: 87.5
+                alerts:
+                  - alertId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    skuId: "SKU-BEV-001"
+                    dcId: "DC-LONDON"
+                    alertType: "LOW_STOCK"
+                    severity: "CRITICAL"
+                    onHand: 5
+                    reorderPoint: 50
+                    raisedAt: "2026-05-15T10:30:00Z"
+                alertsPage: 0
+                alertsTotalPages: 2
+                dataFreshness: "2026-05-15T14:23:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '501':
-          description: Not yet implemented — available in Flow 4
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ── SC Planner Dashboard (Flow 9) ────────────────────────────────────────────
 

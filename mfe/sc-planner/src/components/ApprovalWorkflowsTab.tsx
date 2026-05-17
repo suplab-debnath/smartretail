@@ -22,15 +22,17 @@ export function ApprovalWorkflowsTab() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000)
   }
 
-  async function handleApprove(poId: string) {
+  async function handleApprove(poId: string, version: number) {
     setApprovingIds(prev => new Set(prev).add(poId))
     try {
       const res = await fetch(`/v1/replenishment/orders/${poId}/approve`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-Dev-Role': 'SC_PLANNER',
           'X-Idempotency-Key': crypto.randomUUID(),
         },
+        body: JSON.stringify({ version }),
       })
       if (res.ok) {
         removeOrder(poId)
@@ -51,15 +53,16 @@ export function ApprovalWorkflowsTab() {
     }
   }
 
-  async function handleRejectConfirm(poId: string) {
+  async function handleRejectConfirm(poId: string, version: number) {
     try {
       const res = await fetch(`/v1/replenishment/orders/${poId}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Dev-Role': 'SC_PLANNER',
+          'X-Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ reason: rejectReason }),
+        body: JSON.stringify({ version, rejectionReason: rejectReason }),
       })
       if (res.ok) {
         removeOrder(poId)
@@ -113,7 +116,7 @@ export function ApprovalWorkflowsTab() {
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(po.createdAt).toLocaleString()}</td>
                     <td className="px-4 py-3 flex gap-2">
                       <button
-                        onClick={() => handleApprove(po.poId)}
+                        onClick={() => handleApprove(po.poId, po.version)}
                         disabled={approvingIds.has(po.poId)}
                         className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
                       >
@@ -139,7 +142,7 @@ export function ApprovalWorkflowsTab() {
                             className="border border-red-300 rounded px-2 py-1 text-sm flex-1"
                           />
                           <button
-                            onClick={() => handleRejectConfirm(po.poId)}
+                            onClick={() => handleRejectConfirm(po.poId, po.version)}
                             disabled={!rejectReason.trim()}
                             className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
                           >

@@ -3,7 +3,7 @@
 A prototype of an event-driven retail supply chain platform built on AWS.
 It demonstrates a complete POS-to-inventory pipeline using Kinesis, Lambda, ECS Fargate, EventBridge, SQS, RDS PostgreSQL, and DynamoDB.
 
-> **Implementation status:** Flows 1, 2, 8 and 9 are implemented and tested. Flows 3 and 4 are specified but not yet built.
+> **Implementation status:** All Flows (1, 2, 3, 4, 8, and 9) are fully implemented, integrated, and verified.
 
 ---
 
@@ -122,6 +122,84 @@ Seed data: `SKU-BEV-003 / DC-LONDON` has `auto_approve_threshold = 0` — always
   }
 }
 ```
+
+---
+
+## What Flow 3 Does
+
+**Pre-condition:** Flow 2 Scenario 2b must have run and produced a purchase order with `workflow_status = 'PENDING_APPROVAL'`.
+
+```
+SC Planner Console MFE   (localhost:5174 / CloudFront)
+    │  POST /v1/replenishment/orders/{poId}/approve
+    ▼  (includes Cognito JWT token)
+API Gateway              (JWT Authorizer: validates SC_PLANNER role)
+    │  VPC Link
+    ▼
+RE — Replenishment Engine    (ECS Fargate, port 8082)
+    ├── Validate role            SC_PLANNER or ADMIN
+    ├── Update status            RDS → replenishment.purchase_orders
+    │                            (PENDING_APPROVAL → APPROVED or REJECTED)
+    └── Publish PO event         EventBridge → PurchaseOrderEvent
+                                     │
+                       EventBridge rule: po-events
+```
+
+**Observable evidence (all 10 checks must pass):**
+
+| Check | What to verify                                                                                |
+| ----- | --------------------------------------------------------------------------------------------- |
+| 3.1   | SC Planner MFE displays PENDING_APPROVAL PO in queue                                          |
+| 3.2   | Approve request reaches RE (`POST /v1/replenishment/orders/{poId}/approve`)                   |
+| 3.3   | JWT SC_PLANNER role is validated by the system                                                |
+| 3.4   | Optimistic lock update succeeds (`version` incremented from 0 to 1)                           |
+| 3.5   | `replenishment.purchase_orders` row updated (`workflow_status = APPROVED`)                     |
+| 3.6   | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED`                |
+| 3.7   | MFE reflects approved status (PO removed from pending queue)                                  |
+| 3.8   | Reject workflow updates database to `REJECTED` and records rejection reason                   |
+| 3.9   | Wrong role rejection returns `403 Forbidden` for non-planner users                            |
+| 3.10  | Invalid status transition (e.g. re-approving) returns `409 Conflict`                           |
+
+**Wrong role / Wrong status test:**
+- Sign in as a `STORE_MANAGER` and attempt to approve a pending PO → returns `403 Forbidden`.
+- Attempt to approve an already approved PO → returns `409 Conflict` (status must be `PENDING_APPROVAL`).
+
+---
+
+## What Flow 4 Does
+
+**Pre-condition:** Flows 1–3 must have completed, and seed data must be applied to have realistic inventory, sales, and replenishment data in the PostgreSQL database.
+
+```
+Store Manager Dashboard MFE   (localhost:5173 / CloudFront)
+    │  GET /v1/dashboard/store-manager?dcId=DC-LONDON
+    ▼  (includes Cognito JWT token)
+API Gateway                   (JWT Authorizer: validates STORE_MANAGER role)
+    │  VPC Link
+    ▼
+ARS — Analytics & Reporting   (ECS Fargate, port 8083)
+    ├── Role & DC scope check     Enforce dcId scope for STORE_MANAGER
+    ├── Parallel RDS queries      Separate queries to sales, inventory, and replenishment
+    └── Aggregate in Java         Merge datasets in memory (no cross-schema JOINs)
+            │
+            ▼  JSON response
+Store Manager Dashboard MFE   (Renders inventory positions, alerts, and data freshness)
+```
+
+**Observable evidence (all 8 checks must pass):**
+
+| Check | What to verify                                                                |
+| ----- | ----------------------------------------------------------------------------- |
+| 4.1   | Store Manager MFE renders dashboard without error                             |
+| 4.2   | ARS receives request `GET /v1/dashboard/store-manager?dcId=DC-LONDON`          |
+| 4.3   | Scope enforcement restricts `STORE_MANAGER` to their designated DC            |
+| 4.4   | ARS executes parallel, non-blocking queries across database schemas           |
+| 4.5   | No cross-schema SQL JOIN is executed (queries are merged in Java memory)      |
+| 4.6   | Inventory KPI cards display accurate on-hand and in-transit counts            |
+| 4.7   | Alert count matches active `inventory.stock_alerts` in RDS                    |
+| 4.8   | `dataFreshness` timestamp is computed and rendered on the MFE                 |
+
+**No cross-schema JOIN:** ARS fetches data in parallel across `sales`, `inventory`, and `replenishment` schemas and performs in-memory aggregation in Java to enforce complete database decoupling.
 
 ---
 
@@ -303,7 +381,19 @@ make test-flow2
 # Expected: ✅ 2 passed  ❌ 0 failed
 # Pre-condition: Flow 1 must have run first (RE queue must have an InventoryAlertEvent)
 
+make test-flow3
+# Expected: ✅ 4 passed  ❌ 0 failed
+# Pre-condition: Flow 2 must have run first (having a PO in PENDING_APPROVAL)
+
+make test-flow4
+# Expected: ✅ 3 passed  ❌ 0 failed
+# Pre-condition: Flows 1-3 must have run first (having data in schemas)
+
 make test-flow8
+# Expected: ✅ 11 passed  ❌ 0 failed
+# Pre-condition: make local-seed must have run (seed data required)
+
+make test-flow9
 # Expected: ✅ 11 passed  ❌ 0 failed
 # Pre-condition: make local-seed must have run (seed data required)
 ```
@@ -569,7 +659,7 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | **1** | POS event → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                              | ✅ Implemented |
 | **2** | Inventory alert → RE auto-approve → RDS state transition                                                                                                                                             | ✅ Implemented |
-| 3     | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                               | 🔲 Specified   |
-| 4     | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | 🔲 Specified   |
+| **3** | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                               | ✅ Implemented |
+| **4** | ARS → Store Manager Dashboard MFE                                                                                                                                                                    | ✅ Implemented |
 | **8** | Executive Dashboard — fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, delivery histogram, inventory carrying cost, replenishment lead time, top stockout SKUs                   | ✅ Implemented |
 | **9** | SC Planner Console — exception queue, inventory overview, demand forecast (P10/P50/P90), stockout risk indicators, PO approvals, supplier order tracking, replenishment trigger, forecast adjustment | ✅ Implemented |

@@ -28,4 +28,9 @@ public interface ReplenishmentReadPort {
     List<PoMetricsRow> findPoMetricsBySupplierId(int days);
 
     record PoMetricsRow(UUID supplierId, int totalPoCount, BigDecimal totalPoValue) {}
+
+    // ── Store Manager methods (scoped to a single DC) ──────────────────────────
+
+    /** Count of PENDING_APPROVAL purchase orders for {@code dcId}. */
+    int countPendingApprovalsByDc(String dcId);
 }
