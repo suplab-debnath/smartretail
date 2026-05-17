@@ -31,40 +31,40 @@ public class SupplierReadRepository implements SupplierReadPort {
             """;
 
     /**
-     * On-time = dispatched within supplier's lead_time_days of the approved_at equivalent.
+     * On-time = dispatched on or before the agreed ETA.
      * All joins within supplier schema — no cross-schema join.
      */
     private static final String SHIPMENT_METRICS_SQL = """
             SELECT sp.supplier_id,
                    COUNT(*) FILTER (
-                       WHERE su.update_type = 'SHIPPED'
-                         AND sp.dispatched_at IS NOT NULL
-                         AND sp.dispatched_at <= sp.confirmed_at
-                             + (sr.lead_time_days * INTERVAL '1 day')
+                       WHERE sp.dispatched_at IS NOT NULL
+                         AND sp.eta IS NOT NULL
+                         AND DATE(sp.dispatched_at) <= sp.eta
                    )::INT AS on_time_count,
-                   COUNT(*) FILTER (WHERE su.update_type = 'SHIPPED')::INT AS total_shipped
+                   COUNT(*) FILTER (WHERE sp.dispatched_at IS NOT NULL)::INT AS total_shipped
             FROM supplier.supplier_pos sp
-            JOIN supplier.shipment_updates su ON su.supplier_po_id = sp.supplier_po_id
-            JOIN supplier.supplier_records sr ON sr.supplier_id    = sp.supplier_id
             GROUP BY sp.supplier_id
             """;
 
+    /**
+     * Lead-time variance = dispatched_at vs eta (negative = early, positive = late).
+     * No lead_time_days column in supplier_records — uses eta as the expected delivery date.
+     */
     private static final String LEAD_TIME_VARIANCE_SQL = """
             SELECT sp.supplier_id,
                    AVG(
-                       EXTRACT(EPOCH FROM (sp.dispatched_at - sp.confirmed_at)) / 86400.0
-                       - sr.lead_time_days
+                       DATE(sp.dispatched_at) - sp.eta
                    ) AS avg_variance_days
             FROM supplier.supplier_pos sp
-            JOIN supplier.supplier_records sr ON sr.supplier_id = sp.supplier_id
             WHERE sp.dispatched_at IS NOT NULL
+              AND sp.eta IS NOT NULL
             GROUP BY sp.supplier_id
             """;
 
     private static final String OPEN_EXCEPTIONS_SQL = """
             SELECT supplier_id, COUNT(*)::INT AS exception_count
             FROM supplier.supplier_pos
-            WHERE status = 'EXCEPTION'
+            WHERE po_status = 'EXCEPTION'
             GROUP BY supplier_id
             """;
 

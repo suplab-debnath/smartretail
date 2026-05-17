@@ -86,6 +86,7 @@ local-mfe-demo: ## Start Demo Control Center MFE at :5176
 
 local-demo: ## Start full demo experience — demo-server + demo MFE in parallel
 	@echo "Starting demo-server (:3099) and Demo MFE (:5176)…"
+	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make local-demo-server & make local-mfe-demo
 
 aws-demo-server: ## Start demo control server in AWS mode
@@ -93,11 +94,12 @@ aws-demo-server: ## Start demo control server in AWS mode
 
 aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
 	@echo "Starting demo-server in AWS mode and Demo MFE…"
+	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make aws-demo-server & cd mfe/demo && npm run dev
 
-local-free-ports: ## Free up ports 8080-8085 and 5173-5176
+local-free-ports: ## Free up ports 8080-8085, 5173-5176, and 3099
 	@echo "Checking and freeing ports..."
-	@for port in 8080 8081 8082 8083 8084 8085 5173 5174 5175 5176; do \
+	@for port in 3099 8080 8081 8082 8083 8084 8085 5173 5174 5175 5176; do \
 		pid=$$(lsof -t -i:$$port 2>/dev/null); \
 		if [ -n "$$pid" ]; then \
 			echo "Killing process $$pid holding port $$port..."; \
@@ -149,6 +151,7 @@ build-lambda:
 	mvn clean package -DskipTests -pl lambdas/kinesis-consumer --no-transfer-progress
 
 build-mfes:
+	cd mfe/shared/auth && npm run build
 	cd mfe/store-manager && npm run build
 	cd mfe/sc-planner    && npm run build
 	cd mfe/executive     && npm run build

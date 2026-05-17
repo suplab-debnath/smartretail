@@ -6,10 +6,15 @@ interface Props {
   onTriggerReplenishment: (skuId: string, dcId: string) => void
 }
 
+function computeAtp(pos: InventoryPosition): number {
+  return pos.onHand + pos.inTransit - pos.reserved
+}
+
 function computeRisk(pos: InventoryPosition): StockoutRisk {
-  if (pos.atp <= 0) return 'CRITICAL'
-  if (pos.atp < pos.reorderPoint * 0.5) return 'HIGH'
-  if (pos.atp < pos.reorderPoint) return 'MODERATE'
+  const atp = computeAtp(pos)
+  if (atp <= 0) return 'CRITICAL'
+  if (atp < pos.reorderPoint * 0.5) return 'HIGH'
+  if (atp < pos.reorderPoint) return 'MODERATE'
   return 'OK'
 }
 
@@ -96,6 +101,7 @@ export function StockoutRiskTab({ onTriggerReplenishment }: Props) {
               {displayed.map(({ pos, risk }) => {
                 const key = `${pos.skuId}|${pos.dcId}`
                 const isActionable = actionableRisks.includes(risk)
+                const atp = computeAtp(pos)
                 return (
                   <tr key={pos.positionId} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -111,7 +117,7 @@ export function StockoutRiskTab({ onTriggerReplenishment }: Props) {
                     <td className="px-4 py-3 font-mono text-xs">{pos.skuId}</td>
                     <td className="px-4 py-3 text-xs">{pos.dcId}</td>
                     <td className="px-4 py-3 text-right">{pos.onHand.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{pos.atp.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{atp.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">{pos.reorderPoint.toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${riskChip[risk]}`}>

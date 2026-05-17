@@ -261,6 +261,35 @@ components:
           description: Mandatory reason for rejection
           example: "Supplier lead time too long — escalating to alternative supplier"
 
+    ManualReplenishmentRequest:
+      type: object
+      description: Request body for manually triggering a replenishment purchase order
+      required:
+        - skuId
+        - dcId
+        - quantity
+      additionalProperties: false
+      properties:
+        skuId:
+          type: string
+          description: Stock Keeping Unit identifier
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          description: Distribution Centre identifier
+          example: "DC-LONDON"
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Number of units to order
+          example: 200
+        notes:
+          type: string
+          maxLength: 500
+          description: Optional planner notes attached to this manual trigger
+          example: "Pre-emptive restock ahead of promotion"
+
     ErrorResponse:
       $ref: './components/schemas.yaml#/ErrorResponse'
 
@@ -286,6 +315,40 @@ components:
 
 paths:
   /v1/replenishment/orders:
+    post:
+      tags:
+        - replenishment-orders
+      operationId: createPurchaseOrder
+      summary: Manually trigger a replenishment purchase order
+      description: |
+        Creates a new purchase order in PENDING_APPROVAL status, triggered manually
+        by an SC_PLANNER. Looks up the active replenishment rule for the given SKU/DC
+        to determine supplier and unit cost. Returns 404 if no active rule exists.
+        Requires SC_PLANNER or ADMIN role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualReplenishmentRequest'
+      responses:
+        '201':
+          description: Purchase order created in PENDING_APPROVAL status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     get:
       tags:
         - replenishment-orders

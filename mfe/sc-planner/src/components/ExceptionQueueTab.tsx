@@ -83,8 +83,8 @@ export function ExceptionQueueTab({ onTriggerReplenishment }: Props) {
                   <td className="px-4 py-3 text-xs">{alert.dcId}</td>
                   <td className="px-4 py-3">{alertTypeChip(alert.alertType)}</td>
                   <td className="px-4 py-3"><SeverityBadge severity={alert.severity} /></td>
-                  <td className="px-4 py-3 text-right">{alert.onHand.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right">{alert.reorderPoint.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">{alert.actualValue.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">{alert.thresholdValue.toLocaleString()}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{formatDate(alert.raisedAt)}</td>
                   <td className="px-4 py-3">
                     <button

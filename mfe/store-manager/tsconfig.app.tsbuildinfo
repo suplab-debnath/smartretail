@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/components/alertlist.tsx","./src/components/datafreshnessindicator.tsx","./src/components/dcselector.tsx","./src/components/kpicard.tsx","./src/components/kpirow.tsx","./src/components/severitybadge.tsx","./src/components/storedashboard.tsx","./src/hooks/usestoremanagerdashboard.ts"],"version":"5.9.3"}

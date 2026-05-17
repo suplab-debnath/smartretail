@@ -127,7 +127,15 @@ def inject_flow2_alert(args):
   Inject an InventoryAlertEvent directly into the RE SQS FIFO queue.
   Useful for testing Flow 2 independently of Flow 1.
   """
-  ssm = boto3.client('ssm', region_name=args.region)
+  is_local = args.env == 'local'
+  localstack_endpoint = 'http://localhost:4566'
+  boto_kwargs = {'region_name': args.region}
+  if is_local:
+    boto_kwargs['endpoint_url'] = localstack_endpoint
+    boto_kwargs['aws_access_key_id'] = 'test'
+    boto_kwargs['aws_secret_access_key'] = 'test'
+
+  ssm = boto3.client('ssm', **boto_kwargs)
   queue_url = ssm.get_parameter(
     Name=f'/smartretail/{args.env}/sqs/re-alert-queue-url'
   )['Parameter']['Value']
@@ -148,7 +156,7 @@ def inject_flow2_alert(args):
     }
   }
 
-  sqs = boto3.client('sqs', region_name=args.region)
+  sqs = boto3.client('sqs', **boto_kwargs)
   message_group_id = f"{args.dc_id}#{args.sku_id}"
   message_dedup_id = hashlib.sha256(
     f"{alert_event['detail']['alertId']}".encode()

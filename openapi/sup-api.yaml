@@ -42,6 +42,7 @@ components:
         - CONFIRMED
         - DISPATCHED
         - DELIVERED
+        - COMPLETED
         - EXCEPTION
       example: DISPATCHED
 

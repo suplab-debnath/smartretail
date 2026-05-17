@@ -4,9 +4,14 @@ import type { InventoryPosition } from '../types'
 
 type DcId = 'DC-LONDON' | 'DC-MANCHESTER' | 'DC-BIRMINGHAM'
 
+function computeAtp(pos: InventoryPosition): number {
+  return pos.onHand + pos.inTransit - pos.reserved
+}
+
 function reorderStatus(pos: InventoryPosition): { label: string; cls: string } {
-  if (pos.atp <= 0) return { label: 'CRITICAL', cls: 'bg-red-100 text-red-700' }
-  if (pos.atp < pos.reorderPoint) return { label: 'REORDER SOON', cls: 'bg-amber-100 text-amber-700' }
+  const atp = computeAtp(pos)
+  if (atp <= 0) return { label: 'CRITICAL', cls: 'bg-red-100 text-red-700' }
+  if (atp < pos.reorderPoint) return { label: 'REORDER SOON', cls: 'bg-amber-100 text-amber-700' }
   return { label: 'OK', cls: 'bg-green-100 text-green-700' }
 }
 
@@ -16,6 +21,7 @@ interface PositionCardProps {
 
 function PositionCard({ pos }: PositionCardProps) {
   const { label, cls } = reorderStatus(pos)
+  const atp = computeAtp(pos)
   return (
     <div className="bg-white rounded-lg shadow p-4 border-t-4 border-gray-200">
       <div className="flex items-start justify-between mb-2">
@@ -32,8 +38,8 @@ function PositionCard({ pos }: PositionCardProps) {
         <dt className="text-gray-500">Reserved</dt>
         <dd className="text-right font-medium">{pos.reserved.toLocaleString()}</dd>
         <dt className="text-gray-500">ATP</dt>
-        <dd className={`text-right font-bold ${pos.atp <= 0 ? 'text-red-600' : pos.atp < pos.reorderPoint ? 'text-amber-600' : 'text-green-600'}`}>
-          {pos.atp.toLocaleString()}
+        <dd className={`text-right font-bold ${atp <= 0 ? 'text-red-600' : atp < pos.reorderPoint ? 'text-amber-600' : 'text-green-600'}`}>
+          {atp.toLocaleString()}
         </dd>
       </dl>
     </div>

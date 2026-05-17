@@ -147,18 +147,18 @@ RE — Replenishment Engine    (ECS Fargate, port 8082)
 
 **Observable evidence (all 10 checks must pass):**
 
-| Check | What to verify                                                                                |
-| ----- | --------------------------------------------------------------------------------------------- |
-| 3.1   | SC Planner MFE displays PENDING_APPROVAL PO in queue                                          |
-| 3.2   | Approve request reaches RE (`POST /v1/replenishment/orders/{poId}/approve`)                   |
-| 3.3   | JWT SC_PLANNER role is validated by the system                                                |
-| 3.4   | Optimistic lock update succeeds (`version` incremented from 0 to 1)                           |
-| 3.5   | `replenishment.purchase_orders` row updated (`workflow_status = APPROVED`)                     |
-| 3.6   | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED`                |
-| 3.7   | MFE reflects approved status (PO removed from pending queue)                                  |
-| 3.8   | Reject workflow updates database to `REJECTED` and records rejection reason                   |
-| 3.9   | Wrong role rejection returns `403 Forbidden` for non-planner users                            |
-| 3.10  | Invalid status transition (e.g. re-approving) returns `409 Conflict`                           |
+| Check | What to verify                                                                 |
+| ----- | ------------------------------------------------------------------------------ |
+| 3.1   | SC Planner MFE displays PENDING_APPROVAL PO in queue                           |
+| 3.2   | Approve request reaches RE (`POST /v1/replenishment/orders/{poId}/approve`)    |
+| 3.3   | JWT SC_PLANNER role is validated by the system                                 |
+| 3.4   | Optimistic lock update succeeds (`version` incremented from 0 to 1)            |
+| 3.5   | `replenishment.purchase_orders` row updated (`workflow_status = APPROVED`)     |
+| 3.6   | `PurchaseOrderEvent` published to EventBridge with `workflowStatus = APPROVED` |
+| 3.7   | MFE reflects approved status (PO removed from pending queue)                   |
+| 3.8   | Reject workflow updates database to `REJECTED` and records rejection reason    |
+| 3.9   | Wrong role rejection returns `403 Forbidden` for non-planner users             |
+| 3.10  | Invalid status transition (e.g. re-approving) returns `409 Conflict`           |
 
 **Wrong role / Wrong status test:**
 - Sign in as a `STORE_MANAGER` and attempt to approve a pending PO → returns `403 Forbidden`.
@@ -188,16 +188,16 @@ Store Manager Dashboard MFE   (Renders inventory positions, alerts, and data fre
 
 **Observable evidence (all 8 checks must pass):**
 
-| Check | What to verify                                                                |
-| ----- | ----------------------------------------------------------------------------- |
-| 4.1   | Store Manager MFE renders dashboard without error                             |
-| 4.2   | ARS receives request `GET /v1/dashboard/store-manager?dcId=DC-LONDON`          |
-| 4.3   | Scope enforcement restricts `STORE_MANAGER` to their designated DC            |
-| 4.4   | ARS executes parallel, non-blocking queries across database schemas           |
-| 4.5   | No cross-schema SQL JOIN is executed (queries are merged in Java memory)      |
-| 4.6   | Inventory KPI cards display accurate on-hand and in-transit counts            |
-| 4.7   | Alert count matches active `inventory.stock_alerts` in RDS                    |
-| 4.8   | `dataFreshness` timestamp is computed and rendered on the MFE                 |
+| Check | What to verify                                                           |
+| ----- | ------------------------------------------------------------------------ |
+| 4.1   | Store Manager MFE renders dashboard without error                        |
+| 4.2   | ARS receives request `GET /v1/dashboard/store-manager?dcId=DC-LONDON`    |
+| 4.3   | Scope enforcement restricts `STORE_MANAGER` to their designated DC       |
+| 4.4   | ARS executes parallel, non-blocking queries across database schemas      |
+| 4.5   | No cross-schema SQL JOIN is executed (queries are merged in Java memory) |
+| 4.6   | Inventory KPI cards display accurate on-hand and in-transit counts       |
+| 4.7   | Alert count matches active `inventory.stock_alerts` in RDS               |
+| 4.8   | `dataFreshness` timestamp is computed and rendered on the MFE            |
 
 **No cross-schema JOIN:** ARS fetches data in parallel across `sales`, `inventory`, and `replenishment` schemas and performs in-memory aggregation in Java to enforce complete database decoupling.
 
@@ -434,19 +434,19 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 
 ## Port Assignments (local mode)
 
-| Service                       | Port |
-| ----------------------------- | ---- |
-| SIS — Sales Ingestion         | 8080 |
-| IMS — Inventory Management    | 8081 |
-| RE — Replenishment Engine     | 8082 |
-| ARS — Analytics & Reporting   | 8083 |
-| DFS — Demand Forecasting      | 8084 |
-| SUP — Supplier Service        | 8085 |
-| PostgreSQL                    | 5432 |
-| LocalStack (all AWS services) | 4566 |
-| Store Manager MFE             | 5173 |
-| SC Planner MFE                | 5174 |
-| Executive MFE                 | 5175 |
+| Service                       | Port     |
+| ----------------------------- | -------- |
+| SIS — Sales Ingestion         | 8080     |
+| IMS — Inventory Management    | 8081     |
+| RE — Replenishment Engine     | 8082     |
+| ARS — Analytics & Reporting   | 8083     |
+| DFS — Demand Forecasting      | 8084     |
+| SUP — Supplier Service        | 8085     |
+| PostgreSQL                    | 5432     |
+| LocalStack (all AWS services) | 4566     |
+| Store Manager MFE             | 5173     |
+| SC Planner MFE                | 5174     |
+| Executive MFE                 | 5175     |
 | **Demo Control Center MFE**   | **5176** |
 | **Demo Control Server**       | **3099** |
 
@@ -649,15 +649,15 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 All infrastructure is defined in `infra/cdk/` as TypeScript CDK stacks. Stacks must be deployed in dependency order.
 
-| Stack | What it provisions |
-| ----- | ------------------ |
-| `NetworkStack` | VPC, subnets, NAT gateways, security groups |
-| `DataStack` | RDS PostgreSQL (+ RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×4) |
-| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs |
-| `IdentityStack` | Cognito User Pool, app clients, user groups (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) |
-| `ComputeStack` | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup), ECR repos, Kinesis consumer Lambda |
-| `ApiStack` | HTTP API Gateway, VPC Link, JWT authoriser, routes for all six services |
-| `HostingStack` | CloudFront distributions (×4 MFEs) with S3 OAC, SSM outputs for distribution IDs and URLs |
+| Stack            | What it provisions                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `NetworkStack`   | VPC, subnets, NAT gateways, security groups                                                     |
+| `DataStack`      | RDS PostgreSQL (+ RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×4) |
+| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                      |
+| `IdentityStack`  | Cognito User Pool, app clients, user groups (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE)          |
+| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup), ECR repos, Kinesis consumer Lambda      |
+| `ApiStack`       | HTTP API Gateway, VPC Link, JWT authoriser, routes for all six services                         |
+| `HostingStack`   | CloudFront distributions (×4 MFEs) with S3 OAC, SSM outputs for distribution IDs and URLs       |
 
 ### Prerequisites
 
@@ -825,90 +825,90 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 ### Local development
 
-| Target | Description |
-| ------ | ----------- |
-| `local-up` | Start Postgres + LocalStack via Docker Compose; wait for readiness |
-| `local-migrate` | Run Flyway migrations V1–V6 against local Postgres |
-| `local-seed` | Apply seed data (V7) |
-| `local-sis` | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local` |
-| `local-ims` | Start IMS on :8081 |
-| `local-re` | Start RE on :8082 |
-| `local-ars` | Start ARS on :8083 |
-| `local-dfs` | Start DFS on :8084 |
-| `local-sup` | Start SUP on :8085 |
-| `local-mfe-sm` | Start Store Manager MFE on :5173 |
-| `local-mfe-scp` | Start SC Planner MFE on :5174 |
-| `local-mfe-exec` | Start Executive MFE on :5175 |
-| `local-demo-server` | Start Demo Control Server on :3099 |
-| `local-mfe-demo` | Start Demo Control Center MFE on :5176 |
-| `local-demo` | Start both demo-server and demo MFE in parallel |
-| `local-free-ports` | Find and terminate host processes holding ports 8080-8085 and 5173-5176 |
-| `local-down` | Stop containers, preserve data volumes (calls local-free-ports automatically) |
-| `local-clean` | Stop containers, destroy volumes (calls local-free-ports automatically) |
+| Target              | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `local-up`          | Start Postgres + LocalStack via Docker Compose; wait for readiness            |
+| `local-migrate`     | Run Flyway migrations V1–V6 against local Postgres                            |
+| `local-seed`        | Apply seed data (V7)                                                          |
+| `local-sis`         | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local`                        |
+| `local-ims`         | Start IMS on :8081                                                            |
+| `local-re`          | Start RE on :8082                                                             |
+| `local-ars`         | Start ARS on :8083                                                            |
+| `local-dfs`         | Start DFS on :8084                                                            |
+| `local-sup`         | Start SUP on :8085                                                            |
+| `local-mfe-sm`      | Start Store Manager MFE on :5173                                              |
+| `local-mfe-scp`     | Start SC Planner MFE on :5174                                                 |
+| `local-mfe-exec`    | Start Executive MFE on :5175                                                  |
+| `local-demo-server` | Start Demo Control Server on :3099                                            |
+| `local-mfe-demo`    | Start Demo Control Center MFE on :5176                                        |
+| `local-demo`        | Start both demo-server and demo MFE in parallel                               |
+| `local-free-ports`  | Find and terminate host processes holding ports 8080-8085 and 5173-5176       |
+| `local-down`        | Stop containers, preserve data volumes (calls local-free-ports automatically) |
+| `local-clean`       | Stop containers, destroy volumes (calls local-free-ports automatically)       |
 
 ### Testing
 
-| Target | Description |
-| ------ | ----------- |
-| `test-unit` | Run unit tests for all 6 services via Maven |
-| `test-flow1` | Smoke test Flow 1 (POS → SIS → IMS → stock alert) |
+| Target       | Description                                             |
+| ------------ | ------------------------------------------------------- |
+| `test-unit`  | Run unit tests for all 6 services via Maven             |
+| `test-flow1` | Smoke test Flow 1 (POS → SIS → IMS → stock alert)       |
 | `test-flow2` | Smoke test Flow 2 (RE auto-approve + PENDING\_APPROVAL) |
-| `test-flow3` | Smoke test Flow 3 (SC Planner approve/reject) |
-| `test-flow4` | Smoke test Flow 4 (ARS → Store Manager dashboard) |
-| `test-flow8` | Smoke test Flow 8 (Executive Dashboard) |
-| `test-flow9` | Smoke test Flow 9 (SC Planner Console) |
-| `test-all` | Run smoke tests for all flows |
+| `test-flow3` | Smoke test Flow 3 (SC Planner approve/reject)           |
+| `test-flow4` | Smoke test Flow 4 (ARS → Store Manager dashboard)       |
+| `test-flow8` | Smoke test Flow 8 (Executive Dashboard)                 |
+| `test-flow9` | Smoke test Flow 9 (SC Planner Console)                  |
+| `test-all`   | Run smoke tests for all flows                           |
 
 ### Build
 
-| Target | Description |
-| ------ | ----------- |
-| `build-services` | `mvn clean package -DskipTests` for all 6 services |
-| `build-lambda` | `mvn clean package -DskipTests` for kinesis-consumer Lambda |
-| `build-mfes` | `npm run build` for all 4 MFEs (store-manager, sc-planner, executive, demo) |
-| `build-all` | All of the above |
-| `docker-build-sis` | Build SIS Docker image locally |
-| `docker-build-all` | Build Docker images for all 6 services locally |
-| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally |
+| Target                | Description                                                                 |
+| --------------------- | --------------------------------------------------------------------------- |
+| `build-services`      | `mvn clean package -DskipTests` for all 6 services                          |
+| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                 |
+| `build-mfes`          | `npm run build` for all 4 MFEs (store-manager, sc-planner, executive, demo) |
+| `build-all`           | All of the above                                                            |
+| `docker-build-sis`    | Build SIS Docker image locally                                              |
+| `docker-build-all`    | Build Docker images for all 6 services locally                              |
+| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                          |
 
 ### AWS infrastructure
 
-| Target | Description |
-| ------ | ----------- |
-| `aws-bootstrap` | CDK bootstrap (one-time per account/region) |
-| `aws-deploy-network` | Deploy NetworkStack |
-| `aws-deploy-data` | Deploy DataStack (RDS, DynamoDB, S3 buckets) |
-| `aws-deploy-messaging` | Deploy MessagingStack |
-| `aws-deploy-identity` | Deploy IdentityStack (Cognito) |
-| `aws-deploy-compute` | Deploy ComputeStack (ECS, Lambda) |
-| `aws-deploy-api` | Deploy ApiStack (API Gateway) |
-| `aws-deploy-hosting` | Deploy HostingStack (CloudFront distributions) |
-| `aws-deploy-all` | Deploy all stacks with `--require-approval never` |
+| Target                 | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| `aws-bootstrap`        | CDK bootstrap (one-time per account/region)       |
+| `aws-deploy-network`   | Deploy NetworkStack                               |
+| `aws-deploy-data`      | Deploy DataStack (RDS, DynamoDB, S3 buckets)      |
+| `aws-deploy-messaging` | Deploy MessagingStack                             |
+| `aws-deploy-identity`  | Deploy IdentityStack (Cognito)                    |
+| `aws-deploy-compute`   | Deploy ComputeStack (ECS, Lambda)                 |
+| `aws-deploy-api`       | Deploy ApiStack (API Gateway)                     |
+| `aws-deploy-hosting`   | Deploy HostingStack (CloudFront distributions)    |
+| `aws-deploy-all`       | Deploy all stacks with `--require-approval never` |
 
 ### AWS artifacts
 
-| Target | Description |
-| ------ | ----------- |
-| `aws-ecr-login` | Authenticate Docker to ECR |
-| `aws-push-<svc>` | Build + push a single service image (e.g. `aws-push-sis`) |
-| `aws-push-all` | Build + push all 6 service images |
-| `aws-push-lambda` | Build + push Lambda container image |
-| `aws-deploy-mfe-<name>` | Build + deploy a single MFE (e.g. `aws-deploy-mfe-demo`) |
-| `aws-deploy-mfes` | Build + deploy all 4 MFEs |
-| `aws-deploy-services` | Full service pipeline: Maven → Docker → ECR → ECS force-deploy |
-| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning |
+| Target                     | Description                                                    |
+| -------------------------- | -------------------------------------------------------------- |
+| `aws-ecr-login`            | Authenticate Docker to ECR                                     |
+| `aws-push-<svc>`           | Build + push a single service image (e.g. `aws-push-sis`)      |
+| `aws-push-all`             | Build + push all 6 service images                              |
+| `aws-push-lambda`          | Build + push Lambda container image                            |
+| `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-demo`)       |
+| `aws-deploy-mfes`          | Build + deploy all 4 MFEs                                      |
+| `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy |
+| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning     |
 
 ### AWS operations
 
-| Target | Description |
-| ------ | ----------- |
-| `aws-migrate` | Run Flyway migrations against RDS via `run-flyway-aws.sh` |
-| `aws-create-users` | Create test Cognito users via `create-cognito-users.sh` |
-| `aws-smoke-test` | Run all smoke tests against AWS endpoints |
-| `aws-full-deploy` | **First-time end-to-end deploy**: CDK → images → MFEs → migrate → users |
-| `aws-demo` | Start demo-server in AWS mode + demo MFE |
-| `aws-undeploy` | Destroy all CDK stacks (`cdk destroy --all`); S3/ECR untouched |
-| `aws-destroy` | Full teardown via `destroy-infra.sh`; wipes all AWS resources |
+| Target             | Description                                                             |
+| ------------------ | ----------------------------------------------------------------------- |
+| `aws-migrate`      | Run Flyway migrations against RDS via `run-flyway-aws.sh`               |
+| `aws-create-users` | Create test Cognito users via `create-cognito-users.sh`                 |
+| `aws-smoke-test`   | Run all smoke tests against AWS endpoints                               |
+| `aws-full-deploy`  | **First-time end-to-end deploy**: CDK → images → MFEs → migrate → users |
+| `aws-demo`         | Start demo-server in AWS mode + demo MFE                                |
+| `aws-undeploy`     | Destroy all CDK stacks (`cdk destroy --all`); S3/ECR untouched          |
+| `aws-destroy`      | Full teardown via `destroy-infra.sh`; wipes all AWS resources           |
 
 ---
 
@@ -965,23 +965,23 @@ The Demo Control Center is a single-browser experience for presenting all six fl
 
 Two new processes start alongside the existing services:
 
-| Process | Port | Role |
-| ------- | ---- | ---- |
+| Process                      | Port | Role                                                                                                                                  |
+| ---------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `demo-server` (Node/Express) | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
-| `mfe/demo` (Vite + React) | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes |
+| `mfe/demo` (Vite + React)    | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes                              |
 
 The architecture diagram shows every service node (Kinesis → Lambda → SIS → EventBridge → IMS / RE → RDS → ARS → MFEs). Nodes pulse and animated dots travel along edges in real time as SSE log lines arrive. The live evidence checklist auto-checks each item when a matching string appears in the log stream.
 
 ### Demo narrative arc
 
-| Chapter | Flow | Title | Key moment |
-| ------- | ---- | ----- | ---------- |
-| 1 | Flow 1 | A Customer Buys Something | Fire POS event — watch Kinesis → SIS → IMS animate; stock alert row appears |
-| 2 | Flow 2 | The System Responds Automatically | RE evaluates the alert; split reveal shows auto-approved PO vs PENDING\_APPROVAL PO |
-| 3 | Flow 3 | The Planner Decides | SC Planner MFE slides in — presenter approves the live PO; EventBridge fires |
-| 4 | Flow 4 | The Store Manager Reacts | Store Manager MFE slides in — DC-LONDON KPIs show the active alert from Chapter 1 |
-| 5 | Flow 8 | Leadership Reviews Performance | Executive Dashboard — MAPE trend improving 0.1187 → 0.0823 across 30 seed days |
-| 6 | Flow 9 | The Planner Optimizes | All 8 SC Planner Console tabs; manual replenishment trigger creates DRAFT PO live |
+| Chapter | Flow   | Title                             | Key moment                                                                          |
+| ------- | ------ | --------------------------------- | ----------------------------------------------------------------------------------- |
+| 1       | Flow 1 | A Customer Buys Something         | Fire POS event — watch Kinesis → SIS → IMS animate; stock alert row appears         |
+| 2       | Flow 2 | The System Responds Automatically | RE evaluates the alert; split reveal shows auto-approved PO vs PENDING\_APPROVAL PO |
+| 3       | Flow 3 | The Planner Decides               | SC Planner MFE slides in — presenter approves the live PO; EventBridge fires        |
+| 4       | Flow 4 | The Store Manager Reacts          | Store Manager MFE slides in — DC-LONDON KPIs show the active alert from Chapter 1   |
+| 5       | Flow 8 | Leadership Reviews Performance    | Executive Dashboard — MAPE trend improving 0.1187 → 0.0823 across 30 seed days      |
+| 6       | Flow 9 | The Planner Optimizes             | All 8 SC Planner Console tabs; manual replenishment trigger creates DRAFT PO live   |
 
 ---
 
@@ -1012,7 +1012,13 @@ make local-up
 make local-migrate
 make local-seed
 
-# Step 2 — backend services (run each in its own terminal or background with &)
+# Step 2 - Build all
+make build-all
+
+# Step 3 - Free up ports
+make local-free-ports
+
+# Step 4 - backend services (run each in its own terminal or background with &)
 make local-sis &
 make local-ims &
 make local-re  &
@@ -1020,12 +1026,12 @@ make local-ars &
 make local-dfs &
 make local-sup &
 
-# Step 3 — operational MFEs (needed for iframe reveals in chapters 3, 4, 5, 6)
+# Step 5 — operational MFEs (needed for iframe reveals in chapters 3, 4, 5, 6)
 make local-mfe-sm   &
 make local-mfe-scp  &
 make local-mfe-exec &
 
-# Step 4 — demo experience
+# Step 6 — demo experience
 make local-demo
 ```
 
@@ -1090,10 +1096,10 @@ Open **[http://localhost:5176](http://localhost:5176)**. The architecture diagra
 
 ### Demo troubleshooting
 
-| Symptom | Fix |
-| ------- | --- |
-| All health dots red | `make local-demo-server` must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health` |
-| "Flow X is already running" on trigger | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page |
-| Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one |
-| MFE iframe shows login page instead of dashboard | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services |
-| Event log empty after trigger | demo-server SSE connection dropped; reload the page — the `EventSource` auto-reconnects |
+| Symptom                                                   | Fix                                                                                                                              |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| All health dots red                                       | `make local-demo-server` must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health`               |
+| "Flow X is already running" on trigger                    | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page              |
+| Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one                                                  |
+| MFE iframe shows login page instead of dashboard          | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services |
+| Event log empty after trigger                             | demo-server SSE connection dropped; reload the page — the `EventSource` auto-reconnects                                          |

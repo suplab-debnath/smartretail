@@ -45,7 +45,7 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                 ORDER BY created_at DESC
                 LIMIT 1
             ) su ON true
-            WHERE (:status IS NULL OR sp.po_status = :status)
+            WHERE (CAST(:status AS TEXT) IS NULL OR sp.po_status = :status)
             ORDER BY
                 CASE WHEN sp.po_status = 'EXCEPTION' THEN 0 ELSE 1 END,
                 sp.eta ASC NULLS LAST
@@ -68,9 +68,9 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                 SUPPLIER_ORDERS_SQL,
                 new MapSqlParameterSource("status", shipmentStatus),
                 (rs, rowNum) -> new SupplierOrderRow(
-                        rs.getObject("supplier_po_id", UUID.class),
-                        rs.getObject("po_id", UUID.class),
-                        rs.getObject("supplier_id", UUID.class),
+                        toUuid(rs, "supplier_po_id"),
+                        toUuid(rs, "po_id"),
+                        toUuid(rs, "supplier_id"),
                         rs.getString("supplier_name"),
                         rs.getString("sku_id"),
                         rs.getString("dc_id"),
@@ -97,5 +97,10 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
     private Instant toInstant(java.sql.ResultSet rs, String col) throws java.sql.SQLException {
         java.sql.Timestamp ts = rs.getTimestamp(col);
         return ts != null ? ts.toInstant() : null;
+    }
+
+    private UUID toUuid(java.sql.ResultSet rs, String col) throws java.sql.SQLException {
+        String val = rs.getString(col);
+        return val != null ? UUID.fromString(val) : null;
     }
 }

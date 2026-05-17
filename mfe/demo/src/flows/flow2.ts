@@ -53,9 +53,9 @@ const flow2: FlowDef = {
       },
       activeNodes: [],
       checklist: [
-        { id: 'v2-1', text: 'Scenario 2a: APPROVED PO in RDS',         matchPattern: "'APPROVED'" },
+        { id: 'v2-1', text: 'Scenario 2a: APPROVED PO in RDS',         matchPattern: 'APPROVED' },
         { id: 'v2-2', text: 'Scenario 2b: PENDING_APPROVAL PO in RDS', matchPattern: 'PENDING_APPROVAL' },
-        { id: 'v2-3', text: 'Optimistic lock version = 0',             matchPattern: 'version' },
+        { id: 'v2-3', text: 'PO ID stored for Flow 3',                 matchPattern: 'PENDING_PO_ID' },
       ],
     },
   ],

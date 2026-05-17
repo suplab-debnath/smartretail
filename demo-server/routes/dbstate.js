@@ -29,7 +29,7 @@ router.get('/pending-pos', async (req, res) => {
   try {
     if (ENV === 'local') {
       const rows = await db.query(
-        `SELECT id, sku_id, dc_id, workflow_status, total_value, version, created_at
+        `SELECT po_id, sku_id, dc_id, workflow_status, total_value, version, created_at
            FROM replenishment.purchase_orders
           WHERE workflow_status = 'PENDING_APPROVAL'
           ORDER BY created_at DESC
@@ -50,10 +50,13 @@ router.get('/stock-alerts', async (req, res) => {
   try {
     if (ENV === 'local') {
       const rows = await db.query(
-        `SELECT id, sku_id, dc_id, alert_type, severity, status, created_at
-           FROM inventory.stock_alerts
-          WHERE status = 'ACTIVE'
-          ORDER BY created_at DESC
+        `SELECT sa.alert_id, ip.sku_id, ip.dc_id,
+                sa.alert_type, sa.severity, sa.status,
+                sa.actual_value, sa.threshold_value, sa.raised_at
+           FROM inventory.stock_alerts sa
+           JOIN inventory.inventory_positions ip ON ip.position_id = sa.position_id
+          WHERE sa.status = 'ACTIVE'
+          ORDER BY sa.raised_at DESC
           LIMIT 10`
       );
       return res.json({ rows });
@@ -71,7 +74,9 @@ router.get('/inventory-position', async (req, res) => {
   try {
     if (ENV === 'local') {
       const rows = await db.query(
-        `SELECT sku_id, dc_id, on_hand, available_to_promise, reorder_point, updated_at
+        `SELECT sku_id, dc_id, on_hand, in_transit, reserved,
+                (on_hand - reserved) AS available_to_promise,
+                reorder_point, last_updated_at AS updated_at
            FROM inventory.inventory_positions
           WHERE sku_id = $1 AND dc_id = $2`,
         [skuId, dcId]
@@ -91,9 +96,9 @@ router.get('/latest-sale', async (req, res) => {
   try {
     if (ENV === 'local') {
       const rows = await db.query(
-        `SELECT transaction_id, sku_id, dc_id, quantity_sold, channel, recorded_at
+        `SELECT transaction_id, sku_id, dc_id, quantity, channel, created_at
            FROM sales.sales_events
-          ${txId ? 'WHERE transaction_id = $1::uuid' : 'ORDER BY recorded_at DESC LIMIT 5'}`,
+          ${txId ? 'WHERE transaction_id = $1::uuid' : 'ORDER BY created_at DESC LIMIT 5'}`,
         txId ? [txId] : []
       );
       return res.json({ rows });
@@ -109,7 +114,7 @@ router.get('/approved-pos', async (req, res) => {
   try {
     if (ENV === 'local') {
       const rows = await db.query(
-        `SELECT id, sku_id, dc_id, workflow_status, total_value, version, created_at
+        `SELECT po_id, sku_id, dc_id, workflow_status, total_value, version, created_at
            FROM replenishment.purchase_orders
           WHERE workflow_status IN ('APPROVED', 'PENDING_APPROVAL')
           ORDER BY created_at DESC

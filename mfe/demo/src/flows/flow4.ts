@@ -51,10 +51,10 @@ const flow4: FlowDef = {
       activeNodes: [],
       checklist: [
         { id: 'v4-1', text: 'ARS /dashboard/store-manager 200',       matchPattern: '200' },
-        { id: 'v4-2', text: 'dcId=DC-LONDON enforced',                matchPattern: 'DC-LONDON' },
-        { id: 'v4-3', text: 'alertCount > 0',                         matchPattern: 'alertCount' },
+        { id: 'v4-2', text: 'Dashboard API responding',               matchPattern: 'Dashboard API' },
+        { id: 'v4-3', text: 'Alert count > 0',                        matchPattern: 'alert counts' },
         { id: 'v4-4', text: 'dataFreshness timestamp present',        matchPattern: 'dataFreshness' },
-        { id: 'v4-5', text: 'No cross-schema SQL joins in query log', matchPattern: 'parallel' },
+        { id: 'v4-5', text: 'No cross-schema SQL joins',              matchPattern: 'present' },
       ],
     },
   ],

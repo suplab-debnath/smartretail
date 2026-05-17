@@ -1,5 +1,5 @@
 // Shared
-export type ShipmentStatus = 'PENDING' | 'CONFIRMED' | 'DISPATCHED' | 'DELIVERED' | 'EXCEPTION'
+export type ShipmentStatus = 'PENDING' | 'CONFIRMED' | 'DISPATCHED' | 'DELIVERED' | 'COMPLETED' | 'EXCEPTION'
 export type AlertSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM'
 export type AlertType = 'LOW_STOCK' | 'OVERSTOCK'
 export type AlertStatus = 'ACTIVE' | 'RESOLVED'
@@ -22,13 +22,14 @@ export interface ScPlannerDashboardResponse {
 // IMS — Stock Alerts
 export interface StockAlert {
   alertId: string
+  positionId: string
   skuId: string
   dcId: string
   alertType: AlertType
   severity: AlertSeverity
   status: AlertStatus
-  onHand: number
-  reorderPoint: number
+  actualValue: number
+  thresholdValue: number
   raisedAt: string
 }
 export interface StockAlertListResponse {
@@ -44,10 +45,10 @@ export interface InventoryPosition {
   onHand: number
   inTransit: number
   reserved: number
-  atp: number
   reorderPoint: number
   safetyStock: number
-  updatedAt: string
+  version: number
+  lastUpdatedAt: string
 }
 export interface InventoryPositionListResponse {
   positions: InventoryPosition[]

@@ -1,8 +1,10 @@
 #!/bin/bash
+# ================================================
 # localstack-init.sh — runs automatically when LocalStack is ready
 # Mounted at: /etc/localstack/init/ready.d/init.sh
+# ================================================
 
-set -e
+set -euo pipefail
 
 ENDPOINT="http://localhost:4566"
 ENV="local"
@@ -12,6 +14,7 @@ ACCOUNT="000000000000"  # LocalStack fake account ID
 echo "Creating LocalStack resources for env=${ENV}..."
 
 # ── Kinesis ──────────────────────────────────────────────────────────────────
+echo "Creating Kinesis stream..."
 
 awslocal --endpoint-url=$ENDPOINT kinesis create-stream \
     --stream-name "smartretail-events-${ENV}" \
@@ -21,6 +24,7 @@ awslocal --endpoint-url=$ENDPOINT kinesis create-stream \
 echo "✅ Kinesis stream created"
 
 # ── EventBridge ───────────────────────────────────────────────────────────────
+echo "Creating EventBridge bus..."
 
 awslocal --endpoint-url=$ENDPOINT events create-event-bus \
     --name "smartretail-events-${ENV}" \
@@ -29,6 +33,7 @@ awslocal --endpoint-url=$ENDPOINT events create-event-bus \
 echo "✅ EventBridge bus created"
 
 # ── SQS queues ────────────────────────────────────────────────────────────────
+echo "Creating SQS queues..."
 
 awslocal --endpoint-url=$ENDPOINT sqs create-queue \
     --queue-name "smartretail-ims-sales-${ENV}-dlq" \
@@ -56,6 +61,7 @@ awslocal --endpoint-url=$ENDPOINT sqs create-queue \
 echo "✅ SQS queues created"
 
 # ── EventBridge rules → SQS targets ──────────────────────────────────────────
+echo "Creating EventBridge rules..."
 
 IMS_QUEUE_ARN="arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-ims-sales-${ENV}"
 RE_QUEUE_ARN="arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-re-alert-${ENV}.fifo"
@@ -105,7 +111,28 @@ awslocal --endpoint-url=$ENDPOINT events put-targets \
 
 echo "✅ EventBridge rules and targets created"
 
+# ── SQS queue policies (allow EventBridge to deliver) ─────────────────────────
+echo "Setting SQS queue policies for EventBridge delivery..."
+
+awslocal --endpoint-url=$ENDPOINT sqs set-queue-attributes \
+    --queue-url "${ENDPOINT}/000000000000/smartretail-ims-sales-${ENV}" \
+    --attributes "{\"Policy\":\"{\\\"Version\\\":\\\"2012-10-17\\\",\\\"Statement\\\":[{\\\"Effect\\\":\\\"Allow\\\",\\\"Principal\\\":{\\\"Service\\\":\\\"events.amazonaws.com\\\"},\\\"Action\\\":\\\"sqs:SendMessage\\\",\\\"Resource\\\":\\\"arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-ims-sales-${ENV}\\\"}]}\"}" \
+    --region $REGION
+
+awslocal --endpoint-url=$ENDPOINT sqs set-queue-attributes \
+    --queue-url "${ENDPOINT}/000000000000/smartretail-re-alert-${ENV}.fifo" \
+    --attributes "{\"Policy\":\"{\\\"Version\\\":\\\"2012-10-17\\\",\\\"Statement\\\":[{\\\"Effect\\\":\\\"Allow\\\",\\\"Principal\\\":{\\\"Service\\\":\\\"events.amazonaws.com\\\"},\\\"Action\\\":\\\"sqs:SendMessage\\\",\\\"Resource\\\":\\\"arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-re-alert-${ENV}.fifo\\\"}]}\"}" \
+    --region $REGION
+
+awslocal --endpoint-url=$ENDPOINT sqs set-queue-attributes \
+    --queue-url "${ENDPOINT}/000000000000/smartretail-ars-updates-${ENV}" \
+    --attributes "{\"Policy\":\"{\\\"Version\\\":\\\"2012-10-17\\\",\\\"Statement\\\":[{\\\"Effect\\\":\\\"Allow\\\",\\\"Principal\\\":{\\\"Service\\\":\\\"events.amazonaws.com\\\"},\\\"Action\\\":\\\"sqs:SendMessage\\\",\\\"Resource\\\":\\\"arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-ars-updates-${ENV}\\\"}]}\"}" \
+    --region $REGION
+
+echo "✅ SQS queue policies set"
+
 # ── DynamoDB ──────────────────────────────────────────────────────────────────
+echo "Creating DynamoDB table..."
 
 awslocal --endpoint-url=$ENDPOINT dynamodb create-table \
     --table-name "smartretail-idempotency-keys-${ENV}" \
@@ -123,7 +150,7 @@ awslocal --endpoint-url=$ENDPOINT dynamodb update-time-to-live \
 echo "✅ DynamoDB table created"
 
 # ── S3 ────────────────────────────────────────────────────────────────────────
-
+echo "Creating S3 bucket..."
 awslocal --endpoint-url=$ENDPOINT s3 mb \
     "s3://smartretail-events-${ENV}" \
     --region $REGION
@@ -132,39 +159,68 @@ echo "✅ S3 bucket created"
 
 # ── SSM Parameter Store ───────────────────────────────────────────────────────
 # Values read by Spring Boot services at startup in local mode
+echo "Writing SSM parameters..."
 
-PARAMS=(
-    "/smartretail/local/rds/proxy-endpoint=localhost"
-    "/smartretail/local/rds/database-name=smartretail"
-    "/smartretail/local/eventbridge/bus-name=smartretail-events-local"
-    "/smartretail/local/kinesis/stream-name=smartretail-events-local"
-    "/smartretail/local/s3/events-bucket=smartretail-events-local"
-    "/smartretail/local/dynamodb/idempotency-table=smartretail-idempotency-keys-local"
-)
+# Normal parameters
+awslocal ssm put-parameter \
+    --name "/smartretail/local/rds/proxy-endpoint" \
+    --value "localhost" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
 
-# These queue URLs need special handling
-awslocal ssm put-parameter --name "/smartretail/local/sqs/ims-sales-queue-url" \
-    --value "http://localhost:4566/000000000000/smartretail-ims-sales-local" \
-    --type String --overwrite --region $REGION || true
+awslocal ssm put-parameter \
+    --name "/smartretail/local/rds/database-name" \
+    --value "smartretail" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
 
-awslocal ssm put-parameter --name "/smartretail/local/sqs/re-alert-queue-url" \
-    --value "http://localhost:4566/000000000000/smartretail-re-alert-local.fifo" \
-    --type String --overwrite --region $REGION || true
+awslocal ssm put-parameter \
+    --name "/smartretail/local/eventbridge/bus-name" \
+    --value "smartretail-events-local" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
 
-awslocal ssm put-parameter --name "/smartretail/local/sqs/ars-updates-queue-url" \
-    --value "http://localhost:4566/000000000000/smartretail-ars-updates-local" \
-    --type String --overwrite --region $REGION || true
+awslocal ssm put-parameter \
+    --name "/smartretail/local/kinesis/stream-name" \
+    --value "smartretail-events-local" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
 
-for param in "${PARAMS[@]}"; do
-    KEY="${param%%=*}"
-    VALUE="${param##*=}"
-    awslocal ssm put-parameter \
-        --name "$KEY" \
-        --value "$VALUE" \
-        --type String \
-        --overwrite \
-        --region $REGION || true
-done
+awslocal ssm put-parameter \
+    --name "/smartretail/local/s3/events-bucket" \
+    --value "smartretail-events-local" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
+
+awslocal ssm put-parameter \
+    --name "/smartretail/local/dynamodb/idempotency-table" \
+    --value "smartretail-idempotency-keys-local" \
+    --type String \
+    --overwrite \
+    --region $REGION || true
+
+# Queue URLs - Use cli-input-json to prevent URL auto-fetch bug
+cat > /tmp/ims-queue.json << EOF
+{"Name":"/smartretail/local/sqs/ims-sales-queue-url","Value":"http://localhost:4566/000000000000/smartretail-ims-sales-local","Type":"String","Overwrite":true}
+EOF
+awslocal ssm put-parameter --cli-input-json file:///tmp/ims-queue.json --region $REGION || true
+
+cat > /tmp/re-queue.json << EOF
+{"Name":"/smartretail/local/sqs/re-alert-queue-url","Value":"http://localhost:4566/000000000000/smartretail-re-alert-local.fifo","Type":"String","Overwrite":true}
+EOF
+awslocal ssm put-parameter --cli-input-json file:///tmp/re-queue.json --region $REGION || true
+
+cat > /tmp/ars-queue.json << EOF
+{"Name":"/smartretail/local/sqs/ars-updates-queue-url","Value":"http://localhost:4566/000000000000/smartretail-ars-updates-local","Type":"String","Overwrite":true}
+EOF
+awslocal ssm put-parameter --cli-input-json file:///tmp/ars-queue.json --region $REGION || true
+
+rm -f /tmp/ims-queue.json /tmp/re-queue.json /tmp/ars-queue.json
 
 echo "✅ SSM parameters written"
 

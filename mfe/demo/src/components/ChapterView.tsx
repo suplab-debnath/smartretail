@@ -104,7 +104,7 @@ export default function ChapterView({ flow, hasMatch }: Props) {
 
         {/* DB state panels */}
         {step.dbQueries?.map(q => (
-          <DbQueryPanel key={q.key} queryDef={q} triggerFired={runner.state !== 'idle'} />
+          <DbQueryPanel key={q.key} queryDef={q} triggerFired={runner.state !== 'idle'} autoStart={!step.trigger} />
         ))}
 
         {/* Step navigation */}
@@ -133,9 +133,11 @@ export default function ChapterView({ flow, hasMatch }: Props) {
 function DbQueryPanel({
   queryDef,
   triggerFired,
+  autoStart = false,
 }: {
   queryDef:     NonNullable<FlowDef['steps'][0]['dbQueries']>[0]
   triggerFired: boolean
+  autoStart?:   boolean
 }) {
   const snapshot = useDbSnapshot(queryDef.endpoint, queryDef.params)
 
@@ -147,9 +149,10 @@ function DbQueryPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerFired])
 
-  // Capture "before" on mount
+  // Capture "before" on mount; for trigger-less steps also start polling immediately
   useEffect(() => {
     snapshot.captureBefore()
+    if (autoStart) snapshot.startPolling()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryDef.endpoint])
 

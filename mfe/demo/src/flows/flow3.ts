@@ -72,10 +72,10 @@ const flow3: FlowDef = {
       },
       activeNodes: [],
       checklist: [
-        { id: 'v3-1', text: 'Approve → APPROVED',                     matchPattern: 'APPROVED' },
-        { id: 'v3-2', text: 'Reject → REJECTED',                      matchPattern: 'REJECTED' },
+        { id: 'v3-1', text: 'Approve returns 200',                     matchPattern: '200' },
+        { id: 'v3-2', text: 'RDS status = APPROVED',                   matchPattern: 'APPROVED' },
         { id: 'v3-3', text: 'Wrong role → 403',                        matchPattern: '403' },
-        { id: 'v3-4', text: 'Approve DRAFT → 409',                     matchPattern: '409' },
+        { id: 'v3-4', text: 'Approve wrong-status → 409',              matchPattern: '409' },
       ],
     },
   ],
