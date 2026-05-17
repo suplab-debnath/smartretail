@@ -162,15 +162,15 @@ build-all: build-services build-lambda build-mfes
 # ── Docker ────────────────────────────────────────────────────────────────────
 
 docker-build-sis:
-	docker build -t smartretail-sis:local services/sis/
+	docker buildx build --platform linux/arm64 -t smartretail-sis:local services/sis/
 
 docker-build-all:
 	for svc in sis ims re ars dfs sup; do \
-	    docker build -t smartretail-$$svc:local services/$$svc/; \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/; \
 	done
 
 docker-build-lambda:
-	docker build -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
+	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
 
 # ── AWS Deploy ────────────────────────────────────────────────────────────────
 
@@ -215,7 +215,7 @@ aws-push-%: docker-build-%
 aws-push-all: aws-ecr-login
 	@for svc in sis ims re ars dfs sup; do \
 	    echo "Pushing $$svc…"; \
-	    docker build -t smartretail-$$svc:local services/$$svc/ && \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/ && \
 	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest && \
 	    docker push $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest; \
 	done

@@ -458,7 +458,7 @@ cdk deploy ComputeStack --require-approval never
  
 # Or redeploy just the ECS service (faster — skips CDK diff)
 # Build and push Docker image, then force new ECS deployment
-docker build -t smartretail-re:latest services/re/
+docker buildx build --platform linux/arm64 -t smartretail-re:latest services/re/
 docker tag smartretail-re:latest {account}.dkr.ecr.us-east-1.amazonaws.com/smartretail-re-dev:latest
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
 docker push {account}.dkr.ecr.us-east-1.amazonaws.com/smartretail-re-dev:latest

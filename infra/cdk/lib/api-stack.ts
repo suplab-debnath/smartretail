@@ -38,8 +38,11 @@ export class ApiStack extends cdk.Stack {
       description: 'SmartRetail backend API',
       corsPreflight: {
         allowHeaders: ['Content-Type', 'Authorization'],
-        allowMethods: [apigateway.CorsHttpMethod.GET, apigateway.CorsHttpMethod.POST,
-        apigateway.CorsHttpMethod.PUT, apigateway.CorsHttpMethod.PATCH],
+        allowMethods: [
+          apigateway.CorsHttpMethod.GET,
+          apigateway.CorsHttpMethod.POST,
+          apigateway.CorsHttpMethod.PUT,
+          apigateway.CorsHttpMethod.PATCH],
         allowOrigins: ['*'],
         maxAge: cdk.Duration.seconds(300),
       },
@@ -61,7 +64,7 @@ export class ApiStack extends cdk.Stack {
     );
     httpApi.addRoutes({
       path: '/v1/ingest/{proxy+}',
-      methods: [apigateway.HttpMethod.POST],
+      methods: [apigateway.HttpMethod.POST, apigateway.HttpMethod.GET],
       integration: sisIntegration,
       authorizer: jwtAuthorizer,
     });
@@ -74,7 +77,7 @@ export class ApiStack extends cdk.Stack {
     );
     httpApi.addRoutes({
       path: '/v1/inventory/{proxy+}',
-      methods: [apigateway.HttpMethod.GET],
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
       integration: imsIntegration,
       authorizer: jwtAuthorizer,
     });
@@ -137,6 +140,13 @@ export class ApiStack extends cdk.Stack {
       stringValue: httpApi.apiEndpoint,
     });
 
-    new cdk.CfnOutput(this, 'ApiEndpoint', { value: httpApi.apiEndpoint });
+    new cdk.CfnOutput(this, 'ApiEndpoint', {
+      value: httpApi.apiEndpoint,
+      description: 'SmartRetail API Endpoint'
+    });
+
+    new cdk.CfnOutput(this, 'ApiId', {
+      value: httpApi.apiId
+    });
   }
 }

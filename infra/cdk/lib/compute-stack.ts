@@ -42,11 +42,11 @@ export class ComputeStack extends cdk.Stack {
 
     const { srEnv, network, data, messaging } = props;
 
-    // ── ECS Cluster ───────────────────────────────────────────────────────────
+    // ── ECS Cluster (POC optimized) ───────────────────────────────────────────────────────────
     this.cluster = new ecs.Cluster(this, 'SmartRetailCluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
-      containerInsightsV2: ecs.ContainerInsights.ENABLED,
+      containerInsightsV2: ecs.ContainerInsights.DISABLED,  // Save cost in POC
       enableFargateCapacityProviders: true,
     });
 
@@ -127,9 +127,9 @@ export class ComputeStack extends cdk.Stack {
       name: 're', port: 8082,
       envVars: {
         ...commonEnv,
-        DB_SCHEMA:            'replenishment',
-        DB_USERNAME:          'smartretail_admin',
-        RE_ALERT_QUEUE_URL:   messaging.reAlertQueue.queueUrl,
+        DB_SCHEMA: 'replenishment',
+        DB_USERNAME: 'smartretail_admin',
+        RE_ALERT_QUEUE_URL: messaging.reAlertQueue.queueUrl,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
@@ -174,8 +174,8 @@ export class ComputeStack extends cdk.Stack {
       name: 'dfs', port: 8084,
       envVars: {
         ...commonEnv,
-        DB_SCHEMA:            'forecasting',
-        DB_USERNAME:          'smartretail_admin',
+        DB_SCHEMA: 'forecasting',
+        DB_USERNAME: 'smartretail_admin',
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
@@ -195,8 +195,8 @@ export class ComputeStack extends cdk.Stack {
       name: 'sup', port: 8085,
       envVars: {
         ...commonEnv,
-        DB_SCHEMA:            'supplier',
-        DB_USERNAME:          'smartretail_admin',
+        DB_SCHEMA: 'supplier',
+        DB_USERNAME: 'smartretail_admin',
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
@@ -213,7 +213,7 @@ export class ComputeStack extends cdk.Stack {
 
     this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
-    this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
+    this.reService = this.createFargateService(reConfig, network, ecsExecutionRole, srEnv);
     this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
     this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
@@ -245,10 +245,11 @@ export class ComputeStack extends cdk.Stack {
     const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
+      architecture: lambda.Architecture.ARM_64,    // Graviton
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgLambda],
-      timeout: cdk.Duration.seconds(300),
+      timeout: cdk.Duration.seconds(180),        // Reduced from 300 for POC
       memorySize: 512,
       role: lambdaRole,
       environment: {
@@ -286,7 +287,7 @@ export class ComputeStack extends cdk.Stack {
       emptyOnDelete: true,
       lifecycleRules: [
         {
-          maxImageCount: 10,
+          maxImageCount: 5,   // Reduced from 10 for POC
         },
       ],
     });
@@ -298,15 +299,19 @@ export class ComputeStack extends cdk.Stack {
 
     const taskDef = new ecs.FargateTaskDefinition(this, `${config.name}TaskDef`, {
       family: `smartretail-${config.name}-${srEnv}`,
-      cpu: 512,
-      memoryLimitMiB: 1024,
+      cpu: 256,     // reduced from 512 to 256=0.25 vCPU
+      memoryLimitMiB: 512,   // reduced from 1024 to 512 (Cheapest viable size)
       taskRole,
       executionRole,
+      runtimePlatform: {
+        cpuArchitecture: ecs.CpuArchitecture.ARM64, // Java 21 Graviton
+        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+      }
     });
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_MONTH,
+      retention: logs.RetentionDays.ONE_WEEK,      // Short for POC
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -342,9 +347,10 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
+    // POC keep minimal scaling
     const scaling = service.autoScaleTaskCount({
       minCapacity: 1,
-      maxCapacity: 10,
+      maxCapacity: 2,
     });
 
     scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, {

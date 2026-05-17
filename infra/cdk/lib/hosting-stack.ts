@@ -36,20 +36,23 @@ export class HostingStack extends cdk.Stack {
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          compress: true,                    // Enable gzip/brotli
         },
         defaultRootObject: 'index.html',
         errorResponses: [
           { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
           { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
         ],
-        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,  // Cheapest
         minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-        enableLogging: false,
+        enableLogging: false,   // Disabled for POC (saves cost)
+        webAclId: undefined,    // No WAF for POC
       });
 
       const cfUrl = `https://${distribution.distributionDomainName}`;
       this.distributionUrls[mfe] = cfUrl;
 
+      // SSM Parameters
       new ssm.StringParameter(this, `${toPascal(mfe)}DistId`, {
         parameterName: `/smartretail/${srEnv}/cloudfront/${mfe}-distribution-id`,
         stringValue: distribution.distributionId,
@@ -63,6 +66,7 @@ export class HostingStack extends cdk.Stack {
         stringValue: bucket.bucketName,
       });
 
+      // CloudFormation Output
       new cdk.CfnOutput(this, `${toPascal(mfe)}Url`, {
         value: cfUrl,
         description: `${mfe} MFE CloudFront URL`,

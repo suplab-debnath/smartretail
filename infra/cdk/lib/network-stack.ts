@@ -26,8 +26,8 @@ export class NetworkStack extends cdk.Stack {
     // ── VPC ──────────────────────────────────────────────────────────────────
     this.vpc = new ec2.Vpc(this, 'SmartRetailVpc', {
       vpcName: `smartretail-vpc-${srEnv}`,
-      maxAzs: 3,
-      natGateways: 3,
+      maxAzs: 2,    // Reduced from 3 for POC 
+      natGateways: 1,  // Critical cost saver for POC
       subnetConfiguration: [
         { name: 'Public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
         { name: 'PrivateApp', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
@@ -41,12 +41,11 @@ export class NetworkStack extends cdk.Stack {
     this.sgApiGatewayLink = new ec2.SecurityGroup(this, 'SgApiGatewayLink', {
       vpc: this.vpc, description: 'VPC Link from API Gateway to ECS', allowAllOutbound: true,
     });
-    this.sgApiGatewayLink.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8081));
+    this.sgApiGatewayLink.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8080), 'Allow from API GW');
 
     this.sgEcsTasks = new ec2.SecurityGroup(this, 'SgEcsTasks', {
       vpc: this.vpc, description: 'ECS task security group', allowAllOutbound: true,
     });
-    this.sgEcsTasks.addIngressRule(this.sgApiGatewayLink, ec2.Port.tcp(8081));
 
     this.sgLambda = new ec2.SecurityGroup(this, 'SgLambda', {
       vpc: this.vpc, description: 'Lambda security group', allowAllOutbound: true,
@@ -55,40 +54,51 @@ export class NetworkStack extends cdk.Stack {
     this.sgRdsProxy = new ec2.SecurityGroup(this, 'SgRdsProxy', {
       vpc: this.vpc, description: 'RDS Proxy security group', allowAllOutbound: true,
     });
-    this.sgRdsProxy.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(5432));
 
     this.sgRds = new ec2.SecurityGroup(this, 'SgRds', {
       vpc: this.vpc, description: 'RDS instance security group', allowAllOutbound: false,
     });
-    this.sgRds.addIngressRule(this.sgRdsProxy, ec2.Port.tcp(5432));
 
     this.sgVpcEndpoints = new ec2.SecurityGroup(this, 'SgVpcEndpoints', {
       vpc: this.vpc, description: 'VPC Interface Endpoints', allowAllOutbound: false,
     });
-    this.sgVpcEndpoints.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(443));
+
 
     // Allow ECS tasks to reach VPC endpoints and egress via NAT
+    // Ingress / Egress Rules
+
+    // API Gateway VPC Link → ECS tasks (all service ports 8080-8085)
+    this.sgEcsTasks.addIngressRule(this.sgApiGatewayLink, ec2.Port.tcpRange(8080, 8085), 'API GW VPC Link to ECS services');
+    // Lambda → SIS (port 8080) for Kinesis consumer forwarding
+    this.sgEcsTasks.addIngressRule(this.sgLambda, ec2.Port.tcp(8080), 'Lambda to SIS');
+
+    this.sgRdsProxy.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(5432));
+    this.sgRds.addIngressRule(this.sgRdsProxy, ec2.Port.tcp(5432));
+
     this.sgEcsTasks.addEgressRule(this.sgRdsProxy, ec2.Port.tcp(5432));
     this.sgEcsTasks.addEgressRule(this.sgVpcEndpoints, ec2.Port.tcp(443));
     this.sgEcsTasks.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443)); // for SDK calls via NAT
-    this.sgRdsProxy.addEgressRule(this.sgRds, ec2.Port.tcp(5432));
+
+    this.sgVpcEndpoints.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(443));
+    this.sgVpcEndpoints.addIngressRule(this.sgLambda, ec2.Port.tcp(443));
 
     // ── VPC Endpoints ─────────────────────────────────────────────────────────
     this.vpc.addGatewayEndpoint('S3Endpoint', { service: ec2.GatewayVpcEndpointAwsService.S3 });
     this.vpc.addGatewayEndpoint('DynamoDBEndpoint', { service: ec2.GatewayVpcEndpointAwsService.DYNAMODB });
 
+    // Only essential interface endpoints
     const interfaceServices = [
       ec2.InterfaceVpcEndpointAwsService.SQS,
       ec2.InterfaceVpcEndpointAwsService.EVENTBRIDGE,
-      ec2.InterfaceVpcEndpointAwsService.KMS,
+      // ec2.InterfaceVpcEndpointAwsService.KMS,
       ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
       ec2.InterfaceVpcEndpointAwsService.ECR,
       ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER,
       ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
       ec2.InterfaceVpcEndpointAwsService.STS,
-      ec2.InterfaceVpcEndpointAwsService.ECS,
-      ec2.InterfaceVpcEndpointAwsService.ECS_AGENT,
-      ec2.InterfaceVpcEndpointAwsService.ECS_TELEMETRY,
+      // ec2.InterfaceVpcEndpointAwsService.ECS,
+      // ec2.InterfaceVpcEndpointAwsService.ECS_AGENT,
+      // ec2.InterfaceVpcEndpointAwsService.ECS_TELEMETRY,
     ];
     interfaceServices.forEach((svc, i) => {
       this.vpc.addInterfaceEndpoint(`InterfaceEndpoint${i}`, {

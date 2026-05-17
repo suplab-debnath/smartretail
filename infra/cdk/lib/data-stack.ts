@@ -29,20 +29,20 @@ export class DataStack extends cdk.Stack {
     // ── RDS PostgreSQL ─────────────────────────────────────────────────
     const rdsInstance = new rds.DatabaseInstance(this, 'SmartRetailRds', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_18_3,
+        version: rds.PostgresEngineVersion.VER_16_4,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       allocatedStorage: 20,
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [network.sgRds],
-      multiAz: srEnv === 'prod',
+      multiAz: false,   // Always single AZ for POC
       databaseName: 'smartretail',
       credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin'),
-      backupRetention: cdk.Duration.days(7),
+      backupRetention: cdk.Duration.days(1),   // reduced from 7 Minimal for POC
       deletionProtection: false,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-      enablePerformanceInsights: true,
+      enablePerformanceInsights: false,    // Cost saving
       storageEncrypted: true,
     });
 
@@ -52,9 +52,7 @@ export class DataStack extends cdk.Stack {
     this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
       tableName: `smartretail-idempotency-keys-${srEnv}`,
       partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PROVISIONED,
-      readCapacity: 1,
-      writeCapacity: 1,
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       timeToLiveAttribute: 'expires_at',
       removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
@@ -64,12 +62,14 @@ export class DataStack extends cdk.Stack {
       bucketName: `smartretail-events-${srEnv}-${account}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      versioned: true,
+      versioned: false,    // Disable for POC
       lifecycleRules: [{ expiration: cdk.Duration.days(365 * 7) }],
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,   // Important for easy cleanup
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
+    // MFE Buckets (React static hosting)
     ['store-manager', 'sc-planner', 'executive', 'demo'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {

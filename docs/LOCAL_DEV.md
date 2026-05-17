@@ -618,11 +618,11 @@ build-all: build-services build-lambda build-mfes
  
 # ─── Docker ───────────────────────────────────────────────────────────
 docker-build-sis:
-  docker build -t smartretail-sis:local services/sis/
+  docker buildx build --platform linux/arm64 -t smartretail-sis:local services/sis/
  
 docker-build-all:
   for svc in sis ims re ars dfs sup; do \
-    docker build -t smartretail-$$svc:local services/$$svc/; \
+    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/; \
   done
 ```
  

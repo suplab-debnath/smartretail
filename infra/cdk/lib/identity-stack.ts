@@ -36,6 +36,7 @@ export class IdentityStack extends cdk.Stack {
       removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
+    // Create groups (useful for authorization in Spring Boot)
     ['STORE_MANAGER', 'SC_PLANNER', 'EXECUTIVE', 'ADMIN'].forEach(group => {
       new cognito.CfnUserPoolGroup(this, `Group${group}`, {
         userPoolId: this.internalPool.userPoolId,
@@ -46,9 +47,10 @@ export class IdentityStack extends cdk.Stack {
     this.internalClient = this.internalPool.addClient('InternalAppClient', {
       userPoolClientName: `smartretail-internal-client-${srEnv}`,
       authFlows: { userSrp: true },
-      accessTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.hours(7),
+      accessTokenValidity: cdk.Duration.hours(1), // Shorter for POC
+      refreshTokenValidity: cdk.Duration.hours(8),
       preventUserExistenceErrors: true,
+      generateSecret: false,
     });
 
     // ── Supplier User Pool ────────────────────────────────────────────────────
@@ -56,11 +58,19 @@ export class IdentityStack extends cdk.Stack {
       userPoolName: `smartretail-supplier-${srEnv}`,
       selfSignUpEnabled: false,
       signInAliases: { email: true },
-      mfa: cognito.Mfa.REQUIRED,
-      mfaSecondFactor: { otp: true, sms: false },
+      mfa: cognito.Mfa.OFF,    // Disabled for POC (cheaper & simpler)
+      //mfaSecondFactor: { otp: true, sms: false },
       customAttributes: {
         supplierId: new cognito.StringAttribute({ mutable: false }),
       },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: srEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
@@ -68,8 +78,9 @@ export class IdentityStack extends cdk.Stack {
       userPoolClientName: `smartretail-supplier-client-${srEnv}`,
       authFlows: { userSrp: true },
       accessTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.hours(7),
+      refreshTokenValidity: cdk.Duration.hours(8),
       preventUserExistenceErrors: true,
+      generateSecret: false,
     });
 
     // ── SSM Outputs ───────────────────────────────────────────────────────────
@@ -83,5 +94,15 @@ export class IdentityStack extends cdk.Stack {
     put('internal-client-id', this.internalClient.userPoolClientId);
     put('supplier-pool-id', this.supplierPool.userPoolId);
     put('supplier-client-id', supplierClient.userPoolClientId);
+
+    // Extra useful outputs
+    new cdk.CfnOutput(this, 'InternalUserPoolId', {
+      value: this.internalPool.userPoolId,
+      description: 'Internal Cognito User Pool ID'
+    });
+    new cdk.CfnOutput(this, 'SupplierUserPoolId', {
+      value: this.supplierPool.userPoolId,
+      description: 'Supplier Cognito User Pool ID'
+    });
   }
 }
