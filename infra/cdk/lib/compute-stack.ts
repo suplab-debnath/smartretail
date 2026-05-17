@@ -31,6 +31,9 @@ export class ComputeStack extends cdk.Stack {
   public readonly sisService: ecs.FargateService;
   public readonly imsService: ecs.FargateService;
   public readonly reService: ecs.FargateService;
+  public readonly arsService: ecs.FargateService;
+  public readonly dfsService: ecs.FargateService;
+  public readonly supService: ecs.FargateService;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -150,9 +153,70 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
+    // ── ARS — Analytics & Reporting ──────────────────────────────────────────
+    // Reads from all schemas via separate queries merged in Java (no cross-schema JOINs).
+    const arsConfig: ServiceConfig = {
+      name: 'ars', port: 8083,
+      envVars: {
+        ...commonEnv,
+        DB_USERNAME: 'smartretail_admin',
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
+    // ── DFS — Demand Forecasting ──────────────────────────────────────────────
+    const dfsConfig: ServiceConfig = {
+      name: 'dfs', port: 8084,
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA:            'forecasting',
+        DB_USERNAME:          'smartretail_admin',
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
+    // ── SUP — Supplier Service ────────────────────────────────────────────────
+    const supConfig: ServiceConfig = {
+      name: 'sup', port: 8085,
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA:            'supplier',
+        DB_USERNAME:          'smartretail_admin',
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${cdk.Stack.of(this).region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
     this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
     this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
+    this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
+    this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
+    this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
 
     // ── Kinesis Consumer Lambda ───────────────────────────────────────────────
     const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {

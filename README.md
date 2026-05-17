@@ -616,6 +616,10 @@ smartretail/
     ├── localstack-init.sh      ← creates all LocalStack resources on startup
     ├── publish-pos-event.py    ← Flow 1 trigger / test harness
     ├── smoke-test.sh           ← automated flow verification
+    ├── deploy-cdk.sh           ← bootstrap + deploy all CDK stacks
+    ├── deploy-services.sh      ← Maven → Docker → ECR push → ECS force-deploy
+    ├── deploy-mfes.sh          ← npm build → S3 sync → CloudFront invalidation
+    ├── destroy-infra.sh        ← full AWS resource teardown
     ├── run-flyway-aws.sh       ← runs Flyway against real RDS
     ├── create-cognito-users.sh ← creates test users in Cognito
     └── generate-mfe-config.sh  ← injects API endpoint into MFE config
@@ -636,6 +640,274 @@ No code changes required to switch between modes.
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # local mode
 SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 ```
+
+---
+
+## AWS Deployment
+
+### CDK stacks
+
+All infrastructure is defined in `infra/cdk/` as TypeScript CDK stacks. Stacks must be deployed in dependency order.
+
+| Stack | What it provisions |
+| ----- | ------------------ |
+| `NetworkStack` | VPC, subnets, NAT gateways, security groups |
+| `DataStack` | RDS PostgreSQL (+ RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×4) |
+| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs |
+| `IdentityStack` | Cognito User Pool, app clients, user groups (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) |
+| `ComputeStack` | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup), ECR repos, Kinesis consumer Lambda |
+| `ApiStack` | HTTP API Gateway, VPC Link, JWT authoriser, routes for all six services |
+| `HostingStack` | CloudFront distributions (×4 MFEs) with S3 OAC, SSM outputs for distribution IDs and URLs |
+
+### Prerequisites
+
+```bash
+# AWS profile must have access to us-east-1
+aws configure --profile smartretail-dev
+
+export AWS_PROFILE=smartretail-dev
+export SMARTRETAIL_ENV=dev        # or prod
+export CDK_DEFAULT_REGION=us-east-1
+```
+
+### First-time full deployment (≈45 minutes)
+
+`make aws-full-deploy` runs every step in the correct order:
+
+```bash
+make aws-full-deploy ENV=dev PROFILE=smartretail-dev
+```
+
+It performs these five steps in sequence:
+
+```
+Step 1  scripts/deploy-cdk.sh          → bootstrap + deploy all 7 CDK stacks
+Step 2  scripts/deploy-services.sh     → Maven build → Docker build → ECR push
+                                          → force ECS redeployment for all 6 services
+                                          → update Lambda function code
+Step 3  scripts/deploy-mfes.sh         → npm build → S3 sync → CloudFront invalidation
+                                          for all 4 MFEs (store-manager, sc-planner,
+                                          executive, demo)
+Step 4  scripts/run-flyway-aws.sh      → run Flyway migrations against RDS
+Step 5  scripts/create-cognito-users.sh → create test Cognito users
+```
+
+### Deploying changes (after first-time setup)
+
+**Service code change** — rebuild JARs, push images, force ECS rolling deploy:
+
+```bash
+# All 6 services + Lambda
+make aws-deploy-services ENV=dev
+
+# Single service (e.g. only re and ims)
+./scripts/deploy-services.sh --env dev --services re,ims
+
+# With wait — blocks until ECS reaches steady state
+make aws-deploy-services-wait ENV=dev
+./scripts/deploy-services.sh --env dev --wait
+```
+
+**MFE change** — rebuild, sync to S3, invalidate CloudFront:
+
+```bash
+# All 4 MFEs
+make aws-deploy-mfes ENV=dev
+
+# One MFE (e.g. only the demo MFE)
+./scripts/deploy-mfes.sh --env dev --mfes demo
+
+# Skip npm build (use existing dist/)
+./scripts/deploy-mfes.sh --env dev --mfes executive --skip-build
+```
+
+**Infrastructure (CDK) change** — deploy the affected stack:
+
+```bash
+make aws-deploy-hosting    # HostingStack only (CloudFront changes)
+make aws-deploy-compute    # ComputeStack only (ECS task changes)
+make aws-deploy-api        # ApiStack only (route changes)
+make aws-deploy-all        # all stacks (safest when unsure)
+```
+
+**DB migration only:**
+
+```bash
+make aws-migrate ENV=dev
+```
+
+### Script reference
+
+#### `scripts/deploy-services.sh`
+
+Builds all Java JARs, builds Docker images, pushes to ECR, forces ECS redeployment, and updates the Lambda container image.
+
+```
+Options:
+  --env       dev|prod               Environment (default: $SMARTRETAIL_ENV or dev)
+  --profile   aws-profile            AWS CLI profile (default: smartretail-dev)
+  --region    region                 AWS region (default: us-east-1)
+  --services  sis,ims,re,ars,dfs,sup Comma-separated subset to deploy (default: all six)
+  --no-lambda                        Skip Lambda build and update
+  --skip-build                       Reuse existing JARs in target/ — skip Maven
+  --skip-push                        Build Docker images locally but skip ECR push + ECS update
+  --wait                             Block until every targeted ECS service reaches steady state
+```
+
+Examples:
+
+```bash
+# Deploy everything, wait for stable
+./scripts/deploy-services.sh --env dev --wait
+
+# Deploy only SIS after a hotfix (skip full Maven build)
+./scripts/deploy-services.sh --env dev --services sis --skip-build
+
+# Dry-run: build images locally without touching AWS
+./scripts/deploy-services.sh --env dev --skip-push
+```
+
+#### `scripts/deploy-mfes.sh`
+
+Builds each React MFE, syncs `dist/` to the S3 bucket, and creates a CloudFront invalidation. The CloudFront distribution ID is read automatically from SSM (`/smartretail/{env}/cloudfront/{mfe}-distribution-id`). The live URL is printed at the end.
+
+```
+Options:
+  --env       dev|prod                              Environment (default: $SMARTRETAIL_ENV or dev)
+  --profile   aws-profile                           AWS CLI profile (default: smartretail-dev)
+  --mfes      store-manager,sc-planner,executive,demo  Subset to deploy (default: all four)
+  --skip-build                                      Reuse existing dist/ — skip npm build
+```
+
+Examples:
+
+```bash
+# Deploy all four MFEs
+./scripts/deploy-mfes.sh --env dev
+
+# Redeploy only the demo MFE after a presentation fix
+./scripts/deploy-mfes.sh --env dev --mfes demo
+
+# Push pre-built artifacts (e.g. from CI)
+./scripts/deploy-mfes.sh --env dev --skip-build
+```
+
+#### `scripts/deploy-cdk.sh`
+
+Installs CDK dependencies, synthesises, and deploys all 7 stacks with `--require-approval never`.
+
+```bash
+SMARTRETAIL_ENV=dev ./scripts/deploy-cdk.sh
+```
+
+### Teardown
+
+```bash
+# Destroy all CDK stacks only — ECR images and S3 objects are preserved
+make aws-undeploy ENV=dev PROFILE=smartretail-dev
+
+# Full teardown — CDK stacks + S3 buckets + ECR repos + CloudFront + SSM + CloudWatch logs
+make aws-destroy ENV=dev PROFILE=smartretail-dev
+# Equivalent: SMARTRETAIL_ENV=dev ./scripts/destroy-infra.sh
+```
+
+`destroy-infra.sh` destroys stacks in reverse dependency order (HostingStack first, NetworkStack last), then cleans up any orphaned CloudFront distributions, S3 buckets, ECR repos, CloudWatch log groups, SSM parameters, ENIs, security groups, Secrets Manager secrets, and Cognito pools.
+
+---
+
+## Makefile Reference
+
+All Makefile targets accept `ENV` (default: `local`) and `PROFILE` (default: `smartretail-dev`).
+
+```bash
+make <target> ENV=dev PROFILE=smartretail-dev
+```
+
+### Local development
+
+| Target | Description |
+| ------ | ----------- |
+| `local-up` | Start Postgres + LocalStack via Docker Compose; wait for readiness |
+| `local-migrate` | Run Flyway migrations V1–V6 against local Postgres |
+| `local-seed` | Apply seed data (V7) |
+| `local-sis` | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local` |
+| `local-ims` | Start IMS on :8081 |
+| `local-re` | Start RE on :8082 |
+| `local-ars` | Start ARS on :8083 |
+| `local-dfs` | Start DFS on :8084 |
+| `local-sup` | Start SUP on :8085 |
+| `local-mfe-sm` | Start Store Manager MFE on :5173 |
+| `local-mfe-scp` | Start SC Planner MFE on :5174 |
+| `local-mfe-exec` | Start Executive MFE on :5175 |
+| `local-demo-server` | Start Demo Control Server on :3099 |
+| `local-mfe-demo` | Start Demo Control Center MFE on :5176 |
+| `local-demo` | Start both demo-server and demo MFE in parallel |
+| `local-down` | Stop containers, preserve data volumes |
+| `local-clean` | Stop containers, destroy volumes (clean slate) |
+
+### Testing
+
+| Target | Description |
+| ------ | ----------- |
+| `test-unit` | Run unit tests for all 6 services via Maven |
+| `test-flow1` | Smoke test Flow 1 (POS → SIS → IMS → stock alert) |
+| `test-flow2` | Smoke test Flow 2 (RE auto-approve + PENDING\_APPROVAL) |
+| `test-flow3` | Smoke test Flow 3 (SC Planner approve/reject) |
+| `test-flow4` | Smoke test Flow 4 (ARS → Store Manager dashboard) |
+| `test-flow8` | Smoke test Flow 8 (Executive Dashboard) |
+| `test-flow9` | Smoke test Flow 9 (SC Planner Console) |
+| `test-all` | Run smoke tests for all flows |
+
+### Build
+
+| Target | Description |
+| ------ | ----------- |
+| `build-services` | `mvn clean package -DskipTests` for all 6 services |
+| `build-lambda` | `mvn clean package -DskipTests` for kinesis-consumer Lambda |
+| `build-mfes` | `npm run build` for all 4 MFEs (store-manager, sc-planner, executive, demo) |
+| `build-all` | All of the above |
+| `docker-build-sis` | Build SIS Docker image locally |
+| `docker-build-all` | Build Docker images for all 6 services locally |
+| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally |
+
+### AWS infrastructure
+
+| Target | Description |
+| ------ | ----------- |
+| `aws-bootstrap` | CDK bootstrap (one-time per account/region) |
+| `aws-deploy-network` | Deploy NetworkStack |
+| `aws-deploy-data` | Deploy DataStack (RDS, DynamoDB, S3 buckets) |
+| `aws-deploy-messaging` | Deploy MessagingStack |
+| `aws-deploy-identity` | Deploy IdentityStack (Cognito) |
+| `aws-deploy-compute` | Deploy ComputeStack (ECS, Lambda) |
+| `aws-deploy-api` | Deploy ApiStack (API Gateway) |
+| `aws-deploy-hosting` | Deploy HostingStack (CloudFront distributions) |
+| `aws-deploy-all` | Deploy all stacks with `--require-approval never` |
+
+### AWS artifacts
+
+| Target | Description |
+| ------ | ----------- |
+| `aws-ecr-login` | Authenticate Docker to ECR |
+| `aws-push-<svc>` | Build + push a single service image (e.g. `aws-push-sis`) |
+| `aws-push-all` | Build + push all 6 service images |
+| `aws-push-lambda` | Build + push Lambda container image |
+| `aws-deploy-mfe-<name>` | Build + deploy a single MFE (e.g. `aws-deploy-mfe-demo`) |
+| `aws-deploy-mfes` | Build + deploy all 4 MFEs |
+| `aws-deploy-services` | Full service pipeline: Maven → Docker → ECR → ECS force-deploy |
+| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning |
+
+### AWS operations
+
+| Target | Description |
+| ------ | ----------- |
+| `aws-migrate` | Run Flyway migrations against RDS via `run-flyway-aws.sh` |
+| `aws-create-users` | Create test Cognito users via `create-cognito-users.sh` |
+| `aws-smoke-test` | Run all smoke tests against AWS endpoints |
+| `aws-full-deploy` | **First-time end-to-end deploy**: CDK → images → MFEs → migrate → users |
+| `aws-demo` | Start demo-server in AWS mode + demo MFE |
+| `aws-undeploy` | Destroy all CDK stacks (`cdk destroy --all`); S3/ECR untouched |
+| `aws-destroy` | Full teardown via `destroy-infra.sh`; wipes all AWS resources |
 
 ---
 
@@ -777,12 +1049,11 @@ The demo-server switches to AWS mode via `SMARTRETAIL_ENV=aws`. In this mode it 
 export AWS_PROFILE=smartretail-dev
 export SMARTRETAIL_ENV=dev
 
-make build-all
-make aws-bootstrap
-make aws-deploy-all
-make aws-migrate
-make aws-create-users
+make aws-full-deploy ENV=dev PROFILE=smartretail-dev
+# Runs: CDK stacks → ECR image push → MFE deploy → DB migrate → Cognito users
 ```
+
+See the [AWS Deployment](#aws-deployment) section for the full breakdown of what this does.
 
 **Step 2 — resolve service and MFE URLs from SSM:**
 

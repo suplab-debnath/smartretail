@@ -92,6 +92,45 @@ export class ApiStack extends cdk.Stack {
       authorizer: jwtAuthorizer,
     });
 
+    // ── Routes — ARS ─────────────────────────────────────────────────────────
+    const arsIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
+      'ArsIntegration',
+      compute.arsService.cloudMapService!,
+      { vpcLink }
+    );
+    httpApi.addRoutes({
+      path: '/v1/dashboard/{proxy+}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: arsIntegration,
+      authorizer: jwtAuthorizer,
+    });
+
+    // ── Routes — DFS ─────────────────────────────────────────────────────────
+    const dfsIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
+      'DfsIntegration',
+      compute.dfsService.cloudMapService!,
+      { vpcLink }
+    );
+    httpApi.addRoutes({
+      path: '/v1/forecast/{proxy+}',
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
+      integration: dfsIntegration,
+      authorizer: jwtAuthorizer,
+    });
+
+    // ── Routes — SUP ─────────────────────────────────────────────────────────
+    const supIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
+      'SupIntegration',
+      compute.supService.cloudMapService!,
+      { vpcLink }
+    );
+    httpApi.addRoutes({
+      path: '/v1/supplier/{proxy+}',
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
+      integration: supIntegration,
+      authorizer: jwtAuthorizer,
+    });
+
     // ── SSM Outputs ───────────────────────────────────────────────────────────
     new ssm.StringParameter(this, 'ApiEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,

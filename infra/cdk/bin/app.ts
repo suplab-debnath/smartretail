@@ -7,6 +7,7 @@ import { MessagingStack } from '../lib/messaging-stack';
 import { IdentityStack } from '../lib/identity-stack';
 import { ComputeStack } from '../lib/compute-stack';
 import { ApiStack } from '../lib/api-stack';
+import { HostingStack } from '../lib/hosting-stack';
 
 const app = new cdk.App();
 
@@ -24,5 +25,6 @@ const messaging = new MessagingStack(app, 'MessagingStack', { env: cdkEnv, srEnv
 const identity = new IdentityStack(app, 'IdentityStack', { env: cdkEnv, srEnv: env });
 const compute = new ComputeStack(app, 'ComputeStack', { env: cdkEnv, srEnv: env, network, data, messaging });
 new ApiStack(app, 'ApiStack', { env: cdkEnv, srEnv: env, network, compute, identity });
+new HostingStack(app, 'HostingStack', { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
 
 app.synth();

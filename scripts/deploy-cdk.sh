@@ -54,6 +54,7 @@ cdk deploy \
   IdentityStack \
   ComputeStack \
   ApiStack \
+  HostingStack \
   --require-approval never
 
 echo "=================================================="

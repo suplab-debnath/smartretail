@@ -9,6 +9,7 @@ ENV=dev
 ACCOUNT_ID=123456789012
 
 STACKS=(
+  HostingStack
   ApiStack
   ComputeStack
   IdentityStack
@@ -28,6 +29,40 @@ do
   cdk destroy ${STACK} \
     --force || true
 
+done
+
+# =========================================================
+# Disable and delete orphaned CloudFront distributions
+# =========================================================
+
+CF_DISTS=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?contains(Comment, 'SmartRetail')].Id" \
+  --output text 2>/dev/null || true)
+
+for DIST_ID in $CF_DISTS; do
+  echo "Disabling CloudFront distribution: $DIST_ID"
+
+  ETAG=$(aws cloudfront get-distribution-config --id "$DIST_ID" \
+    --query ETag --output text)
+
+  DISABLED_CONFIG=$(aws cloudfront get-distribution-config \
+    --id "$DIST_ID" --query DistributionConfig \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); d['Enabled']=False; print(json.dumps(d))")
+
+  aws cloudfront update-distribution \
+    --id "$DIST_ID" \
+    --distribution-config "$DISABLED_CONFIG" \
+    --if-match "$ETAG" || true
+
+  echo "Waiting for distribution $DIST_ID to deploy (this may take a few minutes)..."
+  aws cloudfront wait distribution-deployed --id "$DIST_ID" || true
+
+  ETAG=$(aws cloudfront get-distribution-config --id "$DIST_ID" \
+    --query ETag --output text)
+
+  aws cloudfront delete-distribution \
+    --id "$DIST_ID" \
+    --if-match "$ETAG" || true
 done
 
 # =========================================================

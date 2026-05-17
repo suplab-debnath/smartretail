@@ -16,6 +16,7 @@ export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
   public readonly idempotencyTable: dynamodb.Table;
   public readonly eventsBucketName: string;
+  public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -69,8 +70,9 @@ export class DataStack extends cdk.Stack {
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
-    ['store-manager', 'sc-planner', 'executive'].forEach(mfe => {
-      new s3.Bucket(this, `MfeBucket${mfe}`, {
+    ['store-manager', 'sc-planner', 'executive', 'demo'].forEach(mfe => {
+      const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+      this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
         bucketName: `smartretail-mfe-${srEnv}-${mfe}-${account}`,
         encryption: s3.BucketEncryption.S3_MANAGED,
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
