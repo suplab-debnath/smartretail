@@ -94,8 +94,8 @@ for SVC in $SERVICES; do
   echo ""
   echo "── ${SVC} ──────────────────────────────────────────"
 
-  echo "▶  docker build services/${SVC}/"
-  docker build -t "smartretail-${SVC}:local" "services/${SVC}/"
+  echo "▶  docker build services/${SVC}/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t "smartretail-${SVC}:local" "services/${SVC}/"
 
   if [[ "$SKIP_PUSH" == false ]]; then
     REPO_URI="${ECR_PREFIX}/smartretail-${SVC}-${ENV}:latest"
@@ -119,8 +119,8 @@ if [[ "$DEPLOY_LAMBDA" == true && "$SKIP_PUSH" == false ]]; then
   echo ""
   echo "── kinesis-consumer Lambda ─────────────────────────"
 
-  echo "▶  docker build lambdas/kinesis-consumer/"
-  docker build -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
+  echo "▶  docker build lambdas/kinesis-consumer/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
 
   LAMBDA_URI="${ECR_PREFIX}/smartretail-kinesis-consumer-${ENV}:latest"
   echo "▶  Pushing → ${LAMBDA_URI}"
