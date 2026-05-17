@@ -1,5 +1,5 @@
 .PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
-        local-mfe-sm local-mfe-scp local-mfe-exec local-down local-clean \
+        local-mfe-sm local-mfe-scp local-mfe-exec local-free-ports local-down local-clean \
         local-demo-server local-mfe-demo local-demo \
         aws-demo-server aws-demo \
         test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
@@ -95,10 +95,21 @@ aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
 	@echo "Starting demo-server in AWS mode and Demo MFE…"
 	@make aws-demo-server & cd mfe/demo && npm run dev
 
-local-down:
+local-free-ports: ## Free up ports 8080-8085 and 5173-5176
+	@echo "Checking and freeing ports..."
+	@for port in 8080 8081 8082 8083 8084 8085 5173 5174 5175 5176; do \
+		pid=$$(lsof -t -i:$$port 2>/dev/null); \
+		if [ -n "$$pid" ]; then \
+			echo "Killing process $$pid holding port $$port..."; \
+			kill -9 $$pid; \
+		fi; \
+	done
+	@echo "✅ Ports freed"
+
+local-down: local-free-ports
 	docker compose down
 
-local-clean:
+local-clean: local-free-ports
 	docker compose down -v
 
 # ── Test ──────────────────────────────────────────────────────────────────────

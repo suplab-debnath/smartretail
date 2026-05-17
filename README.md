@@ -842,8 +842,9 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | `local-demo-server` | Start Demo Control Server on :3099 |
 | `local-mfe-demo` | Start Demo Control Center MFE on :5176 |
 | `local-demo` | Start both demo-server and demo MFE in parallel |
-| `local-down` | Stop containers, preserve data volumes |
-| `local-clean` | Stop containers, destroy volumes (clean slate) |
+| `local-free-ports` | Find and terminate host processes holding ports 8080-8085 and 5173-5176 |
+| `local-down` | Stop containers, preserve data volumes (calls local-free-ports automatically) |
+| `local-clean` | Stop containers, destroy volumes (calls local-free-ports automatically) |
 
 ### Testing
 
