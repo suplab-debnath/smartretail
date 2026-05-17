@@ -4,15 +4,16 @@ import com.smartretail.ars.adapter.in.web.generated.model.AlertKpi;
 import com.smartretail.ars.adapter.in.web.generated.model.StockAlertSummary;
 import com.smartretail.ars.adapter.in.web.generated.model.StoreManagerDashboardResponse;
 import com.smartretail.ars.domain.model.StoreManagerDashboard;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 import java.time.ZoneOffset;
 import java.util.List;
 
-final class StoreManagerResponseMapper {
+@Mapper(componentModel = "spring")
+public interface StoreManagerResponseMapper {
 
-    private StoreManagerResponseMapper() {}
-
-    static StoreManagerDashboardResponse toResponse(StoreManagerDashboard d) {
+    default StoreManagerDashboardResponse toResponse(StoreManagerDashboard d) {
         AlertKpi kpi = new AlertKpi(
                 d.alertKpi().criticalCount(),
                 d.alertKpi().highCount(),

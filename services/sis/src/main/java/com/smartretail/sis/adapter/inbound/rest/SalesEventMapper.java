@@ -1,31 +1,23 @@
 package com.smartretail.sis.adapter.inbound.rest;
 
-import com.smartretail.sis.adapter.in.web.generated.model.Channel;
 import com.smartretail.sis.adapter.in.web.generated.model.SalesEventRequest;
 import com.smartretail.sis.domain.model.SalesTransaction;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-import java.math.BigDecimal;
+@Mapper(componentModel = "spring")
+public interface SalesEventMapper {
 
-final class SalesEventMapper {
+    @Mapping(target = "unitPrice",
+             expression = "java(java.math.BigDecimal.valueOf(request.getUnitPrice()))")
+    @Mapping(target = "eventTimestamp",
+             expression = "java(request.getEventTimestamp().toInstant())")
+    SalesTransaction toDomain(SalesEventRequest request);
 
-    private SalesEventMapper() {}
-
-    static SalesTransaction toDomain(SalesEventRequest request) {
-        return new SalesTransaction(
-                request.getTransactionId(),
-                request.getStoreId(),
-                request.getSkuId(),
-                request.getDcId(),
-                request.getQuantity(),
-                BigDecimal.valueOf(request.getUnitPrice()),
-                mapChannel(request.getChannel()),
-                request.getEventTimestamp().toInstant()
-        );
-    }
-
-    private static SalesTransaction.Channel mapChannel(Channel channel) {
+    default SalesTransaction.Channel toChannel(
+            com.smartretail.sis.adapter.in.web.generated.model.Channel channel) {
         return switch (channel) {
-            case POS -> SalesTransaction.Channel.POS;
+            case POS       -> SalesTransaction.Channel.POS;
             case ECOMMERCE -> SalesTransaction.Channel.ECOMMERCE;
         };
     }

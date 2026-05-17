@@ -15,14 +15,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class SalesIngestionController implements IngestApi {
 
     private final SalesEventPort salesEventPort;
+    private final SalesEventMapper salesEventMapper;
 
-    public SalesIngestionController(SalesEventPort salesEventPort) {
+    public SalesIngestionController(SalesEventPort salesEventPort, SalesEventMapper salesEventMapper) {
         this.salesEventPort = salesEventPort;
+        this.salesEventMapper = salesEventMapper;
     }
 
     @Override
     public ResponseEntity<IngestResponse> ingestSalesEvent(SalesEventRequest salesEventRequest) {
-        SalesTransaction transaction = SalesEventMapper.toDomain(salesEventRequest);
+        SalesTransaction transaction = salesEventMapper.toDomain(salesEventRequest);
         IngestionResult result = salesEventPort.ingest(transaction);
 
         return switch (result) {

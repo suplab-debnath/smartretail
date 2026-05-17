@@ -1,9 +1,7 @@
 package com.smartretail.dfs.adapter.inbound.rest;
 
 import com.smartretail.dfs.adapter.in.web.generated.api.ForecastApi;
-import com.smartretail.dfs.adapter.in.web.generated.model.ForecastBand;
 import com.smartretail.dfs.adapter.in.web.generated.model.ForecastDataResponse;
-import com.smartretail.dfs.adapter.in.web.generated.model.ForecastDataResponse.HorizonDaysEnum;
 import com.smartretail.dfs.domain.model.ForecastData;
 import com.smartretail.dfs.port.inbound.ForecastQueryPort;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,7 +13,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 
@@ -30,12 +27,15 @@ public class ForecastController implements ForecastApi {
     private static final Set<String> ALLOWED_ROLES = Set.of("SC_PLANNER", "ADMIN");
 
     private final ForecastQueryPort forecastQueryPort;
+    private final ForecastResponseMapper forecastResponseMapper;
 
     @Autowired
     private HttpServletRequest httpRequest;
 
-    public ForecastController(ForecastQueryPort forecastQueryPort) {
+    public ForecastController(ForecastQueryPort forecastQueryPort,
+                               ForecastResponseMapper forecastResponseMapper) {
         this.forecastQueryPort = forecastQueryPort;
+        this.forecastResponseMapper = forecastResponseMapper;
     }
 
     @Override
@@ -52,24 +52,7 @@ public class ForecastController implements ForecastApi {
             return ResponseEntity.notFound().build();
         }
 
-        List<ForecastBand> bands = data.bands().stream()
-                .map(b -> {
-                    ForecastBand band = new ForecastBand(b.forecastDate(), b.p10(), b.p50(), b.p90());
-                    band.setActualUnits(b.actualUnits());
-                    return band;
-                })
-                .toList();
-
-        ForecastDataResponse response = new ForecastDataResponse(
-                data.skuId(),
-                data.dcId(),
-                HorizonDaysEnum.fromValue(data.horizonDays()),
-                data.latestMape().doubleValue(),
-                bands,
-                data.dataFreshness().atOffset(ZoneOffset.UTC)
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(forecastResponseMapper.toResponse(data));
     }
 
     private boolean hasAnyRole(Set<String> allowed) {

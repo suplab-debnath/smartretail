@@ -43,6 +43,7 @@
         <spring-cloud-aws.version>3.1.1</spring-cloud-aws.version>
         <aws-lambda-java-core.version>1.2.3</aws-lambda-java-core.version>
         <aws-lambda-java-events.version>3.14.0</aws-lambda-java-events.version>
+        <mapstruct.version>1.6.2</mapstruct.version>
     </properties>
 
     <dependencyManagement>
@@ -106,6 +107,18 @@
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
             </dependency>
+
+            <!-- MapStruct — compile-time mapper generation -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -131,6 +144,21 @@
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
                     <version>3.6.0</version>
+                </plugin>
+
+                <!-- Compiler — MapStruct annotation processor -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.mapstruct</groupId>
+                                <artifactId>mapstruct-processor</artifactId>
+                                <version>${mapstruct.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
                 </plugin>
 
                 <!-- Surefire — JUnit 5 -->
@@ -198,7 +226,7 @@
                                             </limit>
                                         </limits>
                                         <includes>
-                                            <include>com.smartretail.*.domain.*</include>
+                                            <include>com.smartretail.*.domain.**</include>
                                         </includes>
                                     </rule>
                                 </rules>
