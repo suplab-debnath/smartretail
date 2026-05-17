@@ -2,7 +2,7 @@ version: '3.9'
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17-alpine
     container_name: smartretail-postgres
     environment:
       POSTGRES_DB: smartretail
@@ -13,24 +13,27 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smartretail_admin -d smartretail"]
+      test: [ "CMD-SHELL", "pg_isready -U smartretail_admin -d smartretail" ]
       interval: 5s
       timeout: 3s
       retries: 10
 
   localstack:
-    image: localstack/localstack:3
+    image: localstack/localstack:2026.03.0
     container_name: smartretail-localstack
     ports:
       - "4566:4566"
     environment:
-      SERVICES: kinesis,events,sqs,dynamodb,s3,ssm,secretsmanager,iam,sts
-      DEBUG: 0
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN}
+
+      DEFAULT_REGION: us-east-1
+      DEBUG: ${DEBUG-0}
+      SERVICES: kinesis,events,sqs,dynamodb,s3,ssm,secretsmanager,iam,sts,cognito-idp,cognito-identity
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'" ]
       interval: 10s
       timeout: 5s
       retries: 20
