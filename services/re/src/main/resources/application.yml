@@ -13,6 +13,11 @@ spring:
       pool-name: SmartRetail-RE-Pool
   flyway:
     enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false    
 
 management:
   endpoints:
