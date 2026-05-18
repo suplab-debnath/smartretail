@@ -10,15 +10,15 @@ interface Props {
 
 const MAPE_THRESHOLD = 0.15
 
-function formatPercent(value: number) {
+export function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`
 }
 
-function formatDate(dateStr: string) {
+export function formatDate(dateStr: string) {
   return dateStr.slice(5) // MM-DD
 }
 
-function tooltipFormatter(value: number, name: string) {
+export function tooltipFormatter(value: number, name: string) {
   if (name === 'mape') {
     const accuracy = ((1 - value) * 100).toFixed(1)
     const status = value < MAPE_THRESHOLD ? 'Within threshold' : 'Threshold breached'

@@ -10,6 +10,8 @@ target/
 node_modules/
 dist/
 coverage/
+# The Maven aggregate-report module is source, not generated output
+!services/coverage/
 # Generated API client (regenerated from openapi yaml)
 mfe/shared/api-client/src/generated/
 # npm/yarn debug logs

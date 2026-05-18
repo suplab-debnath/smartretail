@@ -1,8 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // Point to source so tests (and dev) don't require a pre-built dist/
+      '@smartretail/auth': resolve(__dirname, '../shared/auth/src/index.ts'),
+    },
+  },
   server: {
     port: 5174,
     proxy: {
