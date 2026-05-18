@@ -124,7 +124,7 @@
                         <id>generate-sup-api</id>
                         <goals><goal>generate</goal></goals>
                         <configuration>
-                            <inputSpec>${project.basedir}/../../openapi/sup-api.yaml</inputSpec>
+                            <inputSpec>${project.baseUri}../../openapi/sup-api.yaml</inputSpec>
                             <generatorName>spring</generatorName>
                             <output>${project.build.directory}/generated-sources/openapi</output>
                             <apiPackage>com.smartretail.sup.adapter.in.web.generated.api</apiPackage>

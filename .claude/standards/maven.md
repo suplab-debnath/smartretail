@@ -354,7 +354,7 @@ http://maven.apache.org/xsd/maven-4.0.0.xsd">
 <goals><goal>generate</goal></goals>
 <configuration>
 <!-- Source spec — relative to project root -->
-<inputSpec>${project.basedir}/../../openapi/re-api.yaml</inputSpec>
+<inputSpec>${project.baseUri}/../../openapi/re-api.yaml</inputSpec>
  
 <!-- Spring server generator -->
 <generatorName>spring</generatorName>

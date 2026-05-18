@@ -163,7 +163,7 @@
                         <id>generate-re-api</id>
                         <goals><goal>generate</goal></goals>
                         <configuration>
-                            <inputSpec>${project.basedir}/../../openapi/re-api.yaml</inputSpec>
+                            <inputSpec>${project.baseUri}../../openapi/re-api.yaml</inputSpec>
                             <generatorName>spring</generatorName>
                             <output>${project.build.directory}/generated-sources/openapi</output>
                             <apiPackage>com.smartretail.re.adapter.inbound.rest.generated.api</apiPackage>
