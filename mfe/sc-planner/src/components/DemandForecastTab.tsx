@@ -1,14 +1,11 @@
 import { useState } from 'react'
 import {
-  Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   Legend, ResponsiveContainer, ComposedChart,
 } from 'recharts'
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useForecast } from '../hooks/useForecast'
 import type { ForecastBand } from '../types'
-
-interface Props {
-  upliftPercent: number
-}
 
 type Horizon = 7 | 14 | 30
 
@@ -20,7 +17,7 @@ function ForecastAccuracyBadge({ mape }: { mape: number }) {
   else if (mape > 0.10) { cls = 'bg-amber-100 text-amber-700'; icon = '~' }
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>
-      MAPE: {pct}% {icon}
+      <Tooltip term="MAPE">MAPE</Tooltip>: {pct}% {icon}
     </span>
   )
 }
@@ -29,12 +26,12 @@ function formatDate(dateStr: string) {
   return dateStr.slice(5)
 }
 
-export function DemandForecastTab({ upliftPercent }: Props) {
+export function DemandForecastTab() {
   const [skuId, setSkuId] = useState('SKU-BEV-001')
   const [skuInput, setSkuInput] = useState('SKU-BEV-001')
   const [dcId, setDcId] = useState('DC-LONDON')
   const [horizon, setHorizon] = useState<Horizon>(30)
-  const { data, loading, error } = useForecast(skuId, dcId, horizon)
+  const { data, loading, error, refetch } = useForecast(skuId, dcId, horizon)
 
   function applySkuId() {
     setSkuId(skuInput.trim() || 'SKU-BEV-001')
@@ -46,15 +43,18 @@ export function DemandForecastTab({ upliftPercent }: Props) {
     p50: b.p50,
     p90: b.p90,
     actual: b.actualUnits,
-    adjustedP50: upliftPercent > 0 ? Math.round(b.p50 * (1 + upliftPercent / 100)) : undefined,
   }))
 
   return (
     <div className="space-y-4">
+      <ErrorBanner error={error} onRetry={refetch} />
+
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">SKU:</label>
+          <label className="text-sm font-medium text-gray-700">
+            <Tooltip term="SKU">SKU</Tooltip>:
+          </label>
           <input
             type="text"
             value={skuInput}
@@ -65,7 +65,9 @@ export function DemandForecastTab({ upliftPercent }: Props) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">DC:</label>
+          <label className="text-sm font-medium text-gray-700">
+            <Tooltip term="DC">DC</Tooltip>:
+          </label>
           <select
             value={dcId}
             onChange={e => setDcId(e.target.value)}
@@ -93,10 +95,9 @@ export function DemandForecastTab({ upliftPercent }: Props) {
         {data && <ForecastAccuracyBadge mape={data.latestMape} />}
       </div>
 
-      {loading && <div className="p-8 text-gray-500">Loading forecast…</div>}
-      {error && <div className="p-8 text-red-500">Error loading forecast: {error}</div>}
-
-      {!loading && !error && data && (
+      {loading && !data ? (
+        <div className="p-8 text-gray-500">Loading forecast…</div>
+      ) : data ? (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">
             Demand Forecast — {data.skuId} / {data.dcId} ({data.horizonDays}d)
@@ -106,30 +107,34 @@ export function DemandForecastTab({ upliftPercent }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} interval={Math.floor(chartData.length / 7)} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
+              <RechartsTooltip />
+              <Legend
+                formatter={(value) => {
+                  const labels: Record<string, string> = {
+                    P90: 'P90 — Optimistic',
+                    P50: 'P50 — Midpoint',
+                    P10: 'P10 — Cautious',
+                    Actual: 'Actual Units',
+                  }
+                  return labels[value] ?? value
+                }}
+              />
               <Area type="monotone" dataKey="p90" stroke="#93c5fd" fill="#dbeafe" fillOpacity={0.5} name="P90" />
               <Area type="monotone" dataKey="p50" stroke="#60a5fa" fill="#bfdbfe" fillOpacity={0.5} name="P50" />
               <Area type="monotone" dataKey="p10" stroke="#93c5fd" fill="#dbeafe" fillOpacity={0.3} name="P10" />
               <Line type="monotone" dataKey="actual" stroke="#9ca3af" strokeWidth={2} dot={false} name="Actual" />
-              {upliftPercent > 0 && (
-                <Line
-                  type="monotone"
-                  dataKey="adjustedP50"
-                  stroke="#f97316"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  dot={false}
-                  name="Adjusted P50 (Promo)"
-                />
-              )}
             </ComposedChart>
           </ResponsiveContainer>
+          <div className="mt-3 flex gap-4 text-xs text-gray-500">
+            <span><Tooltip term="P10">P10</Tooltip> — cautious estimate</span>
+            <span><Tooltip term="P50">P50</Tooltip> — midpoint</span>
+            <span><Tooltip term="P90">P90</Tooltip> — optimistic estimate</span>
+          </div>
           <p className="mt-2 text-xs text-gray-400">
             Data as of {new Date(data.dataFreshness).toLocaleTimeString()}
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

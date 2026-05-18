@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
 import type { Trend, DirectionTrend } from '../types'
 
 export interface KpiCardProps {
-  label: string
+  label: ReactNode
   value: string
   trend: Trend | DirectionTrend
   color: 'green' | 'amber' | 'red' | 'neutral'

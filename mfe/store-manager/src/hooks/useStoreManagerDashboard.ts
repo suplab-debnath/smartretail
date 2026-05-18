@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { StoreManagerDashboardResponse } from '../types'
 
 const POLL_INTERVAL_MS = 60_000
@@ -6,20 +7,18 @@ const POLL_INTERVAL_MS = 60_000
 export function useStoreManagerDashboard(dcId: string, page: number, size = 10) {
   const [data, setData] = useState<StoreManagerDashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<FetchError | null>(null)
 
   const fetchDashboard = useCallback(async () => {
     setError(null)
     try {
       const url = `/v1/dashboard/store-manager?dcId=${encodeURIComponent(dcId)}&page=${page}&size=${size}`
-      const res = await fetch(url, {
+      const json = await fetchJson<StoreManagerDashboardResponse>(url, {
         headers: { 'X-Dev-Role': 'STORE_MANAGER' },
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json: StoreManagerDashboardResponse = await res.json()
       setData(json)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      setError(isFetchError(e) ? e : { kind: 'network', message: 'Unknown error' })
     } finally {
       setLoading(false)
     }
@@ -34,7 +33,9 @@ export function useStoreManagerDashboard(dcId: string, page: number, size = 10) 
     }
 
     run()
-    const id = setInterval(() => { if (!cancelled) fetchDashboard() }, POLL_INTERVAL_MS)
+    const id = setInterval(() => {
+      if (!cancelled) fetchDashboard()
+    }, POLL_INTERVAL_MS)
     return () => {
       cancelled = true
       clearInterval(id)

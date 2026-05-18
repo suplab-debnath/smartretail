@@ -1,3 +1,4 @@
+import { Tooltip } from '@smartretail/auth'
 import { SeverityBadge } from './SeverityBadge'
 import type { StockAlertSummary } from '../types'
 
@@ -7,6 +8,16 @@ interface Props {
   totalPages: number
   onPageChange: (page: number) => void
 }
+
+const ALERT_HEADERS: { label: string; term?: string }[] = [
+  { label: 'SKU', term: 'SKU' },
+  { label: 'DC', term: 'DC' },
+  { label: 'Type' },
+  { label: 'Severity' },
+  { label: 'On Hand', term: 'ON_HAND' },
+  { label: 'Reorder Point', term: 'REORDER_POINT' },
+  { label: 'Raised At' },
+]
 
 export function AlertList({ alerts, page, totalPages, onPageChange }: Props) {
   if (alerts.length === 0) {
@@ -26,12 +37,12 @@ export function AlertList({ alerts, page, totalPages, onPageChange }: Props) {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {['SKU', 'DC', 'Type', 'Severity', 'On Hand', 'Reorder Point', 'Raised At'].map(h => (
+              {ALERT_HEADERS.map(h => (
                 <th
-                  key={h}
+                  key={h.label}
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
-                  {h}
+                  {h.term ? <Tooltip term={h.term}>{h.label}</Tooltip> : h.label}
                 </th>
               ))}
             </tr>

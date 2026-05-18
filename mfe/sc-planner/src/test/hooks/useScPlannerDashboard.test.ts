@@ -26,14 +26,14 @@ describe('useScPlannerDashboard', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     const { result } = renderHook(() => useScPlannerDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 503')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 503 })
   })
 
   it('sets error on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     const { result } = renderHook(() => useScPlannerDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('offline')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('refresh() re-fetches data', async () => {
@@ -48,8 +48,8 @@ describe('useScPlannerDashboard', () => {
   it('interval callback invokes fetch_ when not cancelled', async () => {
     const POLL_MS = 2 * 60 * 1000
     let capturedCallback: (() => void) | null = null
-    const original = global.setInterval.bind(global)
-    vi.spyOn(global, 'setInterval').mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
+    const original = globalThis.setInterval.bind(globalThis)
+    vi.spyOn(globalThis, 'setInterval').mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
       if (delay === POLL_MS) capturedCallback = fn as () => void
       return original(fn as TimerHandler, delay, ...args)
     })

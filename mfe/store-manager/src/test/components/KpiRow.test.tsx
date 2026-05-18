@@ -1,7 +1,11 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { KpiRow } from '../../components/KpiRow'
 import type { AlertKpi } from '../../types'
+
+vi.mock('@smartretail/auth', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 
 const alertKpi: AlertKpi = {
   criticalCount: 2,

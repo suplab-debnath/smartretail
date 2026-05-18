@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useExceptionQueue } from '../hooks/useExceptionQueue'
 import { SeverityBadge } from './SeverityBadge'
 import type { AlertType } from '../types'
+import { useState } from 'react'
 
 type DcFilter = 'ALL' | 'DC-LONDON' | 'DC-MANCHESTER' | 'DC-BIRMINGHAM'
 
@@ -29,6 +31,17 @@ function formatDate(iso: string) {
   return d.toLocaleString()
 }
 
+const TABLE_HEADERS: { label: string; term?: string }[] = [
+  { label: 'SKU', term: 'SKU' },
+  { label: 'DC', term: 'DC' },
+  { label: 'Alert Type' },
+  { label: 'Severity' },
+  { label: 'On-Hand', term: 'ON_HAND' },
+  { label: 'Reorder Point', term: 'REORDER_POINT' },
+  { label: 'Raised At' },
+  { label: 'Action' },
+]
+
 export function ExceptionQueueTab({ onTriggerReplenishment }: Props) {
   const [dcFilter, setDcFilter] = useState<DcFilter>('ALL')
   const { data, loading, error, refetch } = useExceptionQueue()
@@ -37,18 +50,13 @@ export function ExceptionQueueTab({ onTriggerReplenishment }: Props) {
     refetch()
   }, [refetch])
 
-  if (loading) {
-    return <div className="p-8 text-gray-500">Loading exception queue…</div>
-  }
-  if (error) {
-    return <div className="p-8 text-red-500">Error loading alerts: {error}</div>
-  }
-
   const alerts = data?.alerts ?? []
   const filtered = dcFilter === 'ALL' ? alerts : alerts.filter(a => a.dcId === dcFilter)
 
   return (
     <div>
+      <ErrorBanner error={error} onRetry={refetch} />
+
       <div className="mb-4 flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">DC Filter:</label>
         <select
@@ -62,16 +70,20 @@ export function ExceptionQueueTab({ onTriggerReplenishment }: Props) {
         </select>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">No active exceptions</div>
+      {loading && !data ? (
+        <div className="p-8 text-gray-500">Loading exception queue…</div>
+      ) : filtered.length === 0 ? (
+        <div className="py-12 text-center text-gray-400">
+          {error ? 'Data unavailable' : 'No active exceptions'}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['SKU', 'DC', 'Alert Type', 'Severity', 'On-Hand', 'Reorder Point', 'Raised At', 'Action'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {h}
+                {TABLE_HEADERS.map(h => (
+                  <th key={h.label} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {h.term ? <Tooltip term={h.term}>{h.label}</Tooltip> : h.label}
                   </th>
                 ))}
               </tr>

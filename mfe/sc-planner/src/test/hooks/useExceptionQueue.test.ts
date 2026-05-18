@@ -1,4 +1,4 @@
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { useExceptionQueue } from '../../hooks/useExceptionQueue'
 import type { StockAlertListResponse } from '../../types'
@@ -31,7 +31,7 @@ describe('useExceptionQueue', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     const { result } = renderHook(() => useExceptionQueue())
     await act(async () => { await result.current.refetch() })
-    expect(result.current.error).toBe('HTTP 503')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 503 })
     expect(result.current.data).toBeNull()
   })
 
@@ -39,7 +39,7 @@ describe('useExceptionQueue', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     const { result } = renderHook(() => useExceptionQueue())
     await act(async () => { await result.current.refetch() })
-    expect(result.current.error).toBe('offline')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('appends dcId to query when provided', async () => {

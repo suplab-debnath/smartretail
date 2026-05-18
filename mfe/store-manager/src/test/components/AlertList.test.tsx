@@ -4,6 +4,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { AlertList } from '../../components/AlertList'
 import type { StockAlertSummary } from '../../types'
 
+vi.mock('@smartretail/auth', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
 const makeAlert = (overrides: Partial<StockAlertSummary> = {}): StockAlertSummary => ({
   alertId: 'a1',
   skuId: 'SKU-001',

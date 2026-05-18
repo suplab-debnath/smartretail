@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { usePendingApprovals } from '../hooks/usePendingApprovals'
 
 interface Toast {
@@ -10,7 +11,7 @@ interface Toast {
 let toastId = 0
 
 export function ApprovalWorkflowsTab() {
-  const { orders, loading, error, removeOrder } = usePendingApprovals()
+  const { orders, loading, error, removeOrder, refetch } = usePendingApprovals()
   const [toasts, setToasts] = useState<Toast[]>([])
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set())
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -78,9 +79,6 @@ export function ApprovalWorkflowsTab() {
     }
   }
 
-  if (loading) return <div className="p-8 text-gray-500">Loading pending approvals…</div>
-  if (error) return <div className="p-8 text-red-500">Error: {error}</div>
-
   const toastColorMap: Record<Toast['type'], string> = {
     success: 'bg-green-600',
     warning: 'bg-amber-500',
@@ -89,16 +87,31 @@ export function ApprovalWorkflowsTab() {
 
   return (
     <div>
-      {orders.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">No POs awaiting approval</div>
+      <ErrorBanner error={error} onRetry={refetch} />
+
+      {loading && orders.length === 0 ? (
+        <div className="p-8 text-gray-500">Loading pending approvals…</div>
+      ) : orders.length === 0 ? (
+        <div className="py-12 text-center text-gray-400">
+          {error ? 'Data unavailable' : 'No POs awaiting approval'}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['PO ID', 'Supplier', 'SKU', 'DC', 'Qty', 'Total Value', 'Created At', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {h}
+                {[
+                  { label: 'PO ID', term: 'PO' },
+                  { label: 'Supplier' },
+                  { label: 'SKU', term: 'SKU' },
+                  { label: 'DC', term: 'DC' },
+                  { label: 'Qty' },
+                  { label: 'Total Value' },
+                  { label: 'Created At' },
+                  { label: 'Actions' },
+                ].map(h => (
+                  <th key={h.label} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {h.term ? <Tooltip term={h.term}>{h.label}</Tooltip> : h.label}
                   </th>
                 ))}
               </tr>

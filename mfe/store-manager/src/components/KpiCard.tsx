@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
+
 interface Props {
-  label: string
+  label: ReactNode
   value: string | number
   subItems?: { label: string; value: number; color: string }[]
 }

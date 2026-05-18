@@ -37,13 +37,13 @@ describe('useSupplierOrders', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
     const { result } = renderHook(() => useSupplierOrders())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 500')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 500 })
   })
 
   it('sets error on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')))
     const { result } = renderHook(() => useSupplierOrders())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('timeout')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 })

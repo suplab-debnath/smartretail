@@ -40,7 +40,7 @@ describe('useStoreManagerDashboard', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     const { result } = renderHook(() => useStoreManagerDashboard('DC-LONDON', 0))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 503')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 503 })
     expect(result.current.data).toBeNull()
   })
 
@@ -48,15 +48,15 @@ describe('useStoreManagerDashboard', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Failed to fetch')))
     const { result } = renderHook(() => useStoreManagerDashboard('DC-LONDON', 0))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('Failed to fetch')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
     expect(result.current.data).toBeNull()
   })
 
-  it('handles unknown thrown value as Unknown error', async () => {
+  it('handles unknown thrown value as network error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('oops'))
     const { result } = renderHook(() => useStoreManagerDashboard('DC-LONDON', 0))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('Unknown error')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('builds the URL with dcId, page, and size', async () => {
@@ -96,8 +96,8 @@ describe('useStoreManagerDashboard', () => {
   it('interval callback invokes fetchDashboard when not cancelled', async () => {
     const POLL_MS = 60_000
     let capturedCallback: (() => void) | null = null
-    const originalSetInterval = global.setInterval.bind(global)
-    vi.spyOn(global, 'setInterval').mockImplementation(
+    const originalSetInterval = globalThis.setInterval.bind(globalThis)
+    vi.spyOn(globalThis, 'setInterval').mockImplementation(
       (fn: TimerHandler, delay?: number, ...args: unknown[]) => {
         if (delay === POLL_MS) capturedCallback = fn as () => void
         return originalSetInterval(fn as TimerHandler, delay, ...args)

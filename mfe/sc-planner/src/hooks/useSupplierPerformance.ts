@@ -1,21 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { SupplierPerformanceDashboardResponse } from '../types'
 
 export function useSupplierPerformance() {
   const [data, setData] = useState<SupplierPerformanceDashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<FetchError | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+
+  const refetch = useCallback(() => setRetryKey(k => k + 1), [])
 
   useEffect(() => {
     let cancelled = false
 
-    fetch('/v1/dashboard/supplier-performance', {
+    fetchJson<SupplierPerformanceDashboardResponse>('/v1/dashboard/supplier-performance', {
       headers: { 'X-Dev-Role': 'SC_PLANNER' },
     })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<SupplierPerformanceDashboardResponse>
-      })
       .then(json => {
         if (!cancelled) {
           setData(json)
@@ -23,7 +23,8 @@ export function useSupplierPerformance() {
         }
       })
       .catch(e => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Unknown error')
+        if (!cancelled)
+          setError(isFetchError(e) ? e : { kind: 'network', message: 'Unknown error' })
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -32,7 +33,7 @@ export function useSupplierPerformance() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [retryKey])
 
-  return { data, loading, error }
+  return { data, loading, error, refetch }
 }

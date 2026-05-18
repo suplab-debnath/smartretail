@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useInventoryPositions } from '../hooks/useInventoryPositions'
 import type { InventoryPosition } from '../types'
 
@@ -31,13 +32,13 @@ function PositionCard({ pos }: PositionCardProps) {
         </span>
       </div>
       <dl className="grid grid-cols-2 gap-1 text-xs text-gray-600">
-        <dt className="text-gray-500">On-Hand</dt>
+        <dt className="text-gray-500"><Tooltip term="ON_HAND">On-Hand</Tooltip></dt>
         <dd className="text-right font-medium">{pos.onHand.toLocaleString()}</dd>
-        <dt className="text-gray-500">In-Transit</dt>
+        <dt className="text-gray-500"><Tooltip term="IN_TRANSIT">In-Transit</Tooltip></dt>
         <dd className="text-right font-medium">{pos.inTransit.toLocaleString()}</dd>
-        <dt className="text-gray-500">Reserved</dt>
+        <dt className="text-gray-500"><Tooltip term="RESERVED">Reserved</Tooltip></dt>
         <dd className="text-right font-medium">{pos.reserved.toLocaleString()}</dd>
-        <dt className="text-gray-500">ATP</dt>
+        <dt className="text-gray-500"><Tooltip term="ATP">ATP</Tooltip></dt>
         <dd className={`text-right font-bold ${atp <= 0 ? 'text-red-600' : atp < pos.reorderPoint ? 'text-amber-600' : 'text-green-600'}`}>
           {atp.toLocaleString()}
         </dd>
@@ -48,12 +49,16 @@ function PositionCard({ pos }: PositionCardProps) {
 
 export function InventoryOverviewTab() {
   const [selectedDc, setSelectedDc] = useState<DcId>('DC-LONDON')
-  const { data, loading, error } = useInventoryPositions(selectedDc)
+  const { data, loading, error, refetch } = useInventoryPositions(selectedDc)
 
   return (
     <div>
+      <ErrorBanner error={error} onRetry={refetch} />
+
       <div className="mb-4 flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700">Distribution Centre:</label>
+        <label className="text-sm font-medium text-gray-700">
+          <Tooltip term="DC">Distribution Centre</Tooltip>:
+        </label>
         <select
           value={selectedDc}
           onChange={e => setSelectedDc(e.target.value as DcId)}
@@ -65,17 +70,18 @@ export function InventoryOverviewTab() {
         </select>
       </div>
 
-      {loading && <div className="p-8 text-gray-500">Loading inventory positions…</div>}
-      {error && <div className="p-8 text-red-500">Error loading positions: {error}</div>}
-
-      {!loading && !error && (
+      {loading && !data ? (
+        <div className="p-8 text-gray-500">Loading inventory positions…</div>
+      ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {(data?.positions ?? []).map(pos => (
               <PositionCard key={pos.positionId} pos={pos} />
             ))}
             {(data?.positions ?? []).length === 0 && (
-              <div className="col-span-3 py-12 text-center text-gray-400">No inventory positions found</div>
+              <div className="col-span-3 py-12 text-center text-gray-400">
+                {error ? 'Data unavailable' : 'No inventory positions found'}
+              </div>
             )}
           </div>
           {data?.dataFreshness && (

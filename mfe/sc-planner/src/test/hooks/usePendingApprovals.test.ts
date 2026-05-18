@@ -21,7 +21,7 @@ describe('usePendingApprovals', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     const { result } = renderHook(() => usePendingApprovals())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 503')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 503 })
     expect(result.current.orders).toEqual([])
   })
 
@@ -29,7 +29,7 @@ describe('usePendingApprovals', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')))
     const { result } = renderHook(() => usePendingApprovals())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('timeout')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('removeOrder removes the specified PO from state', async () => {

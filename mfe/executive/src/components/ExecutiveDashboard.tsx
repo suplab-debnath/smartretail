@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@smartretail/auth'
+import { useAuth, ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard'
 import { KpiCard } from './KpiCard'
 import { MapeTrendChart } from './MapeTrendChart'
@@ -22,7 +22,7 @@ function mapeColor(mape: number): KpiCardProps['color'] {
 
 export function ExecutiveDashboard() {
   const { isAuthenticated, isLoading: authLoading, signIn, signOut, user, hasRole } = useAuth()
-  const { data, loading, error, lastUpdated } = useExecutiveDashboard()
+  const { data, loading, error, lastUpdated, refresh } = useExecutiveDashboard()
   const [expanded, setExpanded] = useState<CardId | null>(null)
 
   useEffect(() => {
@@ -51,18 +51,8 @@ export function ExecutiveDashboard() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-red-500">Error loading dashboard: {error}</div>
-      </div>
-    )
-  }
-
-  if (!data) return null
-
-  const { forecastAccuracy, stockoutFrequency, replenishmentCycleTime, onTimeDelivery, supplierPerformance } = data.kpis
-  const accuracyPct = ((1 - forecastAccuracy.latestMape) * 100).toFixed(1)
+  const kpis = data?.kpis
+  const accuracyPct = kpis ? ((1 - kpis.forecastAccuracy.latestMape) * 100).toFixed(1) : '—'
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -89,41 +79,42 @@ export function ExecutiveDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-4">
+        <ErrorBanner error={error} onRetry={refresh} />
 
         {/* KPI Cards — 2×2 grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard
-            label="Forecast Accuracy"
+            label={<Tooltip term="MAPE">Forecast Accuracy</Tooltip>}
             value={`${accuracyPct}%`}
-            trend={forecastAccuracy.trend}
-            color={mapeColor(forecastAccuracy.latestMape)}
-            subtitle={`MAPE: ${(forecastAccuracy.latestMape * 100).toFixed(2)}%`}
+            trend={kpis?.forecastAccuracy.trend ?? 'STABLE'}
+            color={kpis ? mapeColor(kpis.forecastAccuracy.latestMape) : 'neutral'}
+            subtitle={kpis ? `MAPE: ${(kpis.forecastAccuracy.latestMape * 100).toFixed(2)}%` : undefined}
             onClick={() => toggle('forecast')}
             isExpanded={expanded === 'forecast'}
           />
           <KpiCard
             label="Stockout Frequency (30d)"
-            value={String(stockoutFrequency.last30Days)}
-            trend={stockoutFrequency.trend}
-            color={stockoutFrequency.last30Days === 0 ? 'green' : stockoutFrequency.last30Days > 10 ? 'red' : 'amber'}
+            value={kpis ? String(kpis.stockoutFrequency.last30Days) : '—'}
+            trend={kpis?.stockoutFrequency.trend ?? 'STABLE'}
+            color={kpis ? (kpis.stockoutFrequency.last30Days === 0 ? 'green' : kpis.stockoutFrequency.last30Days > 10 ? 'red' : 'amber') : 'neutral'}
             subtitle="CRITICAL alerts raised"
             onClick={() => toggle('stockout')}
             isExpanded={expanded === 'stockout'}
           />
           <KpiCard
-            label="Replenishment Cycle Time"
-            value={`${replenishmentCycleTime.averageDays}d`}
-            trend={replenishmentCycleTime.trend}
-            color={replenishmentCycleTime.averageDays <= 3 ? 'green' : replenishmentCycleTime.averageDays <= 5 ? 'amber' : 'red'}
+            label={<Tooltip term="REPLENISHMENT_CYCLE_TIME">Replenishment Cycle Time</Tooltip>}
+            value={kpis ? `${kpis.replenishmentCycleTime.averageDays}d` : '—'}
+            trend={kpis?.replenishmentCycleTime.trend ?? 'STABLE'}
+            color={kpis ? (kpis.replenishmentCycleTime.averageDays <= 3 ? 'green' : kpis.replenishmentCycleTime.averageDays <= 5 ? 'amber' : 'red') : 'neutral'}
             subtitle="Avg days DRAFT → DISPATCHED"
             onClick={() => toggle('cycletime')}
             isExpanded={expanded === 'cycletime'}
           />
           <KpiCard
-            label="On-Time Delivery"
-            value={`${(onTimeDelivery.rate * 100).toFixed(1)}%`}
-            trend={onTimeDelivery.trend}
-            color={onTimeDelivery.rate >= 0.90 ? 'green' : onTimeDelivery.rate >= 0.75 ? 'amber' : 'red'}
+            label={<Tooltip term="OTD">On-Time Delivery</Tooltip>}
+            value={kpis ? `${(kpis.onTimeDelivery.rate * 100).toFixed(1)}%` : '—'}
+            trend={kpis?.onTimeDelivery.trend ?? 'STABLE'}
+            color={kpis ? (kpis.onTimeDelivery.rate >= 0.90 ? 'green' : kpis.onTimeDelivery.rate >= 0.75 ? 'amber' : 'red') : 'neutral'}
             subtitle="Aggregate supplier OTD"
             onClick={() => toggle('otd')}
             isExpanded={expanded === 'otd'}
@@ -131,38 +122,36 @@ export function ExecutiveDashboard() {
         </div>
 
         {/* Expandable detail panels */}
-
-        {expanded === 'forecast' && (
+        {kpis && expanded === 'forecast' && (
           <div className="space-y-4 animate-fadeIn">
-            <MapeTrendChart history={forecastAccuracy.history} />
-            <ForecastHistoryTable history={forecastAccuracy.history} />
+            <MapeTrendChart history={kpis.forecastAccuracy.history} />
+            <ForecastHistoryTable history={kpis.forecastAccuracy.history} />
           </div>
         )}
 
-        {expanded === 'stockout' && (
+        {kpis && expanded === 'stockout' && (
           <div className="space-y-4 animate-fadeIn">
-            <StockoutChart history={stockoutFrequency.history} />
-            <StockoutHistoryTable history={stockoutFrequency.history} />
+            <StockoutChart history={kpis.stockoutFrequency.history} />
+            <StockoutHistoryTable history={kpis.stockoutFrequency.history} />
           </div>
         )}
 
-        {expanded === 'cycletime' && (
+        {kpis && expanded === 'cycletime' && (
           <div className="space-y-4 animate-fadeIn">
             <CycleTimeChart
-              history={replenishmentCycleTime.history}
-              overallAverage={replenishmentCycleTime.averageDays}
+              history={kpis.replenishmentCycleTime.history}
+              overallAverage={kpis.replenishmentCycleTime.averageDays}
             />
-            <CycleTimeHistoryTable history={replenishmentCycleTime.history} />
+            <CycleTimeHistoryTable history={kpis.replenishmentCycleTime.history} />
           </div>
         )}
 
-        {expanded === 'otd' && (
+        {kpis && expanded === 'otd' && (
           <div className="space-y-4 animate-fadeIn">
-            <SupplierRankingTable suppliers={supplierPerformance} />
-            <DeliveryHistogram suppliers={supplierPerformance} />
+            <SupplierRankingTable suppliers={kpis.supplierPerformance} />
+            <DeliveryHistogram suppliers={kpis.supplierPerformance} />
           </div>
         )}
-
       </main>
     </div>
   )

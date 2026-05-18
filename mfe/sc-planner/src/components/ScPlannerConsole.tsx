@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@smartretail/auth'
+import { useAuth, Tooltip } from '@smartretail/auth'
 import { useScPlannerDashboard } from '../hooks/useScPlannerDashboard'
 import { ExceptionQueueTab } from './ExceptionQueueTab'
 import { InventoryOverviewTab } from './InventoryOverviewTab'
@@ -7,7 +7,6 @@ import { DemandForecastTab } from './DemandForecastTab'
 import { StockoutRiskTab } from './StockoutRiskTab'
 import { ApprovalWorkflowsTab } from './ApprovalWorkflowsTab'
 import { SupplierOrderTrackingTab } from './SupplierOrderTrackingTab'
-import { ForecastAdjustmentTab } from './ForecastAdjustmentTab'
 import { SupplierScorecardTab } from './SupplierScorecardTab'
 import { ReplenishmentTriggerModal } from './ReplenishmentTriggerModal'
 
@@ -18,7 +17,6 @@ type TabId =
   | 'stockout'
   | 'approvals'
   | 'supplier-orders'
-  | 'forecast-adjustment'
   | 'scorecard'
 
 interface TabDef {
@@ -27,14 +25,13 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'exceptions', label: 'Exception Queue' },
-  { id: 'inventory', label: 'Inventory Overview' },
-  { id: 'forecast', label: 'Demand Forecast' },
-  { id: 'stockout', label: 'Stockout Risk' },
-  { id: 'approvals', label: 'Approvals' },
-  { id: 'supplier-orders', label: 'Supplier Orders' },
-  { id: 'forecast-adjustment', label: 'Forecast Adjustment' },
-  { id: 'scorecard', label: 'Supplier Scorecard' },
+  { id: 'exceptions',          label: 'Exception Queue'      },
+  { id: 'inventory',           label: 'Inventory Overview'   },
+  { id: 'forecast',            label: 'Demand Forecast'      },
+  { id: 'stockout',            label: 'Stockout Risk'        },
+  { id: 'approvals',           label: 'Approvals'            },
+  { id: 'supplier-orders',     label: 'Supplier Orders'      },
+  { id: 'scorecard',           label: 'Supplier Scorecard'   },
 ]
 
 interface TriggerTarget {
@@ -48,7 +45,6 @@ export function ScPlannerConsole() {
 
   const [activeTab, setActiveTab] = useState<TabId>('exceptions')
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(new Set(['exceptions']))
-  const [upliftPercent, setUpliftPercent] = useState(0)
   const [triggerTarget, setTriggerTarget] = useState<TriggerTarget | null>(null)
 
   useEffect(() => {
@@ -99,7 +95,7 @@ export function ScPlannerConsole() {
           <div className="flex items-center gap-4">
             {dashData?.forecastAccuracy && (
               <div className="text-xs text-gray-500">
-                Forecast MAPE:{' '}
+                <Tooltip term="MAPE">Forecast MAPE</Tooltip>:{' '}
                 <span className={
                   dashData.forecastAccuracy.latestMape < 0.10 ? 'text-green-600 font-semibold' :
                   dashData.forecastAccuracy.latestMape <= 0.20 ? 'text-amber-600 font-semibold' :
@@ -173,7 +169,7 @@ export function ScPlannerConsole() {
         )}
         {visitedTabs.has('forecast') && (
           <div className={activeTab === 'forecast' ? '' : 'hidden'}>
-            <DemandForecastTab upliftPercent={upliftPercent} />
+            <DemandForecastTab />
           </div>
         )}
         {visitedTabs.has('stockout') && (
@@ -189,11 +185,6 @@ export function ScPlannerConsole() {
         {visitedTabs.has('supplier-orders') && (
           <div className={activeTab === 'supplier-orders' ? '' : 'hidden'}>
             <SupplierOrderTrackingTab />
-          </div>
-        )}
-        {visitedTabs.has('forecast-adjustment') && (
-          <div className={activeTab === 'forecast-adjustment' ? '' : 'hidden'}>
-            <ForecastAdjustmentTab upliftPercent={upliftPercent} setUpliftPercent={setUpliftPercent} />
           </div>
         )}
         {visitedTabs.has('scorecard') && (

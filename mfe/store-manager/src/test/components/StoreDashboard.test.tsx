@@ -4,7 +4,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { StoreDashboard } from '../../components/StoreDashboard'
 import { useStoreManagerDashboard } from '../../hooks/useStoreManagerDashboard'
 import type { StoreManagerDashboardResponse } from '../../types'
+import type { FetchError } from '@smartretail/auth'
 
+vi.mock('@smartretail/auth', () => ({
+  ErrorBanner: ({ error }: { error: FetchError | null }) =>
+    error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 vi.mock('../../hooks/useStoreManagerDashboard')
 
 const mockedHook = vi.mocked(useStoreManagerDashboard)
@@ -45,10 +51,12 @@ describe('StoreDashboard', () => {
     expect(screen.getByText('Loading dashboard…')).toBeInTheDocument()
   })
 
-  it('shows error message on fetch failure', () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: 'HTTP 503', refresh: noopRefresh })
+  it('shows error banner on fetch failure', () => {
+    const serverError: FetchError = { kind: 'server', status: 503, message: 'HTTP 503' }
+    mockedHook.mockReturnValue({ data: null, loading: false, error: serverError, refresh: noopRefresh })
     render(<StoreDashboard />)
-    expect(screen.getByText(/Failed to load dashboard: HTTP 503/)).toBeInTheDocument()
+    expect(screen.getByTestId('error-banner')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 503/)).toBeInTheDocument()
   })
 
   it('renders KPI row and alert list when data is loaded', () => {

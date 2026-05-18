@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ErrorBanner } from '@smartretail/auth'
 import { DcSelector } from './DcSelector'
 import { KpiRow } from './KpiRow'
 import { AlertList } from './AlertList'
@@ -33,13 +34,9 @@ export function StoreDashboard() {
           <div className="py-20 text-center text-gray-400">Loading dashboard…</div>
         )}
 
-        {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            Failed to load dashboard: {error}
-          </div>
-        )}
+        <ErrorBanner error={error} onRetry={refresh} />
 
-        {data && (
+        {data ? (
           <>
             <KpiRow
               alertKpi={data.alertKpi}
@@ -62,7 +59,11 @@ export function StoreDashboard() {
               />
             </div>
           </>
-        )}
+        ) : !loading && error ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400">
+            Data unavailable — use the Retry button above to try again.
+          </div>
+        ) : null}
       </main>
     </div>
   )

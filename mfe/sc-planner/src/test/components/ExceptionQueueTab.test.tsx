@@ -4,6 +4,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ExceptionQueueTab } from '../../components/ExceptionQueueTab'
 import { useExceptionQueue } from '../../hooks/useExceptionQueue'
 import type { StockAlertListResponse } from '../../types'
+import type { FetchError } from '@smartretail/auth'
+
+vi.mock('@smartretail/auth', () => ({
+  ErrorBanner: ({ error }: { error: FetchError | null }) =>
+    error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 
 vi.mock('../../hooks/useExceptionQueue')
 const mockedHook = vi.mocked(useExceptionQueue)
@@ -16,6 +23,7 @@ const makeAlert = (overrides = {}) => ({
 })
 
 const mockData: StockAlertListResponse = { alerts: [makeAlert()], dataFreshness: '2026-05-18T00:00:00Z' }
+const serverError: FetchError = { kind: 'server', status: 503, message: 'HTTP 503' }
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -26,10 +34,11 @@ describe('ExceptionQueueTab', () => {
     expect(screen.getByText('Loading exception queue…')).toBeInTheDocument()
   })
 
-  it('shows error state', () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: 'HTTP 503', refetch: vi.fn() })
+  it('shows error banner', () => {
+    mockedHook.mockReturnValue({ data: null, loading: false, error: serverError, refetch: vi.fn() })
     render(<ExceptionQueueTab onTriggerReplenishment={vi.fn()} />)
-    expect(screen.getByText(/Error loading alerts: HTTP 503/)).toBeInTheDocument()
+    expect(screen.getByTestId('error-banner')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 503/)).toBeInTheDocument()
   })
 
   it('shows empty state when no alerts', () => {

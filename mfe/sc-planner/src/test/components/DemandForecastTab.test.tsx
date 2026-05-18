@@ -4,6 +4,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DemandForecastTab } from '../../components/DemandForecastTab'
 import { useForecast } from '../../hooks/useForecast'
 import type { ForecastDataResponse } from '../../types'
+import type { FetchError } from '@smartretail/auth'
+
+vi.mock('@smartretail/auth', () => ({
+  ErrorBanner: ({ error }: { error: FetchError | null }) =>
+    error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 
 vi.mock('../../hooks/useForecast')
 vi.mock('recharts', () => ({
@@ -19,6 +26,7 @@ vi.mock('recharts', () => ({
 }))
 
 const mockedHook = vi.mocked(useForecast)
+const clientError: FetchError = { kind: 'client', status: 404, message: 'HTTP 404' }
 
 const mockData: ForecastDataResponse = {
   skuId: 'SKU-BEV-001', dcId: 'DC-LONDON', horizonDays: 30, latestMape: 0.08,
@@ -30,62 +38,63 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('DemandForecastTab', () => {
   it('shows loading state', () => {
-    mockedHook.mockReturnValue({ data: null, loading: true, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: null, loading: true, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     expect(screen.getByText('Loading forecast…')).toBeInTheDocument()
   })
 
-  it('shows error state', () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: 'HTTP 404' })
-    render(<DemandForecastTab upliftPercent={0} />)
-    expect(screen.getByText(/Error loading forecast: HTTP 404/)).toBeInTheDocument()
+  it('shows error banner', () => {
+    mockedHook.mockReturnValue({ data: null, loading: false, error: clientError, refetch: vi.fn() })
+    render(<DemandForecastTab />)
+    expect(screen.getByTestId('error-banner')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 404/)).toBeInTheDocument()
   })
 
   it('renders chart and MAPE badge when data loaded', () => {
-    mockedHook.mockReturnValue({ data: mockData, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: mockData, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     expect(screen.getByText(/SKU-BEV-001/)).toBeInTheDocument()
     expect(screen.getByText(/MAPE: 8.0%/)).toBeInTheDocument()
   })
 
   it('shows green MAPE badge when mape < 10%', () => {
-    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.08 }, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.08 }, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     const badge = screen.getByText(/MAPE: 8.0%/)
     expect(badge.className).toContain('text-green-700')
   })
 
   it('shows amber MAPE badge when 10% <= mape <= 20%', () => {
-    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.15 }, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.15 }, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     const badge = screen.getByText(/MAPE: 15.0%/)
     expect(badge.className).toContain('text-amber-700')
   })
 
   it('shows red MAPE badge when mape > 20%', () => {
-    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.25 }, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: { ...mockData, latestMape: 0.25 }, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     const badge = screen.getByText(/MAPE: 25.0%/)
     expect(badge.className).toContain('text-red-700')
   })
 
   it('changes horizon on button click', async () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     await userEvent.click(screen.getByRole('button', { name: '7d' }))
     expect(mockedHook).toHaveBeenCalledWith(expect.any(String), expect.any(String), 7)
   })
 
   it('changes DC via select', async () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     await userEvent.selectOptions(screen.getByRole('combobox'), 'DC-MANCHESTER')
     expect(mockedHook).toHaveBeenCalledWith(expect.any(String), 'DC-MANCHESTER', expect.any(Number))
   })
 
   it('applies SKU on Enter key in text input', async () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     const input = screen.getByRole('textbox')
     await userEvent.clear(input)
     await userEvent.type(input, 'SKU-NEW{Enter}')
@@ -93,8 +102,8 @@ describe('DemandForecastTab', () => {
   })
 
   it('falls back to default SKU when input is blank on blur', async () => {
-    mockedHook.mockReturnValue({ data: null, loading: false, error: null })
-    render(<DemandForecastTab upliftPercent={0} />)
+    mockedHook.mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+    render(<DemandForecastTab />)
     const input = screen.getByRole('textbox')
     await userEvent.clear(input)
     await userEvent.tab()

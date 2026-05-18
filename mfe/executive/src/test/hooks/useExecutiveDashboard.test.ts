@@ -44,7 +44,7 @@ describe('useExecutiveDashboard', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     const { result } = renderHook(() => useExecutiveDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 503')
+    expect(result.current.error).toMatchObject({ kind: 'server', status: 503 })
     expect(result.current.data).toBeNull()
   })
 
@@ -52,14 +52,14 @@ describe('useExecutiveDashboard', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
     const { result } = renderHook(() => useExecutiveDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('Network error')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
-  it('sets unknown error message for non-Error throws', async () => {
+  it('sets network error for non-Error throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'))
     const { result } = renderHook(() => useExecutiveDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('Unknown error')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('fetches from /v1/dashboard/executive with correct header', async () => {
@@ -85,10 +85,10 @@ describe('useExecutiveDashboard', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => mockData })
     vi.stubGlobal('fetch', fetchMock)
     let capturedCallback: (() => void) | null = null
-    const original = global.setInterval.bind(global)
-    vi.spyOn(global, 'setInterval').mockImplementation((fn, delay, ...args) => {
+    const original = globalThis.setInterval.bind(globalThis)
+    vi.spyOn(globalThis, 'setInterval').mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
       if (delay === 5 * 60 * 1000) capturedCallback = fn as () => void
-      return original(fn as TimerHandler, delay, ...args)
+      return original(fn, delay, ...args)
     })
     const { result } = renderHook(() => useExecutiveDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))

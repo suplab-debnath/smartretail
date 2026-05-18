@@ -1,3 +1,4 @@
+import { Tooltip } from '@smartretail/auth'
 import { KpiCard } from './KpiCard'
 import type { AlertKpi } from '../types'
 
@@ -21,7 +22,7 @@ export function KpiRow({ alertKpi, totalOnHandUnits, pendingReplenishmentCount, 
         ]}
       />
       <KpiCard
-        label="On-Hand Units"
+        label={<Tooltip term="ON_HAND">On-Hand Units</Tooltip>}
         value={totalOnHandUnits.toLocaleString()}
       />
       <KpiCard
@@ -29,7 +30,7 @@ export function KpiRow({ alertKpi, totalOnHandUnits, pendingReplenishmentCount, 
         value={pendingReplenishmentCount}
       />
       <KpiCard
-        label="Forecast Coverage"
+        label={<Tooltip term="FORECAST_COVERAGE">Forecast Coverage</Tooltip>}
         value={`${forecastCoveragePct.toFixed(1)}%`}
       />
     </div>

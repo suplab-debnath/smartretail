@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { ForecastDataResponse } from '../types'
 
 export function useForecast(skuId: string, dcId: string, horizonDays: 7 | 14 | 30) {
   const [data, setData] = useState<ForecastDataResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<FetchError | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+
+  const refetch = useCallback(() => setRetryKey(k => k + 1), [])
 
   useEffect(() => {
     if (!skuId || !dcId) return
@@ -13,13 +17,10 @@ export function useForecast(skuId: string, dcId: string, horizonDays: 7 | 14 | 3
     setLoading(true)
     setError(null)
 
-    fetch(`/v1/forecast/${encodeURIComponent(skuId)}/${encodeURIComponent(dcId)}?horizonDays=${horizonDays}`, {
-      headers: { 'X-Dev-Role': 'SC_PLANNER' },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<ForecastDataResponse>
-      })
+    fetchJson<ForecastDataResponse>(
+      `/v1/forecast/${encodeURIComponent(skuId)}/${encodeURIComponent(dcId)}?horizonDays=${horizonDays}`,
+      { headers: { 'X-Dev-Role': 'SC_PLANNER' } },
+    )
       .then(json => {
         if (!cancelled) {
           setData(json)
@@ -27,7 +28,8 @@ export function useForecast(skuId: string, dcId: string, horizonDays: 7 | 14 | 3
         }
       })
       .catch(e => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Unknown error')
+        if (!cancelled)
+          setError(isFetchError(e) ? e : { kind: 'network', message: 'Unknown error' })
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -36,7 +38,7 @@ export function useForecast(skuId: string, dcId: string, horizonDays: 7 | 14 | 3
     return () => {
       cancelled = true
     }
-  }, [skuId, dcId, horizonDays])
+  }, [skuId, dcId, horizonDays, retryKey])
 
-  return { data, loading, error }
+  return { data, loading, error, refetch }
 }

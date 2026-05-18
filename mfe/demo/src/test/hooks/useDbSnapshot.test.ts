@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useDbSnapshot } from '../../hooks/useDbSnapshot'
 
 const mockRows = [{ id: '1', status: 'PENDING' }]
@@ -51,12 +51,12 @@ describe('useDbSnapshot', () => {
 
   it('startPolling does not start a second interval if already polling', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: [] }) }))
-    const original = global.setInterval.bind(global)
-    const intervalSpy = vi.spyOn(global, 'setInterval')
-    intervalSpy.mockImplementation((fn, delay, ...args) => original(fn as TimerHandler, delay, ...args))
+    const original = globalThis.setInterval.bind(globalThis)
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+    intervalSpy.mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => original(fn, delay, ...args))
     const { result } = renderHook(() => useDbSnapshot('/api/dbstate/alerts'))
     act(() => { result.current.startPolling(); result.current.startPolling() })
-    const pollingCalls = intervalSpy.mock.calls.filter(c => c[1] === 2000)
+    const pollingCalls = intervalSpy.mock.calls.filter((c: unknown[]) => c[1] === 2000)
     expect(pollingCalls.length).toBe(1)
   })
 
@@ -87,11 +87,11 @@ describe('useDbSnapshot', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rows: mockRows }) })
     vi.stubGlobal('fetch', fetchMock)
     let capturedFn: (() => void) | null = null
-    const original = global.setInterval.bind(global)
-    const spy = vi.spyOn(global, 'setInterval')
-    spy.mockImplementation((fn, delay, ...args) => {
+    const original = globalThis.setInterval.bind(globalThis)
+    const spy = vi.spyOn(globalThis, 'setInterval')
+    spy.mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
       if (delay === 2000) capturedFn = fn as () => void
-      return original(fn as TimerHandler, delay, ...args)
+      return original(fn, delay, ...args)
     })
     const { result } = renderHook(() => useDbSnapshot('/api/dbstate/alerts'))
     act(() => result.current.startPolling())

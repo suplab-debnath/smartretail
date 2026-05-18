@@ -1,3 +1,4 @@
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useSupplierPerformance } from '../hooks/useSupplierPerformance'
 
 function otdColor(rate: number): string {
@@ -18,26 +19,39 @@ function formatVariance(days: number): string {
   return '0d'
 }
 
-export function SupplierScorecardTab() {
-  const { data, loading, error } = useSupplierPerformance()
+const SCORECARD_HEADERS: { label: string; term?: string }[] = [
+  { label: 'Supplier' },
+  { label: 'OTD Rate', term: 'OTD_RATE' },
+  { label: 'PO SLA Compliance', term: 'PO_SLA' },
+  { label: 'Open Exceptions', term: 'OPEN_EXCEPTIONS' },
+  { label: 'Avg Lead Time Variance', term: 'LEAD_TIME_VARIANCE' },
+  { label: 'Total POs', term: 'PO' },
+  { label: 'Total Value' },
+]
 
-  if (loading) return <div className="p-8 text-gray-500">Loading supplier scorecard…</div>
-  if (error) return <div className="p-8 text-red-500">Error: {error}</div>
+export function SupplierScorecardTab() {
+  const { data, loading, error, refetch } = useSupplierPerformance()
 
   const suppliers = data?.suppliers ?? []
 
   return (
     <div>
-      {suppliers.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">No supplier data available</div>
+      <ErrorBanner error={error} onRetry={refetch} />
+
+      {loading && !data ? (
+        <div className="p-8 text-gray-500">Loading supplier scorecard…</div>
+      ) : suppliers.length === 0 ? (
+        <div className="py-12 text-center text-gray-400">
+          {error ? 'Data unavailable' : 'No supplier data available'}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['Supplier', 'OTD Rate', 'PO SLA Compliance', 'Open Exceptions', 'Avg Lead Time Variance', 'Total POs', 'Total Value'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {h}
+                {SCORECARD_HEADERS.map(h => (
+                  <th key={h.label} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {h.term ? <Tooltip term={h.term}>{h.label}</Tooltip> : h.label}
                   </th>
                 ))}
               </tr>

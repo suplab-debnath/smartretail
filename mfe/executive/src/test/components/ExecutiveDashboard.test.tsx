@@ -4,10 +4,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ExecutiveDashboard } from '../../components/ExecutiveDashboard'
 import { useExecutiveDashboard } from '../../hooks/useExecutiveDashboard'
 import type { ExecutiveDashboardResponse } from '../../types'
+import type { FetchError } from '@smartretail/auth'
 
 const { mockedUseAuth } = vi.hoisted(() => ({ mockedUseAuth: vi.fn() }))
 
-vi.mock('@smartretail/auth', () => ({ useAuth: mockedUseAuth }))
+vi.mock('@smartretail/auth', () => ({
+  useAuth: mockedUseAuth,
+  ErrorBanner: ({ error }: { error: { message: string } | null }) =>
+    error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 vi.mock('../../hooks/useExecutiveDashboard')
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -83,11 +89,13 @@ describe('ExecutiveDashboard', () => {
     expect(screen.getByText('Loading dashboard…')).toBeInTheDocument()
   })
 
-  it('shows error message when fetch fails', () => {
+  it('shows error banner when fetch fails', () => {
+    const serverError: FetchError = { kind: 'server', status: 500, message: 'HTTP 500' }
     mockedUseAuth.mockReturnValue(authWithRole())
-    mockedDash.mockReturnValue({ ...defaultDashReturn, error: 'HTTP 500' })
+    mockedDash.mockReturnValue({ ...defaultDashReturn, error: serverError })
     render(<ExecutiveDashboard />)
-    expect(screen.getByText(/Error loading dashboard: HTTP 500/)).toBeInTheDocument()
+    expect(screen.getByTestId('error-banner')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 500/)).toBeInTheDocument()
   })
 
   it('renders dashboard heading for EXECUTIVE role', () => {

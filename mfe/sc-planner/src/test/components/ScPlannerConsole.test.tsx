@@ -14,7 +14,11 @@ import { useSupplierPerformance } from '../../hooks/useSupplierPerformance'
 // @smartretail/auth factory can reference it without a static import.
 const { mockedUseAuth } = vi.hoisted(() => ({ mockedUseAuth: vi.fn() }))
 
-vi.mock('@smartretail/auth', () => ({ useAuth: mockedUseAuth }))
+vi.mock('@smartretail/auth', () => ({
+  useAuth: mockedUseAuth,
+  ErrorBanner: () => null,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 vi.mock('../../hooks/useScPlannerDashboard')
 vi.mock('../../hooks/useExceptionQueue')
 vi.mock('../../hooks/useInventoryPositions')
@@ -45,11 +49,11 @@ const authWithRole = (role?: string) => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(useInventoryPositions).mockReturnValue({ data: null, loading: false, error: null })
-  vi.mocked(useForecast).mockReturnValue({ data: null, loading: false, error: null })
-  vi.mocked(usePendingApprovals).mockReturnValue({ orders: [], loading: false, error: null, removeOrder: vi.fn() })
-  vi.mocked(useSupplierOrders).mockReturnValue({ data: null, loading: false, error: null })
-  vi.mocked(useSupplierPerformance).mockReturnValue({ data: null, loading: false, error: null })
+  vi.mocked(useInventoryPositions).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+  vi.mocked(useForecast).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+  vi.mocked(usePendingApprovals).mockReturnValue({ orders: [], loading: false, error: null, removeOrder: vi.fn(), refetch: vi.fn() })
+  vi.mocked(useSupplierOrders).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+  vi.mocked(useSupplierPerformance).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
   mockedExceptions.mockReturnValue(defaultExcReturn)
   mockedDash.mockReturnValue(defaultDashReturn)
   vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
@@ -93,10 +97,10 @@ describe('ScPlannerConsole', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
   })
 
-  it('renders all 8 tab buttons', () => {
+  it('renders all 7 tab buttons', () => {
     mockedUseAuth.mockReturnValue(authWithRole())
     render(<ScPlannerConsole />)
-    for (const label of ['Exception Queue', 'Inventory Overview', 'Demand Forecast', 'Stockout Risk', 'Approvals', 'Supplier Orders', 'Forecast Adjustment', 'Supplier Scorecard']) {
+    for (const label of ['Exception Queue', 'Inventory Overview', 'Demand Forecast', 'Stockout Risk', 'Approvals', 'Supplier Orders', 'Supplier Scorecard']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeInTheDocument()
     }
   })

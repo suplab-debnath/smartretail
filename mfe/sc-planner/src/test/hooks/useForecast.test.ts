@@ -37,14 +37,14 @@ describe('useForecast', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
     const { result } = renderHook(() => useForecast('SKU-BEV-001', 'DC-LONDON', 7))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('HTTP 404')
+    expect(result.current.error).toMatchObject({ kind: 'client', status: 404 })
   })
 
   it('sets error on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')))
     const { result } = renderHook(() => useForecast('SKU-001', 'DC-LONDON', 14))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('timeout')
+    expect(result.current.error).toMatchObject({ kind: 'network' })
   })
 
   it('includes horizonDays in URL', async () => {
@@ -60,7 +60,7 @@ describe('useForecast', () => {
     vi.stubGlobal('fetch', fetchMock)
     const { rerender } = renderHook(
       ({ h }: { h: 7 | 14 | 30 }) => useForecast('SKU-001', 'DC-LONDON', h),
-      { initialProps: { h: 7 as const } }
+      { initialProps: { h: 7 as 7 | 14 | 30 } }
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     rerender({ h: 30 })

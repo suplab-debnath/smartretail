@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useSupplierOrders } from '../hooks/useSupplierOrders'
 import type { ShipmentStatus, SupplierOrder } from '../types'
 
@@ -54,15 +55,14 @@ function sortOrders(orders: SupplierOrder[]): SupplierOrder[] {
 
 export function SupplierOrderTrackingTab() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const { data, loading, error } = useSupplierOrders(statusFilter === 'ALL' ? undefined : statusFilter)
-
-  if (loading) return <div className="p-8 text-gray-500">Loading supplier orders…</div>
-  if (error) return <div className="p-8 text-red-500">Error: {error}</div>
+  const { data, loading, error, refetch } = useSupplierOrders(statusFilter === 'ALL' ? undefined : statusFilter)
 
   const orders = sortOrders(data?.orders ?? [])
 
   return (
     <div>
+      <ErrorBanner error={error} onRetry={refetch} />
+
       <div className="mb-4 flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">Status:</label>
         <select
@@ -76,16 +76,29 @@ export function SupplierOrderTrackingTab() {
         </select>
       </div>
 
-      {orders.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">No supplier orders found</div>
+      {loading && !data ? (
+        <div className="p-8 text-gray-500">Loading supplier orders…</div>
+      ) : orders.length === 0 ? (
+        <div className="py-12 text-center text-gray-400">
+          {error ? 'Data unavailable' : 'No supplier orders found'}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['Supplier', 'SKU', 'DC', 'Qty', 'Status', 'Progress', 'ETA', 'Last Update'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {h}
+                {[
+                  { label: 'Supplier' },
+                  { label: 'SKU', term: 'SKU' },
+                  { label: 'DC', term: 'DC' },
+                  { label: 'Qty' },
+                  { label: 'Status' },
+                  { label: 'Progress' },
+                  { label: 'ETA', term: 'ETA' },
+                  { label: 'Last Update' },
+                ].map(h => (
+                  <th key={h.label} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {h.term ? <Tooltip term={h.term}>{h.label}</Tooltip> : h.label}
                   </th>
                 ))}
               </tr>

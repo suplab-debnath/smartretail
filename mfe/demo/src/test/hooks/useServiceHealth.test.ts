@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useServiceHealth } from '../../hooks/useServiceHealth'
 
 beforeEach(() => vi.clearAllMocks())
@@ -40,11 +40,11 @@ describe('useServiceHealth', () => {
   it('registers a polling interval', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
     let capturedCallback: (() => void) | null = null
-    const original = global.setInterval.bind(global)
-    const spy = vi.spyOn(global, 'setInterval')
-    spy.mockImplementation((fn, delay, ...args) => {
+    const original = globalThis.setInterval.bind(globalThis)
+    const spy = vi.spyOn(globalThis, 'setInterval')
+    spy.mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
       if (delay === 30_000) capturedCallback = fn as () => void
-      return original(fn as TimerHandler, delay, ...args)
+      return original(fn, delay, ...args)
     })
     renderHook(() => useServiceHealth())
     await new Promise(r => setTimeout(r, 30))
@@ -53,12 +53,12 @@ describe('useServiceHealth', () => {
 
   it('accepts custom interval parameter', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
-    const original = global.setInterval.bind(global)
-    const intervalSpy = vi.spyOn(global, 'setInterval')
-    intervalSpy.mockImplementation((fn, delay, ...args) => original(fn as TimerHandler, delay, ...args))
+    const original = globalThis.setInterval.bind(globalThis)
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+    intervalSpy.mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => original(fn, delay, ...args))
     renderHook(() => useServiceHealth(5000))
     await new Promise(r => setTimeout(r, 30))
-    const calls = intervalSpy.mock.calls.filter(c => c[1] === 5000)
+    const calls = intervalSpy.mock.calls.filter((c: unknown[]) => c[1] === 5000)
     expect(calls.length).toBeGreaterThan(0)
   })
 })
