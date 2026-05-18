@@ -82,11 +82,11 @@ docker build --platform linux/arm64 -t $REPO:latest services/$SERVICE
 docker push $REPO:latest
 ```
 
-## Cost breakdown (~$985/month at 0 traffic)
+## Cost breakdown (~$135/month at 0 traffic)
 
 | Component | ~Cost/month |
 |-----------|------------|
-| ECS Fargate ARM64 × 6 (1 task, 0.25 vCPU / 512 MB) | $870 |
+| ECS Fargate ARM64 × 6 (1 task, 0.25 vCPU / 512 MB) — 80% Spot / 20% regular | ~$22 |
 | ALB | $16 |
 | Kinesis on-demand | $50 |
 | SQS + EventBridge | $15 |
@@ -94,9 +94,9 @@ docker push $REPO:latest
 | CloudWatch Logs | $15 |
 | Cognito (1 pool) | $3 |
 | S3 (4 buckets) | $3 |
-| **Total** | **~$985** |
+| **Total** | **~$137** |
 
-> ECS is the dominant cost. At zero actual traffic, Fargate still bills for reserved capacity.
+> Fargate Spot (80/20 split) reduces ECS compute cost by ~50%. Spot tasks can be interrupted with a 2-minute warning — acceptable for demo use.
 > Use `cdk destroy --all` when not in use to stop all costs.
 
 ## Teardown

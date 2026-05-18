@@ -318,6 +318,10 @@ export class ComputeStack extends cdk.Stack {
       healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
       cloudMapOptions: { name: `smartretail-${config.name}-${srEnv}` },
+      capacityProviderStrategies: [
+        { capacityProvider: 'FARGATE_SPOT', weight: 4 },
+        { capacityProvider: 'FARGATE',      weight: 1 },
+      ],
     });
 
     const scaling = service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 2 });
