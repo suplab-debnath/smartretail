@@ -8,20 +8,19 @@
 #   --env       <dev|prod>                    Environment name (default: $SMARTRETAIL_ENV or dev)
 #   --profile   <aws-profile>                 AWS CLI profile (default: smartretail-dev)
 #   --mfes      <store-manager,sc-planner,…>  Comma-separated MFEs to deploy
-#                                             (default: all four)
+#                                             (default: all three)
 #   --skip-build                              Skip npm build (use existing dist/)
 #
 # Examples:
 #   ./scripts/deploy-mfes.sh --env dev
 #   ./scripts/deploy-mfes.sh --env dev --mfes store-manager,executive
-#   ./scripts/deploy-mfes.sh --env dev --mfes demo --skip-build
 
 set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 ENV="${SMARTRETAIL_ENV:-dev}"
 PROFILE="${AWS_PROFILE:-smartretail-dev}"
-MFES="store-manager sc-planner executive demo"
+MFES="store-manager sc-planner executive"
 SKIP_BUILD=false
 
 # ── Argument parsing ──────────────────────────────────────────────────────────

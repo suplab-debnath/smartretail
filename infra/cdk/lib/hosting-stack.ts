@@ -10,7 +10,7 @@ export interface HostingStackProps extends cdk.StackProps {
   mfeBuckets: Record<string, s3.Bucket>;
 }
 
-const MFE_NAMES = ['store-manager', 'sc-planner', 'executive', 'demo'] as const;
+const MFE_NAMES = ['store-manager', 'sc-planner', 'executive'] as const;
 type MfeName = typeof MFE_NAMES[number];
 
 export class HostingStack extends cdk.Stack {

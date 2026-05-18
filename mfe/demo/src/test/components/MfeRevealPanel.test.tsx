@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import MfeRevealPanel from '../../components/MfeRevealPanel'
 import type { MfeReveal } from '../../types'
 
@@ -11,18 +11,36 @@ const reveal: MfeReveal = {
   label: 'Store Manager Dashboard',
 }
 
+function mockEnvFetch(mfeUrls?: Record<string, string>) {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    json: () => Promise.resolve({ env: 'aws', mfeUrls: mfeUrls ?? {} }),
+  }))
+}
+
+function mockEnvFetchFailure() {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('no server')))
+}
+
+beforeEach(() => {
+  mockEnvFetchFailure()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('MfeRevealPanel', () => {
   it('renders the label', () => {
     render(<MfeRevealPanel reveal={reveal} />)
     expect(screen.getByText('Store Manager Dashboard')).toBeInTheDocument()
   })
 
-  it('renders the port number', () => {
+  it('renders the port number in local mode', () => {
     render(<MfeRevealPanel reveal={reveal} />)
     expect(screen.getByText(':5173')).toBeInTheDocument()
   })
 
-  it('renders a link to the MFE in a new tab', () => {
+  it('renders a link to the MFE in a new tab using localhost fallback', () => {
     render(<MfeRevealPanel reveal={reveal} />)
     const link = screen.getByRole('link', { name: /new tab/ })
     expect(link).toHaveAttribute('href', 'http://localhost:5173/dashboard')
@@ -40,7 +58,7 @@ describe('MfeRevealPanel', () => {
     expect(screen.getByText(/⊟ collapse/)).toBeInTheDocument()
   })
 
-  it('renders iframe with correct src and title', () => {
+  it('renders iframe with localhost src as fallback', () => {
     render(<MfeRevealPanel reveal={reveal} />)
     const iframe = screen.getByTitle('Store Manager Dashboard')
     expect(iframe).toHaveAttribute('src', 'http://localhost:5173/dashboard')
@@ -55,5 +73,33 @@ describe('MfeRevealPanel', () => {
     render(<MfeRevealPanel reveal={{ ...reveal, mfe: 'executive', localPort: 5175, label: 'Executive' }} />)
     expect(screen.getByText('Executive')).toBeInTheDocument()
     expect(screen.getByText(':5175')).toBeInTheDocument()
+  })
+
+  it('uses CloudFront URL from /api/env when available', async () => {
+    mockEnvFetch({ storeManager: 'https://abc123.cloudfront.net' })
+    render(<MfeRevealPanel reveal={reveal} />)
+    await waitFor(() => {
+      expect(screen.getByTitle('Store Manager Dashboard'))
+        .toHaveAttribute('src', 'https://abc123.cloudfront.net/dashboard')
+    })
+    expect(screen.getByRole('link', { name: /new tab/ }))
+      .toHaveAttribute('href', 'https://abc123.cloudfront.net/dashboard')
+  })
+
+  it('shows CloudFront hostname label in AWS mode', async () => {
+    mockEnvFetch({ storeManager: 'https://abc123.cloudfront.net' })
+    render(<MfeRevealPanel reveal={reveal} />)
+    await waitFor(() => {
+      expect(screen.getByText('abc123.cloudfront.net')).toBeInTheDocument()
+    })
+  })
+
+  it('falls back to localhost when /api/env returns no URL for the MFE', async () => {
+    mockEnvFetch({ executive: 'https://xyz.cloudfront.net' })
+    render(<MfeRevealPanel reveal={reveal} />)
+    await waitFor(() => {
+      expect(screen.getByTitle('Store Manager Dashboard'))
+        .toHaveAttribute('src', 'http://localhost:5173/dashboard')
+    })
   })
 })
