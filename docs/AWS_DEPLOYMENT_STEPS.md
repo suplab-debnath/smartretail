@@ -44,6 +44,11 @@ cdk bootstrap aws://${CDK_DEFAULT_ACCOUNT}/us-east-1
 cd ../..
 ```
 
+Verify bootstrap:
+```bash
+aws cloudformation describe-stacks --stack-name CDKToolkit
+```
+
 ## Step 4 — Deploy all infrastructure stacks
 This deploys in dependency order: network → data → messaging → identity → compute → api → hosting.
 
@@ -140,5 +145,14 @@ aws ssm get-parameter \
 ```
 Or just the CDK stacks (leaves S3/ECR data):
 ```bash
+# Destroy app stacks
 cd infra/cdk && cdk destroy --all --force
+```
+
+Delete bootstrap stack:
+```bash
+aws cloudformation delete-stack --stack-name CDKToolkit
+
+# Verify
+aws cloudformation describe-stacks --stack-name CDKToolkit
 ```
