@@ -70,7 +70,7 @@ export class DataStack extends cdk.Stack {
     this.eventsBucketName = eventsBucket.bucketName;
 
     // MFE Buckets (React static hosting)
-    ['store-manager', 'sc-planner', 'executive', 'demo'].forEach(mfe => {
+    ['store-manager', 'sc-planner', 'executive'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
         bucketName: `smartretail-mfe-${srEnv}-${mfe}-${account}`,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { MfeReveal } from '../types'
 
 const MFE_COLORS: Record<string, string> = {
@@ -7,14 +7,36 @@ const MFE_COLORS: Record<string, string> = {
   'executive':     'border-rose-700',
 }
 
+const MFE_URL_KEY: Record<string, string> = {
+  'store-manager': 'storeManager',
+  'sc-planner':    'scPlanner',
+  'executive':     'executive',
+}
+
 interface Props {
   reveal: MfeReveal
 }
 
 export default function MfeRevealPanel({ reveal }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const url = `http://localhost:${reveal.localPort}${reveal.path}`
+  const [baseUrl, setBaseUrl] = useState(`http://localhost:${reveal.localPort}`)
+
+  useEffect(() => {
+    fetch('http://localhost:3099/api/env')
+      .then(r => r.json())
+      .then((data: { mfeUrls?: Record<string, string> }) => {
+        const key = MFE_URL_KEY[reveal.mfe]
+        const remoteUrl = key && data.mfeUrls?.[key]
+        if (remoteUrl) setBaseUrl(remoteUrl)
+      })
+      .catch(() => { /* keep localhost fallback */ })
+  }, [reveal.mfe])
+
+  const url = `${baseUrl}${reveal.path}`
   const borderColor = MFE_COLORS[reveal.mfe] ?? 'border-slate-700'
+  const urlLabel = baseUrl.startsWith('http://localhost')
+    ? `:${reveal.localPort}`
+    : baseUrl.replace(/^https?:\/\//, '').split('/')[0]
 
   return (
     <div className={`rounded-lg border-2 ${borderColor} overflow-hidden mb-4 animate-fade-in`}>
@@ -23,7 +45,7 @@ export default function MfeRevealPanel({ reveal }: Props) {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
           <span className="text-xs font-semibold text-slate-300">{reveal.label}</span>
-          <span className="text-xs text-slate-600 font-mono">:{reveal.localPort}</span>
+          <span className="text-xs text-slate-600 font-mono">{urlLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
