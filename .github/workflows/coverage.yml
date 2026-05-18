@@ -1,0 +1,91 @@
+name: Coverage Reports
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-coverage:
+    name: Backend (JaCoCo Aggregate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run tests and generate aggregate report
+        run: |
+          mvn verify \
+            -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/coverage \
+            --also-make \
+            --no-transfer-progress
+
+      - name: Upload JaCoCo aggregate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: services/coverage/target/site/jacoco-aggregate/
+          retention-days: 30
+
+  frontend-coverage:
+    name: Frontend (Vitest + LCOV Merge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install lcov
+        run: sudo apt-get install -y lcov
+
+      - name: Install dependencies — store-manager
+        run: npm ci
+        working-directory: mfe/store-manager
+
+      - name: Install dependencies — sc-planner
+        run: npm ci
+        working-directory: mfe/sc-planner
+
+      - name: Install dependencies — executive
+        run: npm ci
+        working-directory: mfe/executive
+
+      - name: Install dependencies — demo
+        run: npm ci
+        working-directory: mfe/demo
+
+      - name: Run coverage — store-manager
+        run: npm run test:coverage
+        working-directory: mfe/store-manager
+
+      - name: Run coverage — sc-planner
+        run: npm run test:coverage
+        working-directory: mfe/sc-planner
+
+      - name: Run coverage — executive
+        run: npm run test:coverage
+        working-directory: mfe/executive
+
+      - name: Run coverage — demo
+        run: npm run test:coverage
+        working-directory: mfe/demo
+
+      - name: Merge LCOV reports
+        run: bash scripts/merge-mfe-coverage.sh
+
+      - name: Upload merged frontend report
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-report
+          path: dist/coverage/frontend/
+          retention-days: 30
