@@ -99,12 +99,12 @@ export class MessagingStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('kinesis/stream-name',        this.kinesisStream.streamName);
-    put('kinesis/stream-arn',         this.kinesisStream.streamArn);
-    put('eventbridge/bus-name',       this.eventBus.eventBusName);
-    put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
-    put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
-    put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
+    put('kinesis/stream-name',       this.kinesisStream.streamName);
+    put('kinesis/stream-arn',        this.kinesisStream.streamArn);
+    put('eventbridge/bus-name',      this.eventBus.eventBusName);
+    put('eventbridge/bus-arn',       this.eventBus.eventBusArn);
+    put('sqs/ims-sales-queue-url',   this.imsSalesQueue.queueUrl);
+    put('sqs/re-alert-queue-url',    this.reAlertQueue.queueUrl);
+    put('sqs/ars-updates-queue-url', this.arsUpdatesQueue.queueUrl);
   }
 }

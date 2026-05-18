@@ -38,18 +38,17 @@ export class ComputeStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-compute-prod');
 
     const { srEnv, network, data, messaging } = props;
 
-    this.cluster = new ecs.Cluster(this, 'Cluster', {
+    this.cluster = new ecs.Cluster(this, 'SmartRetailCluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
       containerInsightsV2: ecs.ContainerInsights.DISABLED,
       enableFargateCapacityProviders: true,
     });
 
-    // CloudMap for Lambda → SIS service discovery
     this.cluster.addDefaultCloudMapNamespace({ name: 'smartretail.local' });
 
     const ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
@@ -59,6 +58,7 @@ export class ComputeStack extends cdk.Stack {
       ],
     });
 
+    // data.dbEndpoint = RDS Proxy endpoint in prod
     const commonEnv = {
       SMARTRETAIL_ENV: srEnv,
       AWS_REGION: cdk.Stack.of(this).region,
@@ -203,7 +203,7 @@ export class ComputeStack extends cdk.Stack {
     this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — public subnet, ARM64
+    // Kinesis consumer Lambda — x86_64, private subnet
     const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
       repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -229,10 +229,9 @@ export class ComputeStack extends cdk.Stack {
     const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.ARM_64,
+      architecture: lambda.Architecture.X86_64,
       vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      allowPublicSubnet: true,  // Lambda in public subnet has no internet access; calls SIS via VPC-internal CloudMap
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgLambda],
       timeout: cdk.Duration.seconds(180),
       memorySize: 512,
@@ -277,19 +276,19 @@ export class ComputeStack extends cdk.Stack {
 
     const taskDef = new ecs.FargateTaskDefinition(this, `${config.name}TaskDef`, {
       family: `smartretail-${config.name}-${srEnv}`,
-      cpu: 256,
-      memoryLimitMiB: 512,
+      cpu: 512,           // 0.5 vCPU — prod sizing
+      memoryLimitMiB: 1024, // 1 GB — prod sizing
       taskRole,
       executionRole,
       runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64,
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,  // x86_64 for prod
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
     });
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_WEEK,
+      retention: logs.RetentionDays.ONE_MONTH,  // longer retention for prod
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -311,17 +310,17 @@ export class ComputeStack extends cdk.Stack {
       cluster: this.cluster,
       taskDefinition: taskDef,
       serviceName: `smartretail-${config.name}-${srEnv}`,
-      desiredCount: 1,
-      assignPublicIp: true,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      desiredCount: 2,       // HA baseline: 2 tasks
+      assignPublicIp: false,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgEcsTasks],
       healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
       cloudMapOptions: { name: `smartretail-${config.name}-${srEnv}` },
     });
 
-    const scaling = service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 2 });
-    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 70 });
+    const scaling = service.autoScaleTaskCount({ minCapacity: 2, maxCapacity: 6 });
+    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 65 });
 
     return service;
   }

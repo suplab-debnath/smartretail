@@ -1,152 +1,79 @@
 import * as cdk from 'aws-cdk-lib';
-import * as apigateway from 'aws-cdk-lib/aws-apigatewayv2';
-import * as apiIntegrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import * as apiAuthorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
 import { ComputeStack } from './compute-stack';
-import { IdentityStack } from './identity-stack';
 
 export interface ApiStackProps extends cdk.StackProps {
   srEnv: string;
   network: NetworkStack;
   compute: ComputeStack;
-  identity: IdentityStack;
 }
 
 export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api');
+    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
 
-    const { srEnv, network, compute, identity } = props;
+    const { srEnv, network, compute } = props;
 
-    // ── VPC Link ──────────────────────────────────────────────────────────────
-    const vpcLink = new apigateway.VpcLink(this, 'VpcLink', {
+    // ALB replaces HTTP API v2 + VPC Link — saves ~$230/month
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+      loadBalancerName: `smartretail-alb-${srEnv}`,
       vpc: network.vpc,
-      securityGroups: [network.sgApiGatewayLink],
-      subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      internetFacing: true,
+      securityGroup: network.sgAlb,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
     });
 
-    // ── HTTP API ──────────────────────────────────────────────────────────────
-    const httpApi = new apigateway.HttpApi(this, 'SmartRetailApi', {
-      apiName: `smartretail-api-${srEnv}`,
-      description: 'SmartRetail backend API',
-      corsPreflight: {
-        allowHeaders: ['Content-Type', 'Authorization'],
-        allowMethods: [
-          apigateway.CorsHttpMethod.GET,
-          apigateway.CorsHttpMethod.POST,
-          apigateway.CorsHttpMethod.PUT,
-          apigateway.CorsHttpMethod.PATCH],
-        allowOrigins: ['*'],
-        maxAge: cdk.Duration.seconds(300),
-      },
+    const listener = alb.addListener('HttpListener', {
+      port: 80,
+      defaultAction: elbv2.ListenerAction.fixedResponse(404, {
+        contentType: 'application/json',
+        messageBody: '{"error":"no matching route"}',
+      }),
     });
 
-    // ── JWT Authorizer (Cognito) ───────────────────────────────────────────────
-    const issuerUrl = `https://cognito-idp.us-east-1.amazonaws.com/${identity.internalPool.userPoolId}`;
-    const jwtAuthorizer = new apiAuthorizers.HttpJwtAuthorizer(
-      'CognitoJwtAuthorizer', issuerUrl, {
-      jwtAudience: [identity.internalClient.userPoolClientId],
-    }
-    );
+    const routes: Array<{ name: string; path: string; port: number; service: ecs.FargateService }> = [
+      { name: 'sis', path: '/v1/ingest/*',        port: 8080, service: compute.sisService },
+      { name: 'ims', path: '/v1/inventory/*',      port: 8081, service: compute.imsService },
+      { name: 're',  path: '/v1/replenishment/*',  port: 8082, service: compute.reService  },
+      { name: 'ars', path: '/v1/dashboard/*',      port: 8083, service: compute.arsService },
+      { name: 'dfs', path: '/v1/forecast/*',       port: 8084, service: compute.dfsService },
+      { name: 'sup', path: '/v1/supplier/*',       port: 8085, service: compute.supService },
+    ];
 
-    // ── Routes — SIS ─────────────────────────────────────────────────────────
-    const sisIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'SisIntegration',
-      compute.sisService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/ingest/{proxy+}',
-      methods: [apigateway.HttpMethod.POST, apigateway.HttpMethod.GET],
-      integration: sisIntegration,
-      authorizer: jwtAuthorizer,
+    routes.forEach(({ name, path, port, service }, i) => {
+      const pascal = name.charAt(0).toUpperCase() + name.slice(1);
+      listener.addTargets(`${pascal}Targets`, {
+        targetGroupName: `sr-${srEnv}-${name}`,
+        port,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [service.loadBalancerTarget({ containerName: `${name}Container`, containerPort: port })],
+        healthCheck: {
+          path: '/actuator/health',
+          interval: cdk.Duration.seconds(30),
+          healthyThresholdCount: 2,
+          unhealthyThresholdCount: 3,
+          healthyHttpCodes: '200',
+        },
+        conditions: [elbv2.ListenerCondition.pathPatterns([path])],
+        priority: (i + 1) * 10,
+      });
     });
 
-    // ── Routes — IMS ─────────────────────────────────────────────────────────
-    const imsIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'ImsIntegration',
-      compute.imsService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/inventory/{proxy+}',
-      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
-      integration: imsIntegration,
-      authorizer: jwtAuthorizer,
-    });
-
-    // ── Routes — RE ──────────────────────────────────────────────────────────
-    const reIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'ReIntegration',
-      compute.reService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/replenishment/{proxy+}',
-      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
-      integration: reIntegration,
-      authorizer: jwtAuthorizer,
-    });
-
-    // ── Routes — ARS ─────────────────────────────────────────────────────────
-    const arsIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'ArsIntegration',
-      compute.arsService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/dashboard/{proxy+}',
-      methods: [apigateway.HttpMethod.GET],
-      integration: arsIntegration,
-      authorizer: jwtAuthorizer,
-    });
-
-    // ── Routes — DFS ─────────────────────────────────────────────────────────
-    const dfsIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'DfsIntegration',
-      compute.dfsService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/forecast/{proxy+}',
-      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
-      integration: dfsIntegration,
-      authorizer: jwtAuthorizer,
-    });
-
-    // ── Routes — SUP ─────────────────────────────────────────────────────────
-    const supIntegration = new apiIntegrations.HttpServiceDiscoveryIntegration(
-      'SupIntegration',
-      compute.supService.cloudMapService!,
-      { vpcLink }
-    );
-    httpApi.addRoutes({
-      path: '/v1/supplier/{proxy+}',
-      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
-      integration: supIntegration,
-      authorizer: jwtAuthorizer,
-    });
-
-    // ── SSM Outputs ───────────────────────────────────────────────────────────
-    new ssm.StringParameter(this, 'ApiEndpointParam', {
+    new ssm.StringParameter(this, 'AlbEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,
-      stringValue: httpApi.apiEndpoint,
+      stringValue: `http://${alb.loadBalancerDnsName}`,
     });
 
-    new cdk.CfnOutput(this, 'ApiEndpoint', {
-      value: httpApi.apiEndpoint,
-      description: 'SmartRetail API Endpoint'
-    });
-
-    new cdk.CfnOutput(this, 'ApiId', {
-      value: httpApi.apiId
+    new cdk.CfnOutput(this, 'AlbEndpoint', {
+      value: `http://${alb.loadBalancerDnsName}`,
+      description: 'SmartRetail ALB Endpoint (HTTP)',
     });
   }
 }

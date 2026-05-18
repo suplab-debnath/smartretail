@@ -26,6 +26,18 @@ infra/cdk/**/*.js
 infra/cdk/**/*.d.ts
 !infra/cdk/jest.config.js
 
+infra/cdk-demo/cdk.out/
+# Compiled TypeScript output (CDK is run via ts-node; these are not committed)
+infra/cdk-demo/**/*.js
+infra/cdk-demo/**/*.d.ts
+!infra/cdk-demo/jest.config.js
+
+infra/cdk-prod/cdk.out/
+# Compiled TypeScript output (CDK is run via ts-node; these are not committed)
+infra/cdk-prod/**/*.js
+infra/cdk-prod/**/*.d.ts
+!infra/cdk-prod/jest.config.js
+
 # ── Python scripts ────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
