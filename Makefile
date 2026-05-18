@@ -240,11 +240,10 @@ aws-deploy-mfe-%:
 	AWS_PROFILE=$(PROFILE) aws cloudfront create-invalidation \
 	    --distribution-id "$$CF_ID" --paths "/*" || true
 
-aws-deploy-mfes: ## Build and deploy all 4 MFEs to S3 + invalidate CloudFront
+aws-deploy-mfes: ## Build and deploy all 3 MFEs to S3 + invalidate CloudFront
 	@make aws-deploy-mfe-store-manager ENV=$(ENV) PROFILE=$(PROFILE)
 	@make aws-deploy-mfe-sc-planner    ENV=$(ENV) PROFILE=$(PROFILE)
 	@make aws-deploy-mfe-executive     ENV=$(ENV) PROFILE=$(PROFILE)
-	@make aws-deploy-mfe-demo          ENV=$(ENV) PROFILE=$(PROFILE)
 
 # ── Scripted build + deploy ───────────────────────────────────────────────────
 
