@@ -13,7 +13,7 @@ interface Props {
   history: StockoutAlertDataPoint[]
 }
 
-function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string): string {
   return dateStr.slice(5) // MM-DD
 }
 

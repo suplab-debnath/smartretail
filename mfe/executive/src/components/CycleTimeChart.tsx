@@ -15,8 +15,12 @@ interface Props {
   overallAverage: number
 }
 
-function formatWeek(dateStr: string): string {
+export function formatWeek(dateStr: string): string {
   return dateStr.slice(5) // MM-DD
+}
+
+export function formatCycleTimeTooltip(value: number, name: string): [string, string] | [number, string] {
+  return name === 'avgDays' ? [`${value}d`, 'Avg cycle time'] : [value, name]
 }
 
 export function CycleTimeChart({ history, overallAverage }: Props) {
@@ -37,9 +41,7 @@ export function CycleTimeChart({ history, overallAverage }: Props) {
           <XAxis dataKey="week" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
           <YAxis domain={[0, 'auto']} tick={{ fontSize: 11 }} unit="d" />
           <Tooltip
-            formatter={(value: number, name: string) =>
-              name === 'avgDays' ? [`${value}d`, 'Avg cycle time'] : [value, 'PO count']
-            }
+            formatter={formatCycleTimeTooltip}
             labelFormatter={(label) => `Week of: ${label}`}
           />
           <ReferenceLine
