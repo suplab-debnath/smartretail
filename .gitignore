@@ -32,8 +32,11 @@ infra/cdk-prod/**/*.js
 infra/cdk-prod/**/*.d.ts
 !infra/cdk-prod/jest.config.js
 
-# cdk-dev: manually placed Kinesis-for-dev CDK (dropped in by hand; not committed)
-infra/cdk-dev/
+# cdk-dev: dev stack (Kinesis, default VPC)
+infra/cdk-dev/cdk.out/
+infra/cdk-dev/**/*.js
+infra/cdk-dev/**/*.d.ts
+!infra/cdk-dev/jest.config.js
 
 # ── Python scripts ────────────────────────────────────────────────────────────
 __pycache__/
