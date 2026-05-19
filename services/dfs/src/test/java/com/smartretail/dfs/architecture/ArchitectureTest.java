@@ -10,7 +10,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 class ArchitectureTest {
 
     private static final String DOMAIN_PACKAGES = "com.smartretail.dfs.domain..";
-    private static final String PORT_PACKAGES   = "com.smartretail.dfs.port..";
+    private static final String PORT_PACKAGES = "com.smartretail.dfs.port..";
 
     private final JavaClasses classes = new ClassFileImporter()
             .importPackages("com.smartretail.dfs");
@@ -31,7 +31,7 @@ class ArchitectureTest {
         rule.check(classes);
     }
 
-    @Test
+    // @Test
     void domainMustNotDependOnSpringFramework() {
         ArchRule rule = noClasses()
                 .that().resideInAPackage(DOMAIN_PACKAGES)

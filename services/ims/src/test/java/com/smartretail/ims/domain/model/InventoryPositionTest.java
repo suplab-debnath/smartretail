@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class InventoryPositionTest {
 
-    private InventoryPosition position(int onHand, int reserved, int reorderPoint) {
+    private com.smartretail.ims.domain.model.InventoryPosition position(int onHand, int reserved, int reorderPoint) {
         InventoryPosition p = new InventoryPosition();
         p.setOnHand(onHand);
         p.setReserved(reserved);

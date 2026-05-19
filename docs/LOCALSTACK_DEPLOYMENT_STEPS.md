@@ -300,8 +300,7 @@ make build-all
 make local-free-ports
 
 # Backend services
-make local-sis & make local-ims & make local-re &
-make local-ars & make local-dfs & make local-sup &
+make local-sis & make local-ims & make local-re & make local-ars & make local-dfs & make local-sup &
 
 # Operational MFEs (used as iframes in chapters 3, 4, 5, 6)
 make local-mfe-sm & make local-mfe-scp & make local-mfe-exec &

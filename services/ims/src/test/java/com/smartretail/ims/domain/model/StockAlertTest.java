@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class StockAlertTest {
 
-    private InventoryPosition position(int onHand, int reserved, int reorderPoint) {
+    private com.smartretail.ims.domain.model.InventoryPosition position(int onHand, int reserved, int reorderPoint) {
         InventoryPosition p = new InventoryPosition();
         p.setPositionId(UUID.randomUUID());
         p.setSkuId("SKU-001");
@@ -31,16 +31,16 @@ class StockAlertTest {
         assertThat(alert.getAlertType()).isEqualTo(AlertType.LOW_STOCK);
         assertThat(alert.getSeverity()).isEqualTo(AlertSeverity.HIGH);
         assertThat(alert.getStatus()).isEqualTo("ACTIVE");
-        assertThat(alert.getActualValue()).isEqualTo(5);   // onHand - reserved
+        assertThat(alert.getActualValue()).isEqualTo(5); // onHand - reserved
         assertThat(alert.getThresholdValue()).isEqualTo(50);
         assertThat(alert.getRaisedAt()).isNotNull();
     }
 
     @Test
     void fromDb_rehydratesAllFields() {
-        UUID alertId    = UUID.randomUUID();
+        UUID alertId = UUID.randomUUID();
         UUID positionId = UUID.randomUUID();
-        Instant now     = Instant.now();
+        Instant now = Instant.now();
 
         StockAlert alert = StockAlert.fromDb(alertId, positionId, "SKU-002", "DC-PARIS",
                 AlertType.OVERSTOCK, AlertSeverity.CRITICAL,
