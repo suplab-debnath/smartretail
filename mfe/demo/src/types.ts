@@ -33,6 +33,13 @@ export interface DbQuery {
   changeKey?: string;
   /** plain-English description of what this table shows and what to look for */
   description?: string;
+  /**
+   * When set, a button with this label is shown after polling completes with no change.
+   * Clicking it re-captures before and starts a fresh 12 s poll.
+   * Use for steps where the triggering action happens outside the demo UI
+   * (e.g. approving inside an MFE iframe, or waiting for an async service).
+   */
+  actionLabel?: string;
 }
 
 export interface TriggerDef {

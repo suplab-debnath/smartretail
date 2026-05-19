@@ -19,16 +19,28 @@ const flow1: FlowDef = {
     {
       id:    'pos-event',
       title: 'Fire POS transaction',
-      narrative: 'We publish a POS event directly to SIS (bypassing Kinesis in local mode — the Lambda consumer isn\'t running locally). In AWS mode this hits Kinesis first, Lambda decodes the stream record, then calls SIS.',
-      laymansNote: 'Clicking this button simulates a customer buying 30 units of a beverage at the London warehouse. Watch the numbers in the table below — the stock count is about to drop.',
+      narrative: 'We publish a POS event directly to SIS (bypassing Kinesis in local mode). SIS writes the sale to RDS and publishes a SalesTransactionEvent to EventBridge. IMS picks it up, decrements inventory, detects on_hand has dropped below reorder_point=100, and creates a stock alert. In AWS mode this hits Kinesis first, Lambda decodes the stream record, then calls SIS.',
+      laymansNote: 'Clicking this button simulates a customer buying 30 units of a beverage at the London warehouse. Watch the numbers in the tables below — the stock count drops, and a low-stock alert fires automatically. It\'s like a low-fuel warning light: when stock falls below the safety level, the system flags it immediately without anyone having to check manually.',
       trigger: {
         label:       'Fire POS Transaction',
         endpoint:    '/api/trigger/flow1/pos-event',
         body:        { skuId: 'SKU-BEV-001', dcId: 'DC-LONDON', quantity: 30 },
         description: 'Publishes a sales transaction via publish-pos-event.py',
       },
-      activeNodes: ['kinesis', 'lambda', 'sis'],
-      flowEdges:   [['kinesis', 'lambda'], ['lambda', 'sis']],
+      activeNodes: ['kinesis', 'lambda', 'sis', 'eventbridge', 'ims', 'rds'],
+      flowEdges:   [
+        ['kinesis', 'lambda'],
+        ['lambda', 'sis'],
+        ['sis', 'eventbridge'],
+        ['eventbridge', 'ims'],
+        ['ims', 'rds'],
+      ],
+      checklist: [
+        { id: 'c1-1', text: 'SIS: sales_events row created',    matchPattern: 'SIS accepted' },
+        { id: 'c1-2', text: 'IMS: inventory_positions updated', matchPattern: 'inventory_positions' },
+        { id: 'c1-3', text: 'IMS: stock_alerts row created',    matchPattern: 'Stock alert' },
+        { id: 'c1-4', text: 'EventBridge: InventoryAlertEvent', matchPattern: 'InventoryAlertEvent' },
+      ],
       dbQueries: [
         {
           key:         'inventory-before',
@@ -38,21 +50,11 @@ const flow1: FlowDef = {
           changeKey:   'on_hand',
           description: 'This shows how many units of this beverage are physically in the London warehouse. The "on_hand" column is the one to watch — it should decrease by 30 once the sale is recorded.',
         },
-      ],
-    },
-    {
-      id:    'stock-alert',
-      title: 'Stock alert fires',
-      narrative: 'SIS writes the sale to RDS and publishes a SalesTransactionEvent to EventBridge. IMS picks it up, decrements inventory, detects on_hand has dropped below reorder_point=100, and creates a stock alert.',
-      laymansNote: 'The system has registered the sale and automatically checked: "Do we still have enough of this product?" When stock drops below the safety level, an alert fires automatically — like a low-fuel warning light on a car dashboard.',
-      activeNodes: ['sis', 'eventbridge', 'ims', 'rds'],
-      flowEdges:   [['sis', 'eventbridge'], ['eventbridge', 'ims'], ['ims', 'rds']],
-      dbQueries: [
         {
           key:         'stock-alerts',
           label:       'Active stock alerts',
           endpoint:    '/api/dbstate/stock-alerts',
-          changeKey:   'id',
+          changeKey:   'alert_id',
           description: 'This lists every product that has fallen below its reorder threshold. A new row should appear here for this beverage SKU, telling the system it needs restocking.',
         },
         {
@@ -63,12 +65,6 @@ const flow1: FlowDef = {
           changeKey:   'on_hand',
           description: 'The same stock count as before, now updated. Compare the "on_hand" column in the BEFORE and AFTER columns — you should see it drop by exactly 30 units.',
         },
-      ],
-      checklist: [
-        { id: 'c1-1', text: 'SIS: sales_events row created',    matchPattern: 'SIS accepted' },
-        { id: 'c1-2', text: 'IMS: inventory_positions updated', matchPattern: 'inventory_positions' },
-        { id: 'c1-3', text: 'IMS: stock_alerts row created',    matchPattern: 'Stock alert' },
-        { id: 'c1-4', text: 'EventBridge: InventoryAlertEvent', matchPattern: 'InventoryAlertEvent' },
       ],
     },
     {
