@@ -38,7 +38,7 @@ export class ComputeStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-compute-dev');
 
     const { srEnv, network, data, messaging } = props;
 
