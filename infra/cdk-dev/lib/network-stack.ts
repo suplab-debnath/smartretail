@@ -17,13 +17,13 @@ export class NetworkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-network-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-network-dev');
 
     const { srEnv } = props;
 
     // Public subnets for ECS/ALB + isolated for RDS only — no NAT, no VPC endpoints
     this.vpc = new ec2.Vpc(this, 'Vpc', {
-      vpcName: `smartretail-demo-vpc-${srEnv}`,
+      vpcName: `smartretail-dev-vpc-${srEnv}`,
       maxAzs: 2,
       natGateways: 0,
       subnetConfiguration: [

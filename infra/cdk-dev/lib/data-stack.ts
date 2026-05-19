@@ -21,12 +21,12 @@ export class DataStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-data-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-data-dev');
 
     const { srEnv, network } = props;
     const account = this.account;
 
-    // RDS — t4g.micro, single-AZ, direct connection (no proxy in demo)
+    // RDS — t4g.micro, single-AZ, direct connection (no proxy in dev)
     const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_4,
@@ -69,7 +69,7 @@ export class DataStack extends cdk.Stack {
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
-    // MFE S3 buckets — website hosting with public-read (no CloudFront in demo)
+    // MFE S3 buckets — website hosting with public-read (no CloudFront in dev)
     ['store-manager', 'sc-planner', 'executive'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {

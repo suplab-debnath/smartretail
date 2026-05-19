@@ -14,11 +14,11 @@ export class IdentityStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: IdentityStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-identity-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-identity-dev');
 
     const { srEnv } = props;
 
-    // Single internal user pool — supplier pool omitted in demo
+    // Single internal user pool — supplier pool omitted in dev
     this.internalPool = new cognito.UserPool(this, 'InternalPool', {
       userPoolName: `smartretail-internal-${srEnv}`,
       selfSignUpEnabled: false,

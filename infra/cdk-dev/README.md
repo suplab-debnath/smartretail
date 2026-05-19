@@ -1,6 +1,6 @@
 # SmartRetail CDK
 
-Minimal-cost SmartRetail infrastructure. Designed for development, demos, and cost-conscious testing. All six services run end-to-end.
+Minimal-cost SmartRetail infrastructure. Designed for development, and cost-conscious testing. All six services run end-to-end.
 
 ## Key trade-offs
 
@@ -84,17 +84,17 @@ docker push $REPO:latest
 
 ## Cost breakdown (~$135/month at 0 traffic)
 
-| Component | ~Cost/month |
-|-----------|------------|
-| ECS Fargate ARM64 × 6 (1 task, 0.25 vCPU / 512 MB) — 80% Spot / 20% regular | ~$22 |
-| ALB | $16 |
-| Kinesis on-demand | $50 |
-| SQS + EventBridge | $15 |
-| RDS t4g.micro single-AZ | $13 |
-| CloudWatch Logs | $15 |
-| Cognito (1 pool) | $3 |
-| S3 (4 buckets) | $3 |
-| **Total** | **~$137** |
+| Component                                                                   | ~Cost/month |
+| --------------------------------------------------------------------------- | ----------- |
+| ECS Fargate ARM64 × 6 (1 task, 0.25 vCPU / 512 MB) — 80% Spot / 20% regular | ~$22        |
+| ALB                                                                         | $16         |
+| Kinesis on-demand                                                           | $50         |
+| SQS + EventBridge                                                           | $15         |
+| RDS t4g.micro single-AZ                                                     | $13         |
+| CloudWatch Logs                                                             | $15         |
+| Cognito (1 pool)                                                            | $3          |
+| S3 (4 buckets)                                                              | $3          |
+| **Total**                                                                   | **~$137**   |
 
 > Fargate Spot (80/20 split) reduces ECS compute cost by ~50%. Spot tasks can be interrupted with a 2-minute warning — acceptable for demo use.
 > Use `cdk destroy --all` when not in use to stop all costs.

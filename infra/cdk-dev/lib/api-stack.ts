@@ -17,7 +17,7 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-api-dev');
 
     const { srEnv, network, compute } = props;
 
