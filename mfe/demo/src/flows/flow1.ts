@@ -57,14 +57,14 @@ const flow1: FlowDef = {
           changeKey:   'alert_id',
           description: 'This lists every product that has fallen below its reorder threshold. A new row should appear here for this beverage SKU, telling the system it needs restocking.',
         },
-        {
+        /*{
           key:         'inventory-after',
           label:       'Inventory position (updated)',
           endpoint:    '/api/dbstate/inventory-position',
           params:      { skuId: 'SKU-BEV-001', dcId: 'DC-LONDON' },
           changeKey:   'on_hand',
           description: 'The same stock count as before, now updated. Compare the "on_hand" column in the BEFORE and AFTER columns — you should see it drop by exactly 30 units.',
-        },
+        },*/
       ],
     },
     {
