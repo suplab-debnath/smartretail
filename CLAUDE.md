@@ -73,16 +73,18 @@ smartretail/
 │       └── testing.md
 ├── docs/
 ├── infra/
-│  └── cdk/
-│    ├──bin/app.ts
-│    ├──lib/
-│    │  ├──network-stack.ts
-│    │  ├──data-stack.ts
-│    │  ├──messaging-stack.ts
-│    │  ├──identity-stack.ts
-│    │  ├──compute-stack.ts
-│    │  └── api-stack.ts
-│    └── package.json
+│  ├── cdk-min/              ← demo/dev stack (SQS, default VPC) — run this
+│  │  ├──bin/app.ts
+│  │  ├──lib/
+│  │  │  ├──network-stack.ts
+│  │  │  ├──data-stack.ts
+│  │  │  ├──messaging-stack.ts
+│  │  │  ├──identity-stack.ts
+│  │  │  ├──compute-stack.ts
+│  │  │  └── api-stack.ts
+│  │  └── package.json
+│  ├── cdk-prod/             ← production stack (Kinesis, dedicated VPC) — manual deploys only
+│  └── cdk-dev/              ← gitignored; drop in manually if needed
 ├── services/
 │   ├── sis/  ims/  re/  ars/  dfs/  sup/
 ├── lambdas/kinesis-consumer/

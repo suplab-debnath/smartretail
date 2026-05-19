@@ -20,23 +20,20 @@ yarn-debug.log*
 yarn-error.log*
 
 # ── AWS CDK ───────────────────────────────────────────────────────────────────
-infra/cdk/cdk.out/
-# Compiled TypeScript output (CDK is run via ts-node; these are not committed)
-infra/cdk/**/*.js
-infra/cdk/**/*.d.ts
-!infra/cdk/jest.config.js
+# cdk-min: demo/dev stack (SQS-only, default VPC) — the stack we run
+infra/cdk-min/cdk.out/
+infra/cdk-min/**/*.js
+infra/cdk-min/**/*.d.ts
+!infra/cdk-min/jest.config.js
 
-infra/cdk-demo/cdk.out/
-# Compiled TypeScript output (CDK is run via ts-node; these are not committed)
-infra/cdk-demo/**/*.js
-infra/cdk-demo/**/*.d.ts
-!infra/cdk-demo/jest.config.js
-
+# cdk-prod: production stack (Kinesis) — not wired into Makefile; manual deploys only
 infra/cdk-prod/cdk.out/
-# Compiled TypeScript output (CDK is run via ts-node; these are not committed)
 infra/cdk-prod/**/*.js
 infra/cdk-prod/**/*.d.ts
 !infra/cdk-prod/jest.config.js
+
+# cdk-dev: manually placed Kinesis-for-dev CDK (dropped in by hand; not committed)
+infra/cdk-dev/
 
 # ── Python scripts ────────────────────────────────────────────────────────────
 __pycache__/

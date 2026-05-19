@@ -16,7 +16,7 @@ git clone https://github.com/your-org/smartretail.git
 cd smartretail
  
 # 1. Install Node dependencies for MFEs and CDK
-npm install --prefix infra/cdk
+npm install --prefix infra/cdk-min
 npm install --prefix mfe/store-manager
 npm install --prefix mfe/sc-planner
 npm install --prefix mfe/executive
@@ -167,7 +167,7 @@ export SMARTRETAIL_ENV=dev
 Run once per AWS account/region:
  
 ```bash
-cd infra/cdk
+cd infra/cdk-min
 npm install
 cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/us-east-1
 ```
@@ -197,7 +197,7 @@ cd mfe/executive && npm run build && cd ../..
 ### Step 3: Deploy NetworkStack
  
 ```bash
-cd infra/cdk
+cd infra/cdk-min
 cdk deploy NetworkStack --require-approval never
  
 # Verify outputs in Parameter Store

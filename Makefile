@@ -4,14 +4,12 @@
         local-demo-server local-mfe-demo local-demo \
         aws-demo-server aws-demo \
         test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
-        aws-bootstrap aws-deploy-network aws-deploy-data aws-deploy-messaging \
-        aws-deploy-identity aws-deploy-compute aws-deploy-api aws-deploy-hosting aws-deploy-all \
         aws-ecr-login aws-push-all aws-push-lambda \
         aws-deploy-services aws-deploy-mfes \
         aws-migrate aws-create-users aws-smoke-test \
-        aws-full-deploy aws-undeploy aws-destroy \
+        aws-full-deploy aws-destroy \
         dev-bootstrap dev-deploy-messaging dev-deploy-compute dev-deploy-all \
-        dev-push-all dev-deploy-services dev-migrate dev-create-users \
+        dev-push-all dev-deploy-services dev-migrate dev-create-users dev-destroy \
         build-services build-lambda build-mfes build-all \
         docker-build-sis docker-build-all docker-build-lambda \
         coverage-backend coverage-frontend coverage-all coverage-artifacts
@@ -181,35 +179,10 @@ docker-build-all:
 docker-build-lambda:
 	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
 
-# ── AWS Deploy ────────────────────────────────────────────────────────────────
-
-aws-bootstrap:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk bootstrap \
-	    aws://$(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Account --output text)/us-east-1
-
-aws-deploy-network:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy NetworkStack --require-approval never
-
-aws-deploy-data:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy DataStack --require-approval never
-
-aws-deploy-messaging:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy MessagingStack --require-approval never
-
-aws-deploy-identity:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy IdentityStack --require-approval never
-
-aws-deploy-compute:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy ComputeStack --require-approval never
-
-aws-deploy-api:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy ApiStack --require-approval never
-
-aws-deploy-hosting:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy HostingStack --require-approval never
-
-aws-deploy-all:
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk deploy --all --require-approval never
+# ── AWS / Prod CDK Deploy ──────────────────────────────────────────────────────
+# Production CDK (infra/cdk-prod) is NOT wired into the Makefile.
+# Deploy manually from infra/cdk-prod/ when intentional production deployments are needed.
+# See infra/cdk-prod/README.md for instructions.
 
 # ── AWS ECR & Image Push ──────────────────────────────────────────────────────
 
@@ -279,10 +252,10 @@ aws-full-deploy: ## End-to-end: CDK infra → push images → deploy MFEs → mi
 	@echo ""
 	@echo "✅  Full deployment complete (env: $(ENV))"
 
-# ── AWS Undeploy / Destroy ────────────────────────────────────────────────────
+# ── Teardown ──────────────────────────────────────────────────────────────────
 
-aws-undeploy: ## Destroy all CDK stacks (keeps ECR images and S3 objects)
-	cd infra/cdk && AWS_PROFILE=$(PROFILE) cdk destroy --all --force
+dev-destroy: ## Destroy all Min-* CDK stacks (demo/dev environment)
+	cd infra/cdk-min && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk destroy --all --force
 
 aws-destroy: ## Full teardown: CDK stacks + S3 + ECR + CloudFront + SSM + logs
 	SMARTRETAIL_ENV=$(ENV) AWS_PROFILE=$(PROFILE) ./scripts/destroy-infra.sh
@@ -293,23 +266,23 @@ aws-migrate:
 aws-create-users:
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/create-cognito-users.sh $(ENV)
 
-# ── Dev (SQS-only, existing default VPC) ──────────────────────────────────────
-# Uses infra/cdk-dev — Kinesis replaced by SQS, reuses account default VPC.
-# Run `cdk context` in infra/cdk-dev once to populate VPC lookup cache.
+# ── Dev / Demo (SQS-only, existing default VPC) ───────────────────────────────
+# Uses infra/cdk-min — Kinesis replaced by SQS, reuses account default VPC.
+# Run `cdk context` in infra/cdk-min once to populate VPC lookup cache.
 # Spring profile: dev (inherits aws, adds POS_EVENTS_QUEUE_URL)
 
 dev-bootstrap:
-	cd infra/cdk-dev && npm install --silent && AWS_PROFILE=$(PROFILE) npx cdk bootstrap \
+	cd infra/cdk-min && npm install --silent && AWS_PROFILE=$(PROFILE) npx cdk bootstrap \
 	    aws://$(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Account --output text)/$(REGION)
 
 dev-deploy-messaging:
-	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Dev-MessagingStack --require-approval never
+	cd infra/cdk-min && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-MessagingStack --require-approval never
 
 dev-deploy-compute:
-	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Dev-ComputeStack --require-approval never
+	cd infra/cdk-min && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-ComputeStack --require-approval never
 
 dev-deploy-all:
-	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy --all --require-approval never
+	cd infra/cdk-min && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy --all --require-approval never
 
 dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
 	@for svc in sis ims re ars dfs sup; do \
