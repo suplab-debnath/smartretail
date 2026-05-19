@@ -1,8 +1,19 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@smartretail/auth': resolve(
+        __dirname,
+        mode === 'test'
+          ? '../shared/auth/src/index.test-stub.ts'
+          : '../shared/auth/src/index.ts'
+      ),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -26,4 +37,4 @@ export default defineConfig({
       exclude: ['src/main.tsx', 'src/App.tsx'],
     },
   },
-})
+}))
