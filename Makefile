@@ -46,6 +46,11 @@ local-sis:
 	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
 	    --server.port=8080
 
+local-sqs-sis: ## Run SIS with local-sqs profile (SQS POS ingestion via LocalStack, no Kinesis Lambda)
+	SPRING_PROFILES_ACTIVE=local-sqs DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
+	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
+	    --server.port=8080
+
 local-ims:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=inventory DB_USERNAME=smartretail_admin \
 	    java -jar services/ims/target/smartretail-ims-1.0.0-SNAPSHOT.jar \
@@ -110,11 +115,6 @@ local-free-ports: ## Free up ports 8080-8085, 5173-5176, and 3099
 	done
 	@echo "✅ Ports freed"
 
-local-sqs-sis: ## Run SIS with local-sqs profile (SQS POS ingestion via LocalStack, no Kinesis Lambda)
-	SPRING_PROFILES_ACTIVE=local-sqs DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
-	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
-	    --server.port=8080
-
 local-down: local-free-ports
 	docker compose down
 
@@ -158,7 +158,7 @@ build-lambda:
 	mvn clean package -DskipTests -pl lambdas/kinesis-consumer --no-transfer-progress
 
 build-mfes:
-	cd mfe/shared/auth && npm run build
+	cd mfe/shared/auth   && npm run build
 	cd mfe/store-manager && npm run build
 	cd mfe/sc-planner    && npm run build
 	cd mfe/executive     && npm run build

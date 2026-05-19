@@ -30,7 +30,10 @@ export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --outpu
 ## Step 2 — Install CDK dependencies
 
 ```bash
-cd infra/cdk
+# no kinesis approach
+cd infra/cdk-min
+# kinesis approach
+cd infra/cdk-dev
 npm install
 cd ../..
 ```
@@ -39,7 +42,10 @@ cd ../..
 Skip if you have already bootstrapped this account.
 
 ```bash
-cd infra/cdk
+# no kinesis approach
+cd infra/cdk-min
+# kinesis approach
+cd infra/cdk-dev
 cdk bootstrap aws://${CDK_DEFAULT_ACCOUNT}/us-east-1
 cd ../..
 ```
@@ -52,8 +58,11 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 ## Step 4 — Deploy all infrastructure stacks
 This deploys in dependency order: network → data → messaging → identity → compute → api → hosting.
 
-```
-cd infra/cdk
+```bash
+# no kinesis approach
+cd infra/cdk-min
+# kinesis approach
+cd infra/cdk-dev
 cdk deploy --all --require-approval never
 cd ../..
 ```

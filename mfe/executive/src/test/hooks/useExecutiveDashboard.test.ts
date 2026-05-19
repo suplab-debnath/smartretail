@@ -88,7 +88,7 @@ describe('useExecutiveDashboard', () => {
     const original = globalThis.setInterval.bind(globalThis)
     vi.spyOn(globalThis, 'setInterval').mockImplementation((fn: TimerHandler, delay?: number, ...args: unknown[]) => {
       if (delay === 5 * 60 * 1000) capturedCallback = fn as () => void
-      return original(fn, delay, ...args)
+      return original(fn, delay, ...args) as any
     })
     const { result } = renderHook(() => useExecutiveDashboard())
     await waitFor(() => expect(result.current.loading).toBe(false))

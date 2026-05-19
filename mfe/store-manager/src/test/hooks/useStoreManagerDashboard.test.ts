@@ -100,7 +100,7 @@ describe('useStoreManagerDashboard', () => {
     vi.spyOn(globalThis, 'setInterval').mockImplementation(
       (fn: TimerHandler, delay?: number, ...args: unknown[]) => {
         if (delay === POLL_MS) capturedCallback = fn as () => void
-        return originalSetInterval(fn as TimerHandler, delay, ...args)
+        return originalSetInterval(fn as TimerHandler, delay, ...args) as any
       }
     )
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => mockResponse })

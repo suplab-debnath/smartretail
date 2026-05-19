@@ -7,14 +7,14 @@ All AWS services (Kinesis, EventBridge, SQS, DynamoDB, S3, SSM) run inside Local
 
 ## Prerequisites
 
-| Tool           | Version | Install                            |
-| -------------- | ------- | ---------------------------------- |
-| Java           | 21      | `sdk install java 21.0.3-tem`      |
-| Maven          | 3.9.x   | `sdk install maven`                |
+| Tool           | Version | Install                                        |
+| -------------- | ------- | ---------------------------------------------- |
+| Java           | 21      | `sdk install java 21.0.3-tem`                  |
+| Maven          | 3.9.x   | `sdk install maven`                            |
 | Docker Desktop | 4.x     | https://www.docker.com/products/docker-desktop |
-| Node.js        | 20.x    | `nvm install 20`                   |
-| Python         | 3.11+   | For smoke-test and publish scripts |
-| psql           | any     | PostgreSQL client                  |
+| Node.js        | 20.x    | `nvm install 20`                               |
+| Python         | 3.11+   | For smoke-test and publish scripts             |
+| psql           | any     | PostgreSQL client                              |
 
 ---
 
@@ -31,17 +31,17 @@ This starts two containers and waits for both to be ready:
 
 `scripts/localstack-init.sh` runs automatically on LocalStack startup and creates:
 
-| Resource | Name |
-| -------- | ---- |
-| Kinesis stream | `smartretail-events-local` |
-| EventBridge bus | `smartretail-events-local` |
-| EventBridge rules | `sales-to-ims`, `alert-to-re`, `all-to-ars` |
-| SQS queue | `smartretail-ims-sales-local` + DLQ |
-| SQS FIFO queue | `smartretail-re-alert-local.fifo` + DLQ |
-| SQS queue | `smartretail-ars-updates-local` |
-| DynamoDB table | `smartretail-idempotency-keys-local` |
-| S3 bucket | `smartretail-events-local` |
-| SSM parameters | All `/smartretail/local/*` params read by Spring Boot |
+| Resource          | Name                                                  |
+| ----------------- | ----------------------------------------------------- |
+| Kinesis stream    | `smartretail-events-local`                            |
+| EventBridge bus   | `smartretail-events-local`                            |
+| EventBridge rules | `sales-to-ims`, `alert-to-re`, `all-to-ars`           |
+| SQS queue         | `smartretail-ims-sales-local` + DLQ                   |
+| SQS FIFO queue    | `smartretail-re-alert-local.fifo` + DLQ               |
+| SQS queue         | `smartretail-ars-updates-local`                       |
+| DynamoDB table    | `smartretail-idempotency-keys-local`                  |
+| S3 bucket         | `smartretail-events-local`                            |
+| SSM parameters    | All `/smartretail/local/*` params read by Spring Boot |
 
 ---
 
@@ -93,12 +93,18 @@ Clears ports: `8080–8085`, `5173–5176`, `3099`.
 Open 6 terminals, or run all in the background:
 
 ```bash
-make local-sis &   # :8080 — Sales Ingestion Service
-make local-ims &   # :8081 — Inventory Management Service
-make local-re  &   # :8082 — Replenishment Engine
-make local-ars &   # :8083 — Analytics & Reporting Service
-make local-dfs &   # :8084 — Demand Forecasting Service
-make local-sup &   # :8085 — Supplier Service
+# :8080 — Sales Ingestion Service
+# :8081 — Inventory Management Service
+# :8082 — Replenishment Engine
+# :8083 — Analytics & Reporting Service
+# :8084 — Demand Forecasting Service
+# :8085 — Supplier Service
+make local-sis &   
+make local-ims &   
+make local-re  &   
+make local-ars &   
+make local-dfs &   
+make local-sup &   
 ```
 
 Verify all are healthy:
@@ -116,9 +122,12 @@ done
 ## Step 6 — Start MFEs (optional, for UI testing)
 
 ```bash
-make local-mfe-sm   &   # :5173 — Store Manager Dashboard
-make local-mfe-scp  &   # :5174 — SC Planner Console
-make local-mfe-exec &   # :5175 — Executive Insights Dashboard
+# :5173 — Store Manager Dashboard
+# :5174 — SC Planner Console
+# :5175 — Executive Insights Dashboard
+make local-mfe-sm   &   
+make local-mfe-scp  &   
+make local-mfe-exec &   
 ```
 
 All MFEs run in mock-auth mode locally — no Cognito required.
@@ -148,21 +157,21 @@ make test-all
 
 ## Port Reference
 
-| Service | Port |
-| ------- | ---- |
-| SIS — Sales Ingestion | 8080 |
-| IMS — Inventory Management | 8081 |
-| RE — Replenishment Engine | 8082 |
-| ARS — Analytics & Reporting | 8083 |
-| DFS — Demand Forecasting | 8084 |
-| SUP — Supplier Service | 8085 |
-| PostgreSQL | 5432 |
+| Service                       | Port |
+| ----------------------------- | ---- |
+| SIS — Sales Ingestion         | 8080 |
+| IMS — Inventory Management    | 8081 |
+| RE — Replenishment Engine     | 8082 |
+| ARS — Analytics & Reporting   | 8083 |
+| DFS — Demand Forecasting      | 8084 |
+| SUP — Supplier Service        | 8085 |
+| PostgreSQL                    | 5432 |
 | LocalStack (all AWS services) | 4566 |
-| Store Manager MFE | 5173 |
-| SC Planner MFE | 5174 |
-| Executive MFE | 5175 |
-| Demo Control Center MFE | 5176 |
-| Demo Control Server | 3099 |
+| Store Manager MFE             | 5173 |
+| SC Planner MFE                | 5174 |
+| Executive MFE                 | 5175 |
+| Demo Control Center MFE       | 5176 |
+| Demo Control Server           | 3099 |
 
 ---
 
