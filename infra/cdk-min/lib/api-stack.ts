@@ -17,11 +17,10 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-api-dev');
 
     const { srEnv, network, compute } = props;
 
-    // ALB replaces HTTP API v2 + VPC Link — saves ~$230/month
     const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
       loadBalancerName: `smartretail-alb-${srEnv}`,
       vpc: network.vpc,

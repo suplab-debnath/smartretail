@@ -21,12 +21,11 @@ export class DataStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-data-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-data-dev');
 
     const { srEnv, network } = props;
     const account = this.account;
 
-    // RDS — t4g.micro, single-AZ, direct connection (no proxy in demo)
     const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_4,
@@ -34,7 +33,8 @@ export class DataStack extends cdk.Stack {
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       allocatedStorage: 20,
       vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      // Default VPC has no isolated subnets — use public subnets with SG restriction for dev
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       securityGroups: [network.sgRds],
       multiAz: false,
       databaseName: 'smartretail',
@@ -48,7 +48,6 @@ export class DataStack extends cdk.Stack {
 
     this.dbEndpoint = rdsInstance.instanceEndpoint.hostname;
 
-    // DynamoDB — on-demand, TTL for idempotency
     this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
       tableName: `smartretail-idempotency-keys-${srEnv}`,
       partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
@@ -57,7 +56,6 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // Events S3 bucket
     const eventsBucket = new s3.Bucket(this, 'EventsBucket', {
       bucketName: `smartretail-events-${srEnv}-${account}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -69,7 +67,6 @@ export class DataStack extends cdk.Stack {
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
-    // MFE S3 buckets — website hosting with public-read (no CloudFront in demo)
     ['store-manager', 'sc-planner', 'executive'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {

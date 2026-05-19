@@ -1,13 +1,18 @@
 # CDK Infrastructure Specification
  
-All CDK stacks are in TypeScript. Located in `infra/cdk/`.
+All CDK stacks are in TypeScript.
+
+- **Demo / dev stack** (`infra/cdk-min/`) — SQS-only, reuses default VPC. **This is the stack to run.** Stack names: `Min-*`.
+- **Production stack** (`infra/cdk-prod/`) — Kinesis, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
+
+The specifications below describe `infra/cdk-min/` (the demo stack).
 Deploy in order: Network → Data → Messaging → Identity → Compute → API.
  
 ---
  
 ## Stack 1: NetworkStack
  
-File: `infra/cdk/lib/network-stack.ts`
+File: `infra/cdk-min/lib/network-stack.ts`
  
 Creates:
 - VPC with 3 AZs, DNS hostnames enabled
@@ -113,7 +118,7 @@ const endpointServices = [
  
 ## Stack 2: DataStack
  
-File: `infra/cdk/lib/data-stack.ts`
+File: `infra/cdk-min/lib/data-stack.ts`
  
 Creates:
 - RDS PostgreSQL Multi-AZ
@@ -213,7 +218,7 @@ new s3.Bucket(this, 'EventsBucket', {
  
 ## Stack 3: MessagingStack
  
-File: `infra/cdk/lib/messaging-stack.ts`
+File: `infra/cdk-min/lib/messaging-stack.ts`
  
 Creates:
 - Kinesis Data Stream
@@ -320,7 +325,7 @@ new events.Rule(this, 'AllEventsToArs', {
  
 ## Stack 4: IdentityStack
  
-File: `infra/cdk/lib/identity-stack.ts`
+File: `infra/cdk-min/lib/identity-stack.ts`
  
 Creates Cognito user pools.
  
@@ -391,7 +396,7 @@ const supplierPool = new cognito.UserPool(this, 'SupplierPool', {
  
 ## Stack 5: ComputeStack
  
-File: `infra/cdk/lib/compute-stack.ts`
+File: `infra/cdk-min/lib/compute-stack.ts`
  
 Creates:
 - ECS Cluster with Container Insights
@@ -503,7 +508,7 @@ kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(kines
  
 ## Stack 6: ApiStack
  
-File: `infra/cdk/lib/api-stack.ts`
+File: `infra/cdk-min/lib/api-stack.ts`
  
 Creates:
 - API Gateway REST API

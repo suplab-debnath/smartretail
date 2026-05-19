@@ -135,7 +135,7 @@ aws ssm get-parameter \
 | Single Java service | ./scripts/deploy-services.sh --env dev --services sis --wait                                        |
 | Lambda only         | ./scripts/deploy-services.sh --env dev --no-lambda → wrong flag, use --services without --no-lambda |
 | All services        | ./scripts/deploy-services.sh --env dev --wait                                                       |
-| CDK infra only      | cd infra/cdk && cdk deploy ComputeStack --require-approval never                                    |
+| CDK infra only      | cd infra/cdk-min && npx cdk deploy Min-ComputeStack --require-approval never                        |
 | MFE only            | ./scripts/deploy-mfes.sh --env dev --profile smartretail-dev                                        |
 
 
@@ -146,7 +146,7 @@ aws ssm get-parameter \
 Or just the CDK stacks (leaves S3/ECR data):
 ```bash
 # Destroy app stacks
-cd infra/cdk && cdk destroy --all --force
+cd infra/cdk-min && npx cdk destroy --all --force
 ```
 
 Delete bootstrap stack:

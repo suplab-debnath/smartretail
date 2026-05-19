@@ -58,6 +58,16 @@ awslocal --endpoint-url=$ENDPOINT sqs create-queue \
     --queue-name "smartretail-ars-updates-${ENV}" \
     --region $REGION
 
+# POS events ingestion queue — used by local-sqs profile (SIS @SqsListener)
+awslocal --endpoint-url=$ENDPOINT sqs create-queue \
+    --queue-name "smartretail-pos-events-${ENV}-dlq" \
+    --region $REGION
+
+awslocal --endpoint-url=$ENDPOINT sqs create-queue \
+    --queue-name "smartretail-pos-events-${ENV}" \
+    --attributes '{"RedrivePolicy":"{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:000000000000:smartretail-pos-events-local-dlq\",\"maxReceiveCount\":\"3\"}","VisibilityTimeout":"120"}' \
+    --region $REGION
+
 echo "✅ SQS queues created"
 
 # ── EventBridge rules → SQS targets ──────────────────────────────────────────
@@ -220,7 +230,12 @@ cat > /tmp/ars-queue.json << EOF
 EOF
 awslocal ssm put-parameter --cli-input-json file:///tmp/ars-queue.json --region $REGION || true
 
-rm -f /tmp/ims-queue.json /tmp/re-queue.json /tmp/ars-queue.json
+cat > /tmp/pos-queue.json << EOF
+{"Name":"/smartretail/local/sqs/pos-events-queue-url","Value":"http://localhost:4566/000000000000/smartretail-pos-events-local","Type":"String","Overwrite":true}
+EOF
+awslocal ssm put-parameter --cli-input-json file:///tmp/pos-queue.json --region $REGION || true
+
+rm -f /tmp/ims-queue.json /tmp/re-queue.json /tmp/ars-queue.json /tmp/pos-queue.json
 
 echo "✅ SSM parameters written"
 

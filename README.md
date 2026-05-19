@@ -595,7 +595,8 @@ smartretail/
 │   └── standards/              ← coding standards (java, openapi, maven, frontend, sql, testing)
 ├── docs/                       ← architecture, API contracts, flow specs, schemas
 ├── openapi/                    ← OpenAPI 3.1 YAML (source of truth for all REST APIs)
-├── infra/cdk/                  ← AWS CDK TypeScript stacks
+├── infra/cdk-min/              ← demo/dev CDK stacks (SQS, default VPC) — run this
+├── infra/cdk-prod/             ← production CDK stacks (Kinesis, dedicated VPC)
 ├── services/
 │   ├── sis/                    ← Sales Ingestion Service
 │   ├── ims/                    ← Inventory Management Service
@@ -647,7 +648,7 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 ### CDK stacks
 
-All infrastructure is defined in `infra/cdk/` as TypeScript CDK stacks. Stacks must be deployed in dependency order.
+The demo/dev stack is in `infra/cdk-min/` (SQS-only, reuses existing default VPC, `Min-*` stack names). Stacks must be deployed in dependency order.
 
 | Stack            | What it provisions                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------- |

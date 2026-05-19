@@ -1,5 +1,4 @@
 import * as cdk from 'aws-cdk-lib';
-import * as kinesis from 'aws-cdk-lib/aws-kinesis';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -10,8 +9,14 @@ export interface MessagingStackProps extends cdk.StackProps {
   srEnv: string;
 }
 
+/**
+ * Dev messaging stack — SQS-only ingestion.
+ * Kinesis is intentionally absent: POS events are published directly to an SQS queue
+ * and consumed by the SIS service via @SqsListener. All inter-service routing
+ * (EventBridge → SQS) is identical to the prod stack.
+ */
 export class MessagingStack extends cdk.Stack {
-  public readonly kinesisStream: kinesis.Stream;
+  public readonly posEventsQueue: sqs.Queue;
   public readonly eventBus: events.EventBus;
   public readonly imsSalesQueue: sqs.Queue;
   public readonly reAlertQueue: sqs.Queue;
@@ -20,18 +25,23 @@ export class MessagingStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: MessagingStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-messaging');
+    cdk.Tags.of(this).add('Name', 'smartretail-messaging-dev');
 
     const { srEnv } = props;
 
-    this.kinesisStream = new kinesis.Stream(this, 'SmartRetailStream', {
-      streamName: `smartretail-events-${srEnv}`,
-      streamMode: kinesis.StreamMode.ON_DEMAND,
-      retentionPeriod: cdk.Duration.days(1),
-      encryption: kinesis.StreamEncryption.UNENCRYPTED,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    // POS event ingestion queue — replaces Kinesis in dev
+    const posEventsDlq = new sqs.Queue(this, 'PosEventsDlq', {
+      queueName: `smartretail-pos-events-${srEnv}-dlq`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: cdk.Duration.days(14),
+    });
+    this.posEventsQueue = new sqs.Queue(this, 'PosEventsQueue', {
+      queueName: `smartretail-pos-events-${srEnv}`,
+      deadLetterQueue: { queue: posEventsDlq, maxReceiveCount: 3 },
+      visibilityTimeout: cdk.Duration.seconds(120),
     });
 
+    // EventBridge bus — inter-service routing (same as prod)
     this.eventBus = new events.EventBus(this, 'SmartRetailBus', {
       eventBusName: `smartretail-events-${srEnv}`,
     });
@@ -99,12 +109,11 @@ export class MessagingStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('kinesis/stream-name',        this.kinesisStream.streamName);
-    put('kinesis/stream-arn',         this.kinesisStream.streamArn);
-    put('eventbridge/bus-name',       this.eventBus.eventBusName);
-    put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
-    put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
-    put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
+    put('sqs/pos-events-queue-url',  this.posEventsQueue.queueUrl);
+    put('eventbridge/bus-name',      this.eventBus.eventBusName);
+    put('eventbridge/bus-arn',       this.eventBus.eventBusArn);
+    put('sqs/ims-sales-queue-url',   this.imsSalesQueue.queueUrl);
+    put('sqs/re-alert-queue-url',    this.reAlertQueue.queueUrl);
+    put('sqs/ars-updates-queue-url', this.arsUpdatesQueue.queueUrl);
   }
 }

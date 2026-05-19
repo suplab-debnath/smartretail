@@ -1,6 +1,10 @@
 spring:
   application:
     name: ars
+  profiles:
+    group:
+      dev:       [aws]
+      local-sqs: [local]
   datasource:
     url: jdbc:postgresql://${RDS_PROXY_ENDPOINT:localhost}:5432/smartretail
     username: ${DB_USERNAME:smartretail_admin}

@@ -21,7 +21,7 @@ export class HostingStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: HostingStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-hosting-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-hosting-dev');
 
     const { srEnv, mfeBuckets } = props;
 

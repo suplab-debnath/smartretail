@@ -6,17 +6,20 @@ const flow9: FlowDef = {
   title: 'The Planner Optimizes',
   subtitle: 'SC Planner Console — 8 surfaces, one write path, full visibility',
   colorClass: 'from-teal-900 to-teal-700',
+  laymansIntro: 'Where a Store Manager sees one warehouse, a Supply Chain Planner sees everything at once. This chapter shows their control room: eight different views covering every exception, risk, and decision across the entire supply chain — plus the ability to act on what they see.',
   steps: [
     {
       id: 'overview',
       title: 'Seven surfaces, one console',
-      narrative: 'The SC Planner Console gives the supply chain planner complete operational visibility: exception queue, inventory overview by DC, demand forecast , stockout risk, approval workflows, supplier order tracking, and replenishment trigger',
+      narrative: 'The SC Planner Console gives the supply chain planner complete operational visibility: exception queue, inventory overview by DC, demand forecast, stockout risk, approval workflows, supplier order tracking, and replenishment trigger.',
+      laymansNote: 'Think of this as the supply chain planner\'s control room. Instead of toggling between seven different tools, everything is in one place: what\'s broken, what\'s low, what\'s been ordered, what\'s been approved, and what\'s on its way.',
       activeNodes: ['ars', 'dfs', 'sup'],
     },
     {
       id: 'mfe-reveal',
       title: 'Open SC Planner Console',
       narrative: 'Log in as SC_PLANNER. The console opens on the Exception Queue tab showing active stock alerts by severity. Walk through each tab — each one calls a different backend endpoint with no cross-schema joins.',
+      laymansNote: 'Walk through each tab to get a feel for the breadth of this tool. The first tab shows the most urgent problems (exceptions). Others show warehouse-by-warehouse inventory, predicted demand, supplier shipment status, and pending approvals — all in one login.',
       mfeReveal: {
         mfe: 'sc-planner',
         localPort: 5174,
@@ -37,6 +40,7 @@ const flow9: FlowDef = {
       id: 'replenishment-trigger',
       title: 'Manual replenishment trigger',
       narrative: 'The planner decides to trigger a manual replenishment for SKU-DAIRY-002 before the automated cycle runs. They click "Trigger Replenishment" in the MFE — this POSTs to RE and creates a DRAFT PO. The PO immediately appears in the approval queue.',
+      laymansNote: 'Sometimes the planner knows something the system doesn\'t — a big promotion coming up, a supplier running late. This lets them order stock manually before the system\'s automated cycle would normally catch it. The order starts as a DRAFT and then goes through the same approval process as any other.',
       activeNodes: ['re', 'rds'],
       flowEdges: [['re', 'rds']],
       dbQueries: [
@@ -45,6 +49,7 @@ const flow9: FlowDef = {
           label: 'Draft POs created',
           endpoint: '/api/dbstate/approved-pos',
           changeKey: 'workflow_status',
+          description: 'Restocking orders the planner has manually triggered. A new row with status DRAFT should appear after clicking the trigger. It will then need to go through the same approval process as the automated orders from Flow 2.',
         },
       ],
       checklist: [
@@ -56,6 +61,7 @@ const flow9: FlowDef = {
       id: 'forecast-adjustment',
       title: 'Forecast adjustment',
       narrative: 'A promotional event is planned for next week. The planner applies a +15% uplift to the forecast for SKU-BEV-001 at DC-LONDON. The chart re-renders with the adjusted P50 band — the increased demand signal will flow into the next RE cycle.',
+      laymansNote: 'If a sale or marketing campaign is planned, demand will be higher than normal. The planner can manually tell the system to expect more sales next week. The chart updates immediately, and the higher demand signal will feed into the next automated reorder cycle — so extra stock arrives before it runs out.',
       activeNodes: ['dfs', 'rds'],
       checklist: [
         { id: 'c9-9', text: 'Forecast adjustment saved', matchPattern: 'adjustment' },
@@ -66,6 +72,7 @@ const flow9: FlowDef = {
       id: 'verify',
       title: 'Run smoke verification',
       narrative: 'Final verification: all 8 surfaces render, SC_PLANNER role enforced, DRAFT PO creation write path confirmed.',
+      laymansNote: 'Final check: every tab in the console responds correctly, only authorised planners can access it, and the manual order trigger successfully creates a record in the database.',
       trigger: {
         label: 'Verify Flow 9',
         endpoint: '/api/trigger/flow9/smoke',

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Usage: chmod +x scripts/deploy-cdk.sh && ./scripts/deploy-cdk.sh
+# Deploys the demo/dev stack (infra/cdk-min — SQS-only, default VPC, Min-* stacks).
 
 set -euo pipefail
 
 # =========================================================
 # SmartRetail CDK Deployment Script
-# Environment: dev
+# Environment: dev (Min-* stacks, SQS POS ingestion)
 # Region: us-east-1
 # =========================================================
 
@@ -14,8 +15,8 @@ export AWS_ACCOUNT_ID=123456789012
 export CDK_DEFAULT_ACCOUNT=$AWS_ACCOUNT_ID
 export CDK_DEFAULT_REGION=us-east-1
 
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-CDK_DIR="$PROJECT_ROOT/infra/cdk"
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CDK_DIR="$PROJECT_ROOT/infra/cdk-min"
 
 cd "$CDK_DIR"
 
@@ -35,26 +36,26 @@ echo "=================================================="
 echo "Bootstrapping CDK"
 echo "=================================================="
 
-cdk bootstrap aws://$AWS_ACCOUNT_ID/us-east-1
+npx cdk bootstrap aws://$AWS_ACCOUNT_ID/us-east-1
 
 echo "=================================================="
 echo "Synthesizing stacks"
 echo "=================================================="
 
-cdk synth
+npx cdk synth
 
 echo "=================================================="
 echo "Deploying stacks"
 echo "=================================================="
 
-cdk deploy \
-  NetworkStack \
-  DataStack \
-  MessagingStack \
-  IdentityStack \
-  ComputeStack \
-  ApiStack \
-  HostingStack \
+npx cdk deploy \
+  Min-NetworkStack \
+  Min-DataStack \
+  Min-MessagingStack \
+  Min-IdentityStack \
+  Min-ComputeStack \
+  Min-ApiStack \
+  Min-HostingStack \
   --require-approval never
 
 echo "=================================================="

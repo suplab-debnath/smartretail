@@ -4,8 +4,6 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
@@ -26,6 +24,11 @@ interface ServiceConfig {
   policies: iam.PolicyStatement[];
 }
 
+/**
+ * Dev compute stack — no Kinesis Lambda.
+ * SIS consumes POS events directly from SQS via @SqsListener (dev-aws Spring profile).
+ * All other services are identical to the demo/prod compute stack.
+ */
 export class ComputeStack extends cdk.Stack {
   public readonly cluster: ecs.Cluster;
   public readonly sisService: ecs.FargateService;
@@ -38,7 +41,7 @@ export class ComputeStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-compute-dev');
 
     const { srEnv, network, data, messaging } = props;
 
@@ -49,7 +52,6 @@ export class ComputeStack extends cdk.Stack {
       enableFargateCapacityProviders: true,
     });
 
-    // CloudMap for Lambda → SIS service discovery
     this.cluster.addDefaultCloudMapNamespace({ name: 'smartretail.local' });
 
     const ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
@@ -74,8 +76,13 @@ export class ComputeStack extends cdk.Stack {
         IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
         EVENTS_BUCKET_NAME: data.eventsBucketName,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+        POS_EVENTS_QUEUE_URL: messaging.posEventsQueue.queueUrl,
       },
       policies: [
+        new iam.PolicyStatement({
+          actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
+          resources: [messaging.posEventsQueue.queueArn],
+        }),
         new iam.PolicyStatement({
           actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
           resources: [data.idempotencyTable.tableArn],
@@ -203,54 +210,6 @@ export class ComputeStack extends cdk.Stack {
     this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — public subnet, ARM64
-    const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
-      repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-    });
-
-    const lambdaRole = new iam.Role(this, 'KinesisConsumerRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-      ],
-    });
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['kinesis:GetRecords', 'kinesis:GetShardIterator', 'kinesis:DescribeStream', 'kinesis:ListShards'],
-      resources: [messaging.kinesisStream.streamArn],
-    }));
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-      resources: [data.idempotencyTable.tableArn],
-    }));
-
-    const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
-      functionName: `smartretail-kinesis-consumer-${srEnv}`,
-      code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.ARM_64,
-      vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      allowPublicSubnet: true,  // Lambda in public subnet has no internet access; calls SIS via VPC-internal CloudMap
-      securityGroups: [network.sgLambda],
-      timeout: cdk.Duration.seconds(180),
-      memorySize: 512,
-      role: lambdaRole,
-      environment: {
-        SIS_ENDPOINT: `http://smartretail-sis-${srEnv}.smartretail.local:8080`,
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        ENV: srEnv,
-      },
-    });
-
-    kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(messaging.kinesisStream, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      batchSize: 100,
-      bisectBatchOnError: true,
-      retryAttempts: 3,
-    }));
-
     new ssm.StringParameter(this, 'ClusterNameParam', {
       parameterName: `/smartretail/${srEnv}/ecs/cluster-name`,
       stringValue: this.cluster.clusterName,
@@ -304,7 +263,7 @@ export class ComputeStack extends cdk.Stack {
         retries: 3,
         startPeriod: cdk.Duration.seconds(60),
       },
-      environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'aws' },
+      environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'dev' },
     });
 
     const service = new ecs.FargateService(this, `${config.name}Service`, {

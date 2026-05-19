@@ -7,12 +7,13 @@ const PERSONA_STYLE: Record<string, string> = {
 }
 
 interface Props {
-  flow:        FlowDef
-  stepTitle:   string
+  flow:          FlowDef
+  stepTitle:     string
   stepNarrative: string
+  laymansNote?:  string
 }
 
-export default function NarrativeHero({ flow, stepTitle, stepNarrative }: Props) {
+export default function NarrativeHero({ flow, stepTitle, stepNarrative, laymansNote }: Props) {
   return (
     <div className={`bg-gradient-to-r ${flow.colorClass} rounded-lg p-4 mb-4`}>
       <div className="flex items-start justify-between gap-4">
@@ -31,6 +32,16 @@ export default function NarrativeHero({ flow, stepTitle, stepNarrative }: Props)
           <p className="text-sm text-white/60 mt-0.5">{flow.subtitle}</p>
         </div>
       </div>
+
+      {/* Layman introduction — plain English for non-domain audience */}
+      {(flow.laymansIntro || laymansNote) && (
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <p className="text-sm text-white/70 italic leading-relaxed">
+            💡 {laymansNote ?? flow.laymansIntro}
+          </p>
+        </div>
+      )}
+
       <div className="mt-3 pt-3 border-t border-white/10">
         <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1">{stepTitle}</div>
         <p className="text-sm text-white/80 leading-relaxed">{stepNarrative}</p>

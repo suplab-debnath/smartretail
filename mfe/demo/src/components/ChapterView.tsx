@@ -56,6 +56,7 @@ export default function ChapterView({ flow, hasMatch }: Props) {
           flow={flow}
           stepTitle={step.title}
           stepNarrative={step.narrative}
+          laymansNote={step.laymansNote}
         />
       </div>
 
@@ -161,6 +162,7 @@ function DbQueryPanel({
       label={queryDef.label}
       before={snapshot.before}
       after={snapshot.after}
+      description={queryDef.description}
     />
   )
 }

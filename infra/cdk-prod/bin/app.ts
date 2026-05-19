@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { NetworkStack }   from '../lib/network-stack';
-import { DataStack }      from '../lib/data-stack';
+import { NetworkStack }  from '../lib/network-stack';
+import { DataStack }     from '../lib/data-stack';
 import { MessagingStack } from '../lib/messaging-stack';
-import { IdentityStack }  from '../lib/identity-stack';
-import { ComputeStack }   from '../lib/compute-stack';
-import { ApiStack }       from '../lib/api-stack';
-import { HostingStack }   from '../lib/hosting-stack';
+import { IdentityStack } from '../lib/identity-stack';
+import { ComputeStack }  from '../lib/compute-stack';
+import { ApiStack }      from '../lib/api-stack';
+import { HostingStack }  from '../lib/hosting-stack';
 
 const app = new cdk.App();
 
@@ -25,7 +25,10 @@ const data     = new DataStack    (app, 'Prod-DataStack',     { env: cdkEnv, srE
 const messaging = new MessagingStack(app, 'Prod-MessagingStack', { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Prod-IdentityStack',  { env: cdkEnv, srEnv: env });
 const compute   = new ComputeStack  (app, 'Prod-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
-new ApiStack    (app, 'Prod-ApiStack',     { env: cdkEnv, srEnv: env, network, compute, identity });
-new HostingStack(app, 'Prod-HostingStack', { env: cdkEnv, srEnv: env });
+new ApiStack    (app, 'Prod-ApiStack',     { env: cdkEnv, srEnv: env, network, compute });
+new HostingStack(app, 'Prod-HostingStack', { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
+
+// Suppress unused variable warnings — identity exported for future JWT middleware use
+void identity;
 
 app.synth();
