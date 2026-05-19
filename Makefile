@@ -1,5 +1,5 @@
-.PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
-        local-mfe-sm local-mfe-scp local-mfe-exec local-free-ports local-down local-clean \
+.PHONY: local-init-db local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
+        local-mfe-sm local-mfe-scp local-mfe-exec local-free-ports \
         local-demo-server local-mfe-demo local-demo \
         aws-demo-server aws-demo \
         test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
@@ -19,25 +19,23 @@ REGION  ?= us-east-1
 ACCOUNT ?= $(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Account --output text 2>/dev/null)
 ECR_PREFIX = $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
 
-# ── Local ─────────────────────────────────────────────────────────────────────
+# ── Local (no Docker required — needs native PostgreSQL 15+) ──────────────────
+# Prerequisites: Java 21, Maven 3.9, PostgreSQL 15+ installed locally
+# Quick start:  make local-init-db && make local-migrate && make local-seed
+#               make local-sis & make local-ims & make local-re & make local-ars
 
-local-up:
-	docker compose up -d
-	@echo "Waiting for Postgres..."
-	@until docker exec smartretail-postgres pg_isready -U smartretail_admin 2>/dev/null; do sleep 2; done
-	@echo "Waiting for LocalStack (kinesis)..."
-	@until curl -s http://localhost:4566/_localstack/health 2>/dev/null | grep -q '"kinesis": "running"'; do sleep 3; done
-	@echo "✅ Local environment ready"
+local-init-db: ## Create local PostgreSQL database and user (run once)
+	@bash scripts/setup-local-db.sh
 
-local-migrate:
+local-migrate: ## Run Flyway migrations against local PostgreSQL
 	cd migrations/flyway && mvn flyway:migrate --no-transfer-progress \
 	    -Dflyway.url=jdbc:postgresql://localhost:5432/smartretail \
 	    -Dflyway.user=smartretail_admin \
 	    -Dflyway.password=local_dev_password \
 	    -Dflyway.locations=filesystem:src/main/resources/db/migration
 
-local-seed:
-	docker exec -i smartretail-postgres psql -U smartretail_admin -d smartretail \
+local-seed: ## Load seed data into local PostgreSQL
+	psql -U smartretail_admin -d smartretail \
 	    < migrations/flyway/src/main/resources/db/migration/V7__seed_data.sql
 
 local-sis:
@@ -108,12 +106,6 @@ local-free-ports: ## Free up ports 8080-8085, 5173-5176, and 3099
 		fi; \
 	done
 	@echo "✅ Ports freed"
-
-local-down: local-free-ports
-	docker compose down
-
-local-clean: local-free-ports
-	docker compose down -v
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 

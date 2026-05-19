@@ -1,42 +1,44 @@
-package com.smartretail.re.adapter.inbound.sqs;
+package com.smartretail.re.adapter.inbound.mock;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartretail.re.domain.model.InventoryAlertEventDto;
 import com.smartretail.re.port.inbound.ProcessInventoryAlertPort;
-import io.awspring.cloud.sqs.annotation.SqsListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.stereotype.Component;
-
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@Component
-@Profile("!local")
-public class AlertSqsListener {
+/**
+ * Local-only inbound adapter that receives InventoryAlertEvents forwarded directly by IMS
+ * via HTTP, replacing the SQS FIFO listener. Accepts the same EventBridge envelope JSON format.
+ */
+@RestController
+@Profile("local")
+@RequestMapping("/internal/mock")
+public class MockAlertEventController {
 
-    private static final Logger log = LoggerFactory.getLogger(AlertSqsListener.class);
+    private static final Logger log = LoggerFactory.getLogger(MockAlertEventController.class);
 
     private final ProcessInventoryAlertPort processInventoryAlertPort;
     private final ObjectMapper objectMapper;
 
-    public AlertSqsListener(ProcessInventoryAlertPort processInventoryAlertPort,
-                            ObjectMapper objectMapper) {
+    public MockAlertEventController(ProcessInventoryAlertPort processInventoryAlertPort,
+                                    ObjectMapper objectMapper) {
         this.processInventoryAlertPort = processInventoryAlertPort;
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * Receives EventBridge InventoryAlertEvent from the re-alert FIFO SQS queue.
-     * EventBridge wraps the payload in an outer envelope; we extract the "detail" field.
-     * Messages are grouped by dcId (FIFO message group), ensuring per-DC ordering.
-     */
-    @SqsListener("${smartretail.sqs.re-alert-queue-url}")
-    public void onAlertEvent(String rawMessage) {
+    @PostMapping("/alert-event")
+    public ResponseEntity<Void> receive(@RequestBody String rawMessage) {
         String traceId = UUID.randomUUID().toString();
         MDC.put("traceId", traceId);
         MDC.put("service", "RE");
@@ -50,9 +52,10 @@ public class AlertSqsListener {
             MDC.put("dcId",  event.dcId());
 
             processInventoryAlertPort.processInventoryAlert(event);
+            return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.error("Failed to process InventoryAlertEvent — will retry or DLQ", e);
-            throw new RuntimeException("SQS processing failed", e);
+            log.error("Failed to process mock alert event", e);
+            return ResponseEntity.internalServerError().build();
         } finally {
             MDC.clear();
         }

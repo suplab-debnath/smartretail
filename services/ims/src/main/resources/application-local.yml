@@ -5,18 +5,15 @@ spring:
     password: local_dev_password
   cloud:
     aws:
-      region:
-        static: us-east-1
-      credentials:
-        access-key: test
-        secret-key: test
+      parameterstore:
+        enabled: false
+      secretsmanager:
+        enabled: false
       sqs:
-        endpoint: http://localhost:4566
+        enabled: false
 
 smartretail:
-  localstack:
-    endpoint: http://localhost:4566
   eventbridge:
-    bus-name: smartretail-events-local
-  sqs:
-    ims-sales-queue-url: http://localhost:4566/000000000000/smartretail-ims-sales-local
+    bus-name: mock-local
+  mock:
+    re-url: http://localhost:8082

@@ -13,10 +13,13 @@ import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequest;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
 
+import org.springframework.context.annotation.Profile;
+
 import java.time.Instant;
 import java.util.Map;
 
 @Component
+@Profile("!local")
 public class EventBridgePublisher implements EventPublisherPort {
 
     private static final Logger log = LoggerFactory.getLogger(EventBridgePublisher.class);

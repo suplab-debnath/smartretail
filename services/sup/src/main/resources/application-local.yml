@@ -1,3 +1,9 @@
 spring:
   datasource:
     password: local_dev_password
+  cloud:
+    aws:
+      parameterstore:
+        enabled: false
+      secretsmanager:
+        enabled: false

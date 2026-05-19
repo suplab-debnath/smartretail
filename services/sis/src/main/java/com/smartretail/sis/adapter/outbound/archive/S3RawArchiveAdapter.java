@@ -13,10 +13,13 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import org.springframework.context.annotation.Profile;
+
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 @Component
+@Profile("!local")
 public class S3RawArchiveAdapter implements RawArchivePort {
 
     private static final Logger log = LoggerFactory.getLogger(S3RawArchiveAdapter.class);

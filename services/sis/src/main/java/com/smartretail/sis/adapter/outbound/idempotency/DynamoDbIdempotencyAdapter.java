@@ -8,10 +8,13 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
+import org.springframework.context.annotation.Profile;
+
 import java.time.Instant;
 import java.util.Map;
 
 @Component
+@Profile("!local")
 public class DynamoDbIdempotencyAdapter implements IdempotencyPort {
 
     private static final long TTL_SECONDS = 48 * 60 * 60;
