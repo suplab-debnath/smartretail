@@ -27,13 +27,10 @@ public class SalesIngestionController implements IngestApi {
         SalesTransaction transaction = salesEventMapper.toDomain(salesEventRequest);
         IngestionResult result = salesEventPort.ingest(transaction);
 
-        return switch (result) {
-            case IngestionResult.Accepted a ->
-                ResponseEntity.accepted()
+        if (result instanceof IngestionResult.Accepted a) {
+            return ResponseEntity.accepted()
                     .body(new IngestResponse(a.transactionId(), IngestResponse.StatusEnum.ACCEPTED));
-            case IngestionResult.Duplicate d ->
-                ResponseEntity.status(409)
-                    .body(null);
-        };
+        }
+        return ResponseEntity.status(409).body(null);
     }
 }

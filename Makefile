@@ -20,7 +20,7 @@ ACCOUNT ?= $(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Ac
 ECR_PREFIX = $(ACCOUNT).dkr.ecr.$(REGION).amazonaws.com
 
 # ── Local (no Docker required — needs native PostgreSQL 15+) ──────────────────
-# Prerequisites: Java 21, Maven 3.9, PostgreSQL 15+ installed locally
+# Prerequisites: Java 17, Maven 3.9, PostgreSQL 15+ installed locally
 # Quick start:  make local-init-db && make local-migrate && make local-seed
 #               make local-sis & make local-ims & make local-re & make local-ars
 

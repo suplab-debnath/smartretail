@@ -63,7 +63,7 @@ class ForecastQueryUseCaseTest {
 
         ForecastData result = useCase.getForecast(SKU_ID, DC_ID, 14);
 
-        ForecastData.Band band = result.bands().getFirst();
+        ForecastData.Band band = result.bands().get(0);
         assertThat(band.forecastDate()).isEqualTo(date);
         assertThat(band.p10()).isEqualTo(50);
         assertThat(band.p50()).isEqualTo(75);
@@ -91,6 +91,6 @@ class ForecastQueryUseCaseTest {
 
         ForecastData result = useCase.getForecast(SKU_ID, DC_ID, 7);
 
-        assertThat(result.bands().getFirst().actualUnits()).isNull();
+        assertThat(result.bands().get(0).actualUnits()).isNull();
     }
 }

@@ -96,7 +96,7 @@ public class ForecastRepository implements ForecastReadPort {
         );
         return results.isEmpty()
                 ? new LatestRunInfo(BigDecimal.ZERO, horizonDays, Instant.now())
-                : results.getFirst();
+                : results.get(0);
     }
 
     private Instant toInstant(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

@@ -1,6 +1,6 @@
-# Use the official AWS Lambda Java 21 base image with ARM64 support
-FROM public.ecr.aws/lambda/java:21-arm64
-# FROM public.ecr.aws/lambda/java:21
+# Use the official AWS Lambda Java 17 base image with ARM64 support
+FROM public.ecr.aws/lambda/java:17-arm64
+# FROM public.ecr.aws/lambda/java:17
 
 # Optional: Set working directory (good practice)
 WORKDIR ${LAMBDA_TASK_ROOT}

@@ -3,7 +3,7 @@
 # ================================================
 
 # --- Build Stage ---
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 WORKDIR /build
 
 # Copy Maven/Gradle files first for better layer caching
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn clean package -DskipTests --no-transfer-progress
 
 # --- Runtime Stage (Very small + ARM64 optimized) ---
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:17-jre-alpine
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S spring && \
@@ -40,7 +40,7 @@ USER spring
 
 EXPOSE 8083
 
-# Optimized JVM flags for container + Java 21
+# Optimized JVM flags for container + Java 17
 ENV JAVA_OPTS="\
     -XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75 \

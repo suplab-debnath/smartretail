@@ -89,7 +89,7 @@ class StoreManagerDashboardUseCaseTest {
         StoreManagerDashboard result = useCase.assemble(DC_ID, 0, 10);
 
         assertThat(result.alerts()).hasSize(1);
-        assertThat(result.alerts().getFirst().skuId()).isEqualTo("SKU-001");
+        assertThat(result.alerts().get(0).skuId()).isEqualTo("SKU-001");
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

@@ -91,7 +91,7 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                 new MapSqlParameterSource(),
                 (rs, rowNum) -> toInstant(rs, "max_update")
         );
-        return (results.isEmpty() || results.getFirst() == null) ? Instant.now() : results.getFirst();
+        return (results.isEmpty() || results.get(0) == null) ? Instant.now() : results.get(0);
     }
 
     private Instant toInstant(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

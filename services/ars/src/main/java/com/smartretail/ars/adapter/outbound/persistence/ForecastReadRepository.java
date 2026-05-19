@@ -64,7 +64,7 @@ public class ForecastReadRepository implements ForecastReadPort {
         );
         return results.isEmpty()
                 ? new LatestMape(BigDecimal.ZERO, Instant.now())
-                : results.getFirst();
+                : results.get(0);
     }
 
     @Override

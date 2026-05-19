@@ -100,7 +100,7 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
     private ForecastAccuracy buildForecastAccuracy(List<MapeDataPoint> history) {
         BigDecimal latestMape = history.isEmpty()
                 ? BigDecimal.ZERO
-                : history.getFirst().mape();
+                : history.get(0).mape();
         return new ForecastAccuracy(latestMape, mapetrend(history), history);
     }
 

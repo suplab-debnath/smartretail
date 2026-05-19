@@ -85,7 +85,7 @@ class SupplierPerformanceUseCaseTest {
 
         SupplierPerformanceDashboard result = useCase.assemble();
 
-        assertThat(result.suppliers().getFirst().onTimeDeliveryRate())
+        assertThat(result.suppliers().get(0).onTimeDeliveryRate())
                 .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
@@ -102,7 +102,7 @@ class SupplierPerformanceUseCaseTest {
 
         SupplierPerformanceDashboard result = useCase.assemble();
 
-        SupplierEntry entry = result.suppliers().getFirst();
+        SupplierEntry entry = result.suppliers().get(0);
         assertThat(entry.totalPoCount()).isEqualTo(0);
         assertThat(entry.totalPoValue()).isEqualByComparingTo(BigDecimal.ZERO);
     }
@@ -120,7 +120,7 @@ class SupplierPerformanceUseCaseTest {
 
         SupplierPerformanceDashboard result = useCase.assemble();
 
-        assertThat(result.suppliers().getFirst().openExceptions()).isEqualTo(3);
+        assertThat(result.suppliers().get(0).openExceptions()).isEqualTo(3);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

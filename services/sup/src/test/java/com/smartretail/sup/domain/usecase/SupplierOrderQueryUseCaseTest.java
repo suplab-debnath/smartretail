@@ -42,7 +42,7 @@ class SupplierOrderQueryUseCaseTest {
         assertThat(result.orders()).hasSize(1);
         assertThat(result.dataFreshness()).isEqualTo(now);
 
-        SupplierOrder order = result.orders().getFirst();
+        SupplierOrder order = result.orders().get(0);
         assertThat(order.supplierPoId()).isEqualTo(row.supplierPoId());
         assertThat(order.poId()).isEqualTo(row.poId());
         assertThat(order.skuId()).isEqualTo("SKU-BEV-001");
@@ -84,7 +84,7 @@ class SupplierOrderQueryUseCaseTest {
 
         SupplierOrderList result = useCase.getSupplierOrders(null);
 
-        SupplierOrder order = result.orders().getFirst();
+        SupplierOrder order = result.orders().get(0);
         assertThat(order.confirmedAt()).isNull();
         assertThat(order.dispatchedAt()).isNull();
         assertThat(order.eta()).isNull();
