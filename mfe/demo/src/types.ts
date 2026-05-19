@@ -31,6 +31,8 @@ export interface DbQuery {
   params?:  Record<string, string>;
   /** field name expected to change after trigger fires */
   changeKey?: string;
+  /** plain-English description of what this table shows and what to look for */
+  description?: string;
 }
 
 export interface TriggerDef {
@@ -53,6 +55,8 @@ export interface StepDef {
   id:           string;
   title:        string;
   narrative:    string;
+  /** Plain-English explanation for someone unfamiliar with retail/supply-chain domain */
+  laymansNote?: string;
   trigger?:     TriggerDef;
   checklist?:   ChecklistItem[];
   dbQueries?:   DbQuery[];
@@ -66,6 +70,8 @@ export interface FlowDef {
   chapterNumber: number;
   title:         string;
   subtitle:      string;
+  /** One-sentence plain-English summary of this chapter for a non-domain audience */
+  laymansIntro?: string;
   persona?:      string;
   colorClass:    string; // Tailwind bg class for the hero
   steps:         StepDef[];

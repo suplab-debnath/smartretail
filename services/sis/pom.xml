@@ -40,6 +40,12 @@
             <artifactId>spring-cloud-aws-starter-parameter-store</artifactId>
         </dependency>
 
+        <!-- Spring Cloud AWS — SQS listener (dev-aws profile: POS event ingestion) -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-sqs</artifactId>
+        </dependency>
+
         <!-- AWS SDK — DynamoDB (idempotency store) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>

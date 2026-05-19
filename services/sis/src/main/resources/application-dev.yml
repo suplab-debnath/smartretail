@@ -1,0 +1,3 @@
+smartretail:
+  sqs:
+    pos-events-queue-url: ${POS_EVENTS_QUEUE_URL}

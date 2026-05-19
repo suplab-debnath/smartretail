@@ -2,9 +2,10 @@ import { useState } from 'react'
 import type { DbSnapshot } from '../types'
 
 interface Props {
-  label:  string
-  before: DbSnapshot | null
-  after:  DbSnapshot | null
+  label:        string
+  before:       DbSnapshot | null
+  after:        DbSnapshot | null
+  description?: string
 }
 
 function renderValue(v: unknown): string {
@@ -18,7 +19,7 @@ function getColumns(rows: Record<string, unknown>[]): string[] {
   return Object.keys(rows[0])
 }
 
-export default function BeforeAfterPanel({ label, before, after }: Props) {
+export default function BeforeAfterPanel({ label, before, after, description }: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
   if (!before && !after) return null
@@ -34,6 +35,10 @@ export default function BeforeAfterPanel({ label, before, after }: Props) {
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
         <span className="text-xs text-slate-600">{collapsed ? '▸ show' : '▾ hide'}</span>
       </button>
+
+      {description && !collapsed && (
+        <p className="px-3 pb-2 text-xs text-slate-500 italic border-b border-slate-800">{description}</p>
+      )}
 
       {!collapsed && (
         <div className="grid grid-cols-2 divide-x divide-slate-800 border-t border-slate-800">

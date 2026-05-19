@@ -1,5 +1,6 @@
 .PHONY: local-up local-migrate local-seed local-sis local-ims local-re local-ars local-dfs local-sup \
         local-mfe-sm local-mfe-scp local-mfe-exec local-free-ports local-down local-clean \
+        local-sqs-sis \
         local-demo-server local-mfe-demo local-demo \
         aws-demo-server aws-demo \
         test-unit test-flow1 test-flow2 test-flow3 test-flow4 test-flow8 test-flow9 test-all \
@@ -9,6 +10,8 @@
         aws-deploy-services aws-deploy-mfes \
         aws-migrate aws-create-users aws-smoke-test \
         aws-full-deploy aws-undeploy aws-destroy \
+        dev-bootstrap dev-deploy-messaging dev-deploy-compute dev-deploy-all \
+        dev-push-all dev-deploy-services dev-migrate dev-create-users \
         build-services build-lambda build-mfes build-all \
         docker-build-sis docker-build-all docker-build-lambda \
         coverage-backend coverage-frontend coverage-all coverage-artifacts
@@ -108,6 +111,11 @@ local-free-ports: ## Free up ports 8080-8085, 5173-5176, and 3099
 		fi; \
 	done
 	@echo "✅ Ports freed"
+
+local-sqs-sis: ## Run SIS with local-sqs profile (SQS POS ingestion via LocalStack, no Kinesis Lambda)
+	SPRING_PROFILES_ACTIVE=local-sqs DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
+	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
+	    --server.port=8080
 
 local-down: local-free-ports
 	docker compose down
@@ -284,6 +292,42 @@ aws-migrate:
 
 aws-create-users:
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/create-cognito-users.sh $(ENV)
+
+# ── Dev (SQS-only, existing default VPC) ──────────────────────────────────────
+# Uses infra/cdk-dev — Kinesis replaced by SQS, reuses account default VPC.
+# Run `cdk context` in infra/cdk-dev once to populate VPC lookup cache.
+# Spring profile: dev (inherits aws, adds POS_EVENTS_QUEUE_URL)
+
+dev-bootstrap:
+	cd infra/cdk-dev && npm install --silent && AWS_PROFILE=$(PROFILE) npx cdk bootstrap \
+	    aws://$(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Account --output text)/$(REGION)
+
+dev-deploy-messaging:
+	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Dev-MessagingStack --require-approval never
+
+dev-deploy-compute:
+	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Dev-ComputeStack --require-approval never
+
+dev-deploy-all:
+	cd infra/cdk-dev && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy --all --require-approval never
+
+dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
+	@for svc in sis ims re ars dfs sup; do \
+	    echo "Pushing $$svc (dev)…"; \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/ && \
+	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-dev:latest && \
+	    docker push $(ECR_PREFIX)/smartretail-$$svc-dev:latest; \
+	done
+
+dev-deploy-services: ## Build, push images, force ECS redeployment (dev)
+	SMARTRETAIL_ENV=dev AWS_PROFILE=$(PROFILE) AWS_DEFAULT_REGION=$(REGION) \
+	    ./scripts/deploy-services.sh --env dev --profile $(PROFILE) --region $(REGION)
+
+dev-migrate:
+	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/run-flyway-aws.sh dev
+
+dev-create-users:
+	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/create-cognito-users.sh dev
 
 aws-smoke-test:
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh all
