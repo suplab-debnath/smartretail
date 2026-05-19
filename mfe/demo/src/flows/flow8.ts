@@ -10,30 +10,16 @@ const flow8: FlowDef = {
   steps: [
     {
       id:        'seed-data',
-      title:     '30 days, 5 suppliers, 3 DCs',
-      narrative: 'V7__seed_data.sql populated 30–90 days of realistic transactions: 5 suppliers, 3 distribution centres, multiple SKU categories. The Executive Dashboard draws from forecasting.forecast_runs, inventory.stock_alerts, replenishment.purchase_orders, and the supplier schema.',
-      laymansNote: 'We\'ve pre-loaded a month of realistic business data — sales, deliveries, stock movements — across 3 warehouses and 5 suppliers. This gives the executive dashboard enough history to show meaningful trends, not just a blank screen.',
-      activeNodes: ['rds'],
-    },
-    {
-      id:       'mfe-reveal',
-      title:    'Open Executive Dashboard',
-      narrative: 'The CFO logs in with the EXECUTIVE role. Nine KPI surfaces render in seconds. Notice the MAPE trend improving from 0.1187 → 0.0823 over the seed period — the forecasting model is converging.',
-      laymansNote: 'Imagine you\'re the CFO. This screen gives you nine key metrics in one view: fulfilment rates, stockout incidents, supplier reliability, demand forecast accuracy, and more. The forecast accuracy trend shows the system getting better at predicting demand over time.',
+      title:     '30 days, 5 suppliers, 3 DCs — Executive Dashboard',
+      narrative: 'V7__seed_data.sql populated 30–90 days of realistic transactions: 5 suppliers, 3 distribution centres, multiple SKU categories. The Executive Dashboard draws from forecasting.forecast_runs, inventory.stock_alerts, replenishment.purchase_orders, and the supplier schema. The CFO logs in with the EXECUTIVE role and nine KPI surfaces render in seconds. Notice the MAPE trend improving from 0.1187 → 0.0823 over the seed period — the forecasting model is converging.',
+      laymansNote: 'We\'ve pre-loaded a month of realistic business data across 3 warehouses and 5 suppliers. Open the portal below to see what the CFO sees: nine key metrics in one view — fulfilment rates, stockout incidents, supplier reliability, demand forecast accuracy, and more. The forecast accuracy trend shows the system getting better at predicting demand over time.',
+      activeNodes: ['rds', 'ars', 'dfs'],
       mfeReveal: {
         mfe:       'executive',
         localPort: 5175,
         path:      '/dashboard',
         label:     'Executive Dashboard',
       },
-      activeNodes: ['ars', 'dfs'],
-      checklist: [
-        { id: 'c8-1', text: 'Fulfilment Rate card renders',          matchPattern: 'fulfilment' },
-        { id: 'c8-2', text: 'MAPE trend LineChart renders',          matchPattern: 'mape' },
-        { id: 'c8-3', text: 'Stockout incidents BarChart renders',   matchPattern: 'stockout' },
-        { id: 'c8-4', text: 'Supplier comparison table renders',     matchPattern: 'supplier' },
-        { id: 'c8-5', text: 'OTD % metric present',                  matchPattern: 'onTimeDelivery' },
-      ],
     },
     {
       id:    'verify',

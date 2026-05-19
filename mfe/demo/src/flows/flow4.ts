@@ -10,38 +10,17 @@ const flow4: FlowDef = {
   steps: [
     {
       id:        'aggregation',
-      title:     'ARS runs parallel queries',
-      narrative: 'The Aggregation & Reporting Service receives a request from the Store Manager dashboard. Per architecture rule R1, it runs four separate queries — sales, inventory, replenishment, forecasting — and merges the results in Java. No cross-schema SQL joins.',
-      laymansNote: 'The dashboard needs information from several different places — stock levels, pending orders, sales data, forecasts. Rather than one slow combined query, the system fetches each piece separately at the same time and combines them. It\'s faster and keeps each data source independent.',
+      title:     'ARS aggregates & Store Manager Dashboard',
+      narrative: 'The Aggregation & Reporting Service runs four separate queries — sales, inventory, replenishment, forecasting — and merges the results in Java. No cross-schema SQL joins (architecture rule R1). The Store Manager logs in, selects DC-LONDON, and four KPI cards render instantly: active alerts, on-hand units, pending replenishment count, and forecast coverage days. The SKU-BEV-001 alert from Flow 1 should be visible on the dashboard.',
+      laymansNote: 'The dashboard needs information from several different places — stock levels, pending orders, sales data, forecasts. Rather than one slow combined query, the system fetches each piece separately at the same time and combines them. Open the portal below to see what a Store Manager sees when they start their shift: four key numbers at a glance, including the low-stock alert we triggered in Flow 1.',
       activeNodes: ['ars', 'rds'],
       flowEdges:   [['ars', 'rds']],
-      dbQueries: [
-        {
-          key:         'stock-alerts',
-          label:       'Active alerts (DC-LONDON)',
-          endpoint:    '/api/dbstate/stock-alerts',
-          description: 'Products that have fallen below their safety stock level at the London warehouse. These will appear as warning cards on the Store Manager\'s dashboard.',
-        },
-        {
-          key:         'pending-pos',
-          label:       'Pending replenishment POs',
-          endpoint:    '/api/dbstate/pending-pos',
-          description: 'Restocking orders that are in progress — either waiting for approval or already approved and on their way. These show the Store Manager that action is being taken on the alerts.',
-        },
-      ],
-    },
-    {
-      id:       'mfe-reveal',
-      title:    'Open Store Manager dashboard',
-      narrative: 'The Store Manager logs in and selects DC-LONDON. Four KPI cards render: active alerts, on-hand units, pending replenishment count, and forecast coverage days. The alert list shows the SKU-BEV-001 alert we triggered in Flow 1.',
-      laymansNote: 'This is what a Store Manager sees when they start their shift. Four key numbers at a glance: how many products need attention, how much stock is on hand, how many reorders are in progress, and how many days of stock cover they have. The SKU-BEV-001 alert from Flow 1 should be visible here.',
       mfeReveal: {
         mfe:       'store-manager',
         localPort: 5173,
         path:      '/dashboard',
         label:     'Store Manager Dashboard',
       },
-      activeNodes: ['ars'],
     },
     {
       id:    'verify',

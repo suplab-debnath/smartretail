@@ -18,7 +18,7 @@ const flow3: FlowDef = {
           key:         'pending-pos',
           label:       'Pending approval POs',
           endpoint:    '/api/dbstate/pending-pos',
-          changeKey:   'id',
+          changeKey:   'po_id',
           description: 'These are the orders currently awaiting a human decision. Each row shows what product needs restocking, how many units, which supplier would fulfil it, and the total cost.',
         },
       ],
@@ -32,8 +32,8 @@ const flow3: FlowDef = {
     {
       id:       'mfe-reveal',
       title:    'Open SC Planner console',
-      narrative: 'The Supply Chain Planner opens the SC Planner Console and navigates to the Approval Workflows tab. The pending PO is right there — SKU, DC, supplier, total value, and the current version for optimistic locking.',
-      laymansNote: 'This is the actual screen a Supply Chain Planner uses every day. Everything they need to make the decision is right there: what product, how many units, which supplier, what it costs — no need to dig through emails or spreadsheets.',
+      narrative: 'The Supply Chain Planner opens the SC Planner Console and navigates to the **Approval Workflows** tab. Find the row for **SKU-BEV-003 / DC-LONDON** with status `PENDING_APPROVAL` and click **Approve**. The pending PO shows the SKU, DC, supplier, total value, and the current version for optimistic locking. Once approved, advance to the next step.',
+      laymansNote: 'This is the actual screen a Supply Chain Planner uses every day. Everything they need to make the decision is right there: what product, how many units, which supplier, what it costs. Look for SKU-BEV-003 in the Approval Workflows tab and click Approve — then come back to the next step to confirm the status change.',
       mfeReveal: {
         mfe:       'sc-planner',
         localPort: 5174,
@@ -45,8 +45,8 @@ const flow3: FlowDef = {
     {
       id:        'approve',
       title:     'Approve the PO (live)',
-      narrative: 'Click Approve in the SC Planner MFE above. Watch what happens: RE validates the JWT role (SC_PLANNER), checks status = PENDING_APPROVAL, runs the optimistic lock UPDATE with WHERE version = :v, transitions to APPROVED, and fires PurchaseOrderApproved to EventBridge.',
-      laymansNote: 'When the planner clicks Approve, several safety checks run silently in the background: Is this person allowed to approve? Is the order still in the right state? Has anyone else already approved it? Only when all checks pass does the system confirm the order.',
+      narrative: 'After approving SKU-BEV-003 in the Approval Workflows tab of the SC Planner Console above, click the button below to confirm the status change. RE validates the JWT role (SC_PLANNER), checks status = PENDING_APPROVAL, runs the optimistic lock UPDATE with WHERE version = :v, transitions to APPROVED, and fires PurchaseOrderApproved to EventBridge.',
+      laymansNote: 'When the planner clicks Approve in the MFE, several safety checks run silently: Is this person allowed to approve? Is the order still in the right state? Has anyone else already approved it? Only when all checks pass does the system confirm the order. Click the button below after approving to see the status flip to APPROVED.',
       activeNodes: ['re', 'rds', 'eventbridge'],
       flowEdges:   [['re', 'rds'], ['re', 'eventbridge']],
       dbQueries: [
@@ -55,7 +55,8 @@ const flow3: FlowDef = {
           label:       'PO status after approval',
           endpoint:    '/api/dbstate/approved-pos',
           changeKey:   'workflow_status',
-          description: 'The restocking order\'s current status. The "workflow_status" column should change from PENDING_APPROVAL to APPROVED. Also notice the "version" number ticking up — this is how the system prevents two people from approving the same order simultaneously.',
+          description: 'The restocking order\'s current status. The "workflow_status" column should change from PENDING_APPROVAL to APPROVED. Also notice the "version" number ticking up — this prevents two people from approving the same order simultaneously.',
+          actionLabel: 'I\'ve approved in the SC Planner — re-check status',
         },
       ],
       checklist: [

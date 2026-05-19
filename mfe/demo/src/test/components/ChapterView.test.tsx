@@ -15,7 +15,7 @@ const mockedSnapshot = vi.mocked(useDbSnapshot)
 const defaultRunner = { state: 'idle' as const, error: null, trigger: vi.fn(), reset: vi.fn() }
 const defaultSnapshot = {
   before: null, after: null, polling: false,
-  captureBefore: vi.fn(), startPolling: vi.fn(), reset: vi.fn(),
+  captureBefore: vi.fn(), startPolling: vi.fn(), retriggerPolling: vi.fn(), reset: vi.fn(),
 }
 
 const makeFlow = (): FlowDef => ({

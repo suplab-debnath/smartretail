@@ -158,11 +158,21 @@ function DbQueryPanel({
   }, [queryDef.endpoint])
 
   return (
-    <BeforeAfterPanel
-      label={queryDef.label}
-      before={snapshot.before}
-      after={snapshot.after}
-      description={queryDef.description}
-    />
+    <>
+      <BeforeAfterPanel
+        label={queryDef.label}
+        before={snapshot.before}
+        after={snapshot.after}
+        description={queryDef.description}
+      />
+      {queryDef.actionLabel && !snapshot.polling && (
+        <button
+          onClick={snapshot.retriggerPolling}
+          className="mb-4 w-full text-xs bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700 text-blue-300 rounded px-3 py-2 transition-colors text-left"
+        >
+          ↻ {queryDef.actionLabel}
+        </button>
+      )}
+    </>
   )
 }

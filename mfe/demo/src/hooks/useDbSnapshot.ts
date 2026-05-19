@@ -42,6 +42,20 @@ export function useDbSnapshot(endpoint: string, params?: Record<string, string>)
     }, 2000)
   }, [endpoint, params])
 
+  /** Re-capture the current DB state as the new "before", clear "after", and start a fresh poll. */
+  const retriggerPolling = useCallback(async () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    setPolling(false)
+    try {
+      const snap = await fetchSnapshot(endpoint, params)
+      setBefore(snap)
+      setAfter(null)
+    } catch { /* ignore */ }
+    // startPolling is stable (useCallback with no deps that change)
+    // We call it after state updates to get a fresh poll window
+    setTimeout(() => startPolling(), 0)
+  }, [endpoint, params, startPolling])
+
   const reset = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setBefore(null)
@@ -49,5 +63,5 @@ export function useDbSnapshot(endpoint: string, params?: Record<string, string>)
     setPolling(false)
   }, [])
 
-  return { before, after, polling, captureBefore, startPolling, reset }
+  return { before, after, polling, captureBefore, startPolling, retriggerPolling, reset }
 }
