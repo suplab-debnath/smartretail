@@ -1,13 +1,17 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
-      // Point to source so tests (and dev) don't require a pre-built dist/
-      '@smartretail/auth': resolve(__dirname, '../shared/auth/src/index.ts'),
+      '@smartretail/auth': resolve(
+        __dirname,
+        mode === 'test'
+          ? '../shared/auth/src/index.test-stub.ts'
+          : '../shared/auth/src/index.ts'
+      ),
     },
   },
   server: {
@@ -37,4 +41,4 @@ export default defineConfig({
       exclude: ['src/main.tsx', 'src/App.tsx'],
     },
   },
-})
+}))
