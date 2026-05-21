@@ -9,6 +9,7 @@ import { ApprovalWorkflowsTab } from './ApprovalWorkflowsTab'
 import { SupplierOrderTrackingTab } from './SupplierOrderTrackingTab'
 import { SupplierScorecardTab } from './SupplierScorecardTab'
 import { ReplenishmentTriggerModal } from './ReplenishmentTriggerModal'
+import { DemoTab } from './DemoTab'
 
 type TabId =
   | 'exceptions'
@@ -18,6 +19,7 @@ type TabId =
   | 'approvals'
   | 'supplier-orders'
   | 'scorecard'
+  | 'demo'
 
 interface TabDef {
   id: TabId
@@ -32,6 +34,7 @@ const TABS: TabDef[] = [
   { id: 'approvals',           label: 'Approvals'            },
   { id: 'supplier-orders',     label: 'Supplier Orders'      },
   { id: 'scorecard',           label: 'Supplier Scorecard'   },
+  { id: 'demo',                label: 'Demo'                 },
 ]
 
 interface TriggerTarget {
@@ -190,6 +193,11 @@ export function ScPlannerConsole() {
         {visitedTabs.has('scorecard') && (
           <div className={activeTab === 'scorecard' ? '' : 'hidden'}>
             <SupplierScorecardTab />
+          </div>
+        )}
+        {visitedTabs.has('demo') && (
+          <div className={activeTab === 'demo' ? '' : 'hidden'}>
+            <DemoTab onSwitchToApprovals={() => switchTab('approvals')} />
           </div>
         )}
       </main>
