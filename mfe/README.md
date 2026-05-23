@@ -9,8 +9,18 @@ Five React applications that form the SmartRetail user-facing layer. Each runs a
 | `store-manager/` | Store Manager Dashboard | 5173 | Store-level inventory KPIs and stock alerts (Flow 4) |
 | `sc-planner/` | SC Planner Console | 5174 | PO approval, exception queue, forecast view, manual replenishment (Flow 9) |
 | `executive/` | Executive Dashboard | 5175 | MAPE trend, OTD, supplier ranking, carrying cost (Flow 8) |
-| `demo/` | Demo Runner | 5176 | Interactive flow walkthrough for architect demos |
 | `supplier/` | Supplier Portal | 5077 | External supplier view — PO status, shipment tracking (SUPPLIER\_ADMIN role) |
+
+> The Demo Control Center MFE lives at `demo/ui/` (root-level `demo/` module, not here). Its Node control server is at `demo/server/`. Run both with `make local-demo`.
+
+## MFE → Service mapping
+
+| MFE | Port | Primary backing services |
+|-----|------|--------------------------|
+| `store-manager/` | 5173 | ARS (:8083), IMS (:8081) |
+| `sc-planner/` | 5174 | RE (:8082), ARS (:8083), DFS (:8084), SUP (:8085) |
+| `executive/` | 5175 | ARS (:8083), DFS (:8084) |
+| `supplier/` | 5077 | SUP (:8085) |
 
 ## Technology
 
@@ -47,7 +57,7 @@ cd mfe/shared/auth && npm install && npm run build
 cd mfe/store-manager && npm install && npm run dev   # → http://localhost:5173
 cd mfe/sc-planner    && npm install && npm run dev   # → http://localhost:5174
 cd mfe/executive     && npm install && npm run dev   # → http://localhost:5175
-cd mfe/demo          && npm install && npm run dev   # → http://localhost:5176
+cd demo/ui            && npm install && npm run dev   # → http://localhost:5176 (Demo Control Center — lives in /demo, not here)
 cd mfe/supplier      && npm install && npm run dev   # → http://localhost:5077
 ```
 

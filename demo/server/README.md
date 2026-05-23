@@ -1,6 +1,6 @@
 # Demo Server
 
-Node.js Express server that acts as the control plane for the SmartRetail architect demo. It bridges the Demo MFE (`mfe/demo/`) to the real backend services — executing flow trigger scripts, streaming live log output over SSE, and serving live database snapshots.
+Node.js Express server that acts as the control plane for the SmartRetail architect demo. It bridges the Demo Control Center MFE (`demo/ui/`) to the real backend services — executing flow trigger scripts, streaming live log output over SSE, and serving live database snapshots.
 
 **Port:** `3099` (localhost only — never bound to `0.0.0.0`)
 
@@ -18,7 +18,7 @@ Node.js Express server that acts as the control plane for the SmartRetail archit
 ## Source layout
 
 ```
-demo-server/
+demo/server/
 ├── server.js              Express app setup, port binding
 ├── lib/
 │   ├── envConfig.js       Reads SMARTRETAIL_ENV; computes service and MFE base URLs
@@ -36,7 +36,7 @@ demo-server/
 ## Running
 
 ```bash
-cd demo-server
+cd demo/server
 npm install
 npm run dev      # node --watch server.js  (hot-reload)
 npm start        # node server.js

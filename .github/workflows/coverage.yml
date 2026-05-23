@@ -62,7 +62,7 @@ jobs:
 
       - name: Install dependencies — demo
         run: npm ci
-        working-directory: mfe/demo
+        working-directory: demo/ui
 
       - name: Run coverage — store-manager
         run: npm run test:coverage
@@ -78,7 +78,7 @@ jobs:
 
       - name: Run coverage — demo
         run: npm run test:coverage
-        working-directory: mfe/demo
+        working-directory: demo/ui
 
       - name: Merge LCOV reports
         run: bash scripts/merge-mfe-coverage.sh

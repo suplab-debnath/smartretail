@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: chmod +x scripts/deploy-cdk.sh && ./scripts/deploy-cdk.sh
-# Deploys the demo/dev stack (infra/cdk-min — SQS-only, default VPC, Min-* stacks).
+# Deploys the demo/dev stack (infra/cdk-demo — SQS-only, default VPC, Min-* stacks).
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ export CDK_DEFAULT_ACCOUNT=$AWS_ACCOUNT_ID
 export CDK_DEFAULT_REGION=us-east-1
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CDK_DIR="$PROJECT_ROOT/infra/cdk-min"
+CDK_DIR="$PROJECT_ROOT/infra/cdk-demo"
 
 cd "$CDK_DIR"
 

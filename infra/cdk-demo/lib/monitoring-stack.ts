@@ -185,7 +185,7 @@ export class MonitoringStack extends cdk.Stack {
       new cloudwatch.TextWidget({
         markdown: [
           `# SmartRetail ${srEnv.toUpperCase()} - Ops Dashboard`,
-          `**Services:** IMS · RE · ARS · DFS · SUP  |  **Env:** ${srEnv}  |  **Stack:** cdk-min`,
+          `**Services:** IMS · RE · ARS · DFS · SUP  |  **Env:** ${srEnv}  |  **Stack:** cdk-demo`,
         ].join('\n'),
         width: 24, height: 2,
       }),

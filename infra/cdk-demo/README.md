@@ -1,4 +1,4 @@
-# cdk-min — SC Planner Demo Stack (SQS-only, ephemeral)
+# cdk-demo — SC Planner Demo Stack (SQS-only, ephemeral)
 
 Minimal AWS infrastructure for the SmartRetail SC Planner demo.
 Designed to live **1-2 days**, then be destroyed cleanly.
@@ -19,6 +19,35 @@ Designed to live **1-2 days**, then be destroyed cleanly.
 > **RDS subnet note**: the default VPC used here has only public subnets, so RDS is placed in
 > a public subnet with its security group restricted to ECS tasks only (`sgRds`). This is
 > acceptable for a short-lived demo. The prod stack uses a dedicated VPC with private subnets.
+
+## Architecture
+
+```
+                          ┌─────────────────────────────────────────────────┐
+                          │              Default VPC (public subnets)        │
+                          │                                                  │
+Internet ──── ALB :80 ───►│  path-based routing (single listener)            │
+                          │  /v1/inventory/*     ──► IMS :8081  ─────────┐  │
+                          │  /v1/replenishment/* ──► RE  :8082  ─────────┤  │
+                          │  /v1/dashboard/*     ──► ARS :8083  ─────────┤──┼──► RDS PostgreSQL
+                          │  /v1/forecast/*      ──► DFS :8084  ─────────┤  │    t4g.micro (public
+                          │  /v1/supplier/*      ──► SUP :8085  ─────────┘  │    subnet, SG-gated)
+                          │                                                  │
+                          │  ECS Fargate (ARM64, FARGATE_SPOT 80%)           │
+                          │  CloudMap: smartretail.local                     │
+                          └─────────────────────────────────────────────────┘
+
+EventBridge bus (smartretail-events-demo)
+  InventoryAlertEvent  ──► RE alert SQS FIFO  ──► RE service
+  All domain events    ──► ARS updates SQS    ──► ARS service
+
+Cognito User Pool  ──► SC Planner / Admin users
+
+S3 static website (HTTP)  ──► SC Planner MFE
+```
+
+> **One ALB, not one-per-service.** All five backend services share a single ALB with
+> path-based listener rules. No API Gateway — unnecessary complexity for a short-lived demo.
 
 ## CDK stacks
 
@@ -72,7 +101,7 @@ On your first `cdk synth`, CDK contacts AWS to find the default VPC and caches t
 `cdk.context.json`. Commit that file after the first synth.
 
 ```bash
-cd infra/cdk-min
+cd infra/cdk-demo
 npm install
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev npx cdk context
 ```
@@ -100,7 +129,7 @@ The dashboard shows:
 Pass `alertEmail` as CDK context to subscribe to alarm notifications:
 
 ```bash
-cd infra/cdk-min
+cd infra/cdk-demo
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev \
   npx cdk deploy --all -c alertEmail=you@example.com
 ```
@@ -139,6 +168,6 @@ To find all demo resources in AWS console: filter by `Lifecycle = ephemeral`.
 make demo-destroy DEMO_PROFILE=smartretail-dev
 
 # Or directly:
-cd infra/cdk-min
+cd infra/cdk-demo
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev npx cdk destroy --all --force
 ```

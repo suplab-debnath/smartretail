@@ -3,7 +3,7 @@
 Interactive walkthrough application for SmartRetail architect demos. Presents each end-to-end flow as a narrative chapter with live trigger buttons, a real-time event log, an evidence checklist, and live database snapshots.
 
 **Dev port:** `5176`  
-**Backend:** Demo Server (`demo-server/`, port 3099)  
+**Backend:** Demo Server (`demo/server/`, port 3099)  
 **No auth** — local-only tool, never deployed to production
 
 ## What it does
@@ -37,10 +37,10 @@ Interactive walkthrough application for SmartRetail architect demos. Presents ea
 
 ```bash
 # 1. Start the demo server
-cd demo-server && npm run dev   # port 3099
+cd demo/server && npm run dev   # port 3099
 
 # 2. Start this MFE
-cd mfe/demo && npm install && npm run dev   # port 5176
+cd demo/ui && npm install && npm run dev   # port 5176
 ```
 
 Or from the repo root:

@@ -20,11 +20,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # ── AWS CDK ───────────────────────────────────────────────────────────────────
-# cdk-min: demo/dev stack (SQS-only, default VPC) — the stack we run
-infra/cdk-min/cdk.out/
-infra/cdk-min/**/*.js
-infra/cdk-min/**/*.d.ts
-!infra/cdk-min/jest.config.js
+# cdk-demo: demo/dev stack (SQS-only, default VPC) — the stack we run
+infra/cdk-demo/cdk.out/
+infra/cdk-demo/**/*.js
+infra/cdk-demo/**/*.d.ts
+!infra/cdk-demo/jest.config.js
 
 # cdk-prod: production stack (Kinesis) — not wired into Makefile; manual deploys only
 infra/cdk-prod/cdk.out/

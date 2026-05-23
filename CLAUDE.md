@@ -72,8 +72,12 @@ smartretail/
 │       ├── sql.md
 │       └── testing.md
 ├── docs/
+├── .make/                 ← Makefile includes (vars, local, test, build, aws, demo, coverage)
+├── demo/
+│   ├── server/            ← Demo control server (:3099) — triggers scripts, streams SSE
+│   └── ui/                ← Demo Control Center MFE (:5176)
 ├── infra/
-│  ├── cdk-min/              ← demo/dev stack (SQS, default VPC) — run this
+│  ├── cdk-demo/           ← demo stack (SQS, default VPC, ARM64) — run this for demos
 │  │  ├──bin/app.ts
 │  │  ├──lib/
 │  │  │  ├──network-stack.ts
@@ -83,8 +87,8 @@ smartretail/
 │  │  │  ├──compute-stack.ts
 │  │  │  └── api-stack.ts
 │  │  └── package.json
-│  ├── cdk-prod/             ← production stack (Kinesis, 3-AZ VPC, RDS Proxy, CloudFront) — manual deploys only
-│  └── cdk-dev/              ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront) — same services as prod, smaller sizing
+│  ├── cdk-prod/           ← production stack (Kinesis, 3-AZ VPC, RDS Proxy, CloudFront) — manual deploys only
+│  └── cdk-dev/            ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront) — same services as prod, smaller sizing
 ├── services/
 │   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
 ├── lambdas/kinesis-consumer/
@@ -100,10 +104,10 @@ smartretail/
 │      └── V7__seed_data.sql
 ├── mfe/
 │   ├── shared/auth/
-│   ├── store-manager/
-│   ├── sc-planner/
-│   ├── executive/
-│   └── supplier/             ← Supplier Portal (port 5077, SUPPLIER_ADMIN role)
+│   ├── store-manager/     ← Store Manager Dashboard (:5173) — ARS, IMS
+│   ├── sc-planner/        ← SC Planner Console (:5174) — RE, ARS, DFS, SUP
+│   ├── executive/         ← Executive Dashboard (:5175) — ARS, DFS
+│   └── supplier/          ← Supplier Portal (:5077, SUPPLIER_ADMIN role) — SUP
 └── scripts/
   ├──localstack-init.sh
   ├──publish-pos-event.py
@@ -204,21 +208,23 @@ Enforced by ArchUnit tests. Violations fail the build.
 
 ## Port Assignments (local mode)
 
-| Service | Port |
-|---------|------|
-| SIS | 8080 |
-| IMS | 8081 |
-| RE | 8082 |
-| ARS | 8083 |
-| DFS | 8084 |
-| SUP | 8085 |
-| PPS | 8086 |
-| PostgreSQL | 5432 |
-| LocalStack | 4566 |
-| Store Manager MFE | 5173 |
-| SC Planner MFE | 5174 |
-| Executive MFE | 5175 |
-| Supplier MFE | 5077 |
+| Service | Port | Primary MFE |
+|---------|------|-------------|
+| SIS | 8080 | — |
+| IMS | 8081 | Store Manager (5173) |
+| RE | 8082 | SC Planner (5174) |
+| ARS | 8083 | Store Manager (5173), SC Planner (5174), Executive (5175) |
+| DFS | 8084 | SC Planner (5174), Executive (5175) |
+| SUP | 8085 | SC Planner (5174), Supplier (5077) |
+| PPS | 8086 | — |
+| PostgreSQL | 5432 | — |
+| LocalStack | 4566 | — |
+| Store Manager MFE | 5173 | — |
+| SC Planner MFE | 5174 | — |
+| Executive MFE | 5175 | — |
+| Supplier MFE | 5077 | — |
+| Demo Control Center MFE | 5176 | — |
+| Demo Control Server | 3099 | — |
 
 ---
 

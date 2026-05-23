@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy-demo.sh — end-to-end SC Planner demo deployment (cdk-min stack)
+# deploy-demo.sh — end-to-end SC Planner demo deployment (cdk-demo stack)
 #
 # Usage:
 #   ./scripts/deploy-demo.sh
@@ -16,7 +16,7 @@ REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 ALERT_EMAIL="${CDK_CONTEXT_alertEmail:-}"
 DEMO_SERVICES=(ims re ars dfs sup)
 
-CDK_DIR="$(cd "$(dirname "$0")/../infra/cdk-min" && pwd)"
+CDK_DIR="$(cd "$(dirname "$0")/../infra/cdk-demo" && pwd)"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 hr() { printf '\n══ %s ══\n\n' "$1"; }

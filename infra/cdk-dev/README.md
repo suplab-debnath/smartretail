@@ -22,25 +22,51 @@ Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS 
 ## Architecture
 
 ```
-Internet
-  │
-  ├── ALB (:80) ──── ECS Fargate tasks (PRIVATE_WITH_EGRESS, X86_64)
-  │      path-based routing
-  │      /v1/ingest/*        → SIS :8080
-  │      /v1/inventory/*     → IMS :8081
-  │      /v1/replenishment/* → RE  :8082
-  │      /v1/dashboard/*     → ARS :8083
-  │      /v1/forecast/*      → DFS :8084
-  │      /v1/supplier/*      → SUP :8085
-  │      /v1/promotions/*    → PPS :8086
-  │                                    │
-  │                          RDS Proxy → RDS t4g.small (isolated subnet)
-  │
-  └── CloudFront (HTTPS) ──── private S3 buckets (OAC)
-       store-manager / sc-planner / executive / supplier / demo
+                        ┌──────────────────────────────────────────────────────────────────┐
+                        │  Dedicated VPC  (2 AZs)                                          │
+                        │                                                                  │
+                        │  ┌─ public subnets ──────────────────────────────────────────┐  │
+Internet ── ALB :80 ───►│  │  path-based routing (single listener)                     │  │
+                        │  │  /v1/ingest/*        ──► SIS :8080 ─────────────────┐     │  │
+                        │  └──────────────────────────────────────────────────────┼─────┘  │
+                        │                                                         │         │
+                        │  ┌─ private-app subnets (ECS + Lambda) ────────────────┤──────┐  │
+                        │  │  /v1/inventory/*     ──► IMS :8081                  │      │  │
+                        │  │  /v1/replenishment/* ──► RE  :8082                  │      │  │
+                        │  │  /v1/dashboard/*     ──► ARS :8083                  │      │  │
+                        │  │  /v1/forecast/*      ──► DFS :8084                  │      │  │
+                        │  │  /v1/supplier/*      ──► SUP :8085                  │      │  │
+                        │  │  /v1/promotions/*    ──► PPS :8086                  │      │  │
+                        │  │                                                      ▼      │  │
+                        │  │  Kinesis consumer Lambda ─► SIS (CloudMap discovery) │      │  │
+                        │  │                                          │            │      │  │
+                        │  │  ECS Fargate (X86_64, FARGATE_SPOT 80%) │            │      │  │
+                        │  └──────────────────────────────────────────┼────────────┘      │  │
+                        │                                             │                    │  │
+                        │  ┌─ isolated subnets (RDS Proxy + RDS) ────┘──────────────────┐ │  │
+                        │  │  RDS Proxy ──► RDS PostgreSQL t4g.small (single-AZ)        │ │  │
+                        │  └────────────────────────────────────────────────────────────┘ │  │
+                        │                                                                  │
+                        │  NAT Gateway (×1) · VPC interface endpoints (ECR, SQS, EB,      │
+                        │  CloudWatch, Secrets Manager) · Gateway endpoints (S3, DDB)      │
+                        └──────────────────────────────────────────────────────────────────┘
+
+Kinesis stream (POS ingestion)  ──► Lambda consumer  ──► SIS :8080
+
+EventBridge bus (smartretail-events-dev)
+  InventoryAlertEvent  ──► RE alert SQS FIFO  ──► RE service
+  All domain events    ──► ARS updates SQS    ──► ARS service
+
+Cognito: Internal pool (STORE_MANAGER / SC_PLANNER / EXECUTIVE)
+         Supplier pool (SUPPLIER_ADMIN)
+
+CloudFront (HTTPS, OAC/SigV4) ──► private S3 buckets
+  store-manager / sc-planner / executive / supplier / demo
 ```
 
-VPC: 2 AZs · public subnets (ALB) · private-app subnets (ECS + Lambda) · isolated subnets (RDS Proxy + RDS) · 1 NAT Gateway · free Gateway endpoints (S3, DynamoDB) · interface endpoints (ECR API, ECR Docker, SQS, EventBridge, CloudWatch Logs, Secrets Manager)
+> **One ALB, not one-per-service.** All seven backend services share a single ALB with
+> path-based listener rules. SIS is the only ingest-facing service; the Lambda Kinesis
+> consumer forwards POS events to SIS via CloudMap service discovery.
 
 ## Sizing vs prod
 
@@ -119,9 +145,9 @@ npx cdk destroy --all
 
 RDS, S3, ECR, and CloudFront have `RemovalPolicy.DESTROY` so they are deleted on teardown.
 
-## Key differences from cdk-min (demo stack)
+## Key differences from cdk-demo (demo stack)
 
-| Property | cdk-min (demo) | cdk-dev |
+| Property | cdk-demo | cdk-dev |
 |----------|---------------|---------|
 | CPU architecture | ARM64 | X86\_64 |
 | VPC | Default VPC reused | Dedicated VPC with private subnets |

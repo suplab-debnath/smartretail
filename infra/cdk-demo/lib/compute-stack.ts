@@ -20,6 +20,7 @@ export interface ComputeStackProps extends cdk.StackProps {
 interface ServiceConfig {
   name: string;
   port: number;
+  ecrRepo: ecr.IRepository;
   envVars: Record<string, string>;
   policies: iam.PolicyStatement[];
 }
@@ -68,6 +69,7 @@ export class ComputeStack extends cdk.Stack {
 
     const imsConfig: ServiceConfig = {
       name: 'ims', port: 8081,
+      ecrRepo: data.ecrRepos['ims'],
       envVars: {
         ...commonEnv,
         DB_SCHEMA: 'inventory',
@@ -93,6 +95,7 @@ export class ComputeStack extends cdk.Stack {
 
     const reConfig: ServiceConfig = {
       name: 're', port: 8082,
+      ecrRepo: data.ecrRepos['re'],
       envVars: {
         ...commonEnv,
         DB_SCHEMA: 'replenishment',
@@ -118,6 +121,7 @@ export class ComputeStack extends cdk.Stack {
 
     const arsConfig: ServiceConfig = {
       name: 'ars', port: 8083,
+      ecrRepo: data.ecrRepos['ars'],
       envVars: { ...commonEnv, DB_USERNAME: 'smartretail_admin' },
       policies: [
         new iam.PolicyStatement({
@@ -129,6 +133,7 @@ export class ComputeStack extends cdk.Stack {
 
     const dfsConfig: ServiceConfig = {
       name: 'dfs', port: 8084,
+      ecrRepo: data.ecrRepos['dfs'],
       envVars: {
         ...commonEnv,
         DB_SCHEMA: 'forecasting',
@@ -149,6 +154,7 @@ export class ComputeStack extends cdk.Stack {
 
     const supConfig: ServiceConfig = {
       name: 'sup', port: 8085,
+      ecrRepo: data.ecrRepos['sup'],
       envVars: {
         ...commonEnv,
         DB_SCHEMA: 'supplier',
@@ -185,12 +191,7 @@ export class ComputeStack extends cdk.Stack {
     executionRole: iam.Role,
     srEnv: string,
   ): ecs.FargateService {
-    const ecrRepo = new ecr.Repository(this, `${config.name}Repo`, {
-      repositoryName: `smartretail-${config.name}-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-      lifecycleRules: [{ maxImageCount: 5 }],
-    });
+    const ecrRepo = config.ecrRepo;
 
     const taskRole = new iam.Role(this, `${config.name}TaskRole`, {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),

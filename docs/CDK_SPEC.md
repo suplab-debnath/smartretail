@@ -2,10 +2,10 @@
  
 All CDK stacks are in TypeScript.
 
-- **Demo / dev stack** (`infra/cdk-min/`) — SQS-only, reuses default VPC. **This is the stack to run.** Stack names: `Min-*`.
+- **Demo / dev stack** (`infra/cdk-demo/`) — SQS-only, reuses default VPC. **This is the stack to run.** Stack names: `Min-*`.
 - **Production stack** (`infra/cdk-prod/`) — Kinesis, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
 
-The specifications below describe `infra/cdk-min/` (the demo stack).
+The specifications below describe `infra/cdk-demo/` (the demo stack).
 Deploy in order: Network → Data → Messaging → Identity → Compute → API.
  
 ---
@@ -14,11 +14,11 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 
 | Stack | Path | Purpose | CPU arch | Stack prefix |
 |-------|------|---------|----------|-------------|
-| **cdk-min** | `infra/cdk-min/` | Demo only — SQS, default VPC, ARM64, cheap | ARM64 | `Min-*` |
+| **cdk-demo** | `infra/cdk-demo/` | Demo only — SQS, default VPC, ARM64, cheap | ARM64 | `Min-*` |
 | **cdk-dev** | `infra/cdk-dev/` | Full dev — Kinesis, 2-AZ VPC, RDS Proxy, CloudFront, X86_64 | X86_64 | `Dev-*` |
 | **cdk-prod** | `infra/cdk-prod/` | Production — Kinesis, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64 | `Prod-*` |
 
-**cdk-min** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
+**cdk-demo** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
 **cdk-dev** and **cdk-prod** are deployed manually from their respective directories.
 
 ### Dev vs Prod Sizing Comparison
@@ -47,7 +47,7 @@ distributions (store-manager, sc-planner, executive, supplier), 2 Cognito pools
  
 ## Stack 1: NetworkStack
  
-File: `infra/cdk-min/lib/network-stack.ts`
+File: `infra/cdk-demo/lib/network-stack.ts`
  
 Creates:
 - VPC with 3 AZs, DNS hostnames enabled
@@ -153,7 +153,7 @@ const endpointServices = [
  
 ## Stack 2: DataStack
  
-File: `infra/cdk-min/lib/data-stack.ts`
+File: `infra/cdk-demo/lib/data-stack.ts`
  
 Creates:
 - RDS PostgreSQL Multi-AZ
@@ -253,7 +253,7 @@ new s3.Bucket(this, 'EventsBucket', {
  
 ## Stack 3: MessagingStack
  
-File: `infra/cdk-min/lib/messaging-stack.ts`
+File: `infra/cdk-demo/lib/messaging-stack.ts`
  
 Creates:
 - Kinesis Data Stream
@@ -360,7 +360,7 @@ new events.Rule(this, 'AllEventsToArs', {
  
 ## Stack 4: IdentityStack
  
-File: `infra/cdk-min/lib/identity-stack.ts`
+File: `infra/cdk-demo/lib/identity-stack.ts`
  
 Creates Cognito user pools.
  
@@ -431,7 +431,7 @@ const supplierPool = new cognito.UserPool(this, 'SupplierPool', {
  
 ## Stack 5: ComputeStack
  
-File: `infra/cdk-min/lib/compute-stack.ts`
+File: `infra/cdk-demo/lib/compute-stack.ts`
  
 Creates:
 - ECS Cluster with Container Insights
@@ -543,7 +543,7 @@ kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(kines
  
 ## Stack 6: ApiStack
  
-File: `infra/cdk-min/lib/api-stack.ts`
+File: `infra/cdk-demo/lib/api-stack.ts`
  
 Creates:
 - API Gateway REST API
