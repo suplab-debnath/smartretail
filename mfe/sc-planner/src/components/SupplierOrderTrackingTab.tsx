@@ -53,9 +53,13 @@ function sortOrders(orders: SupplierOrder[]): SupplierOrder[] {
   })
 }
 
-export function SupplierOrderTrackingTab() {
+interface Props {
+  refreshKey?: number
+}
+
+export function SupplierOrderTrackingTab({ refreshKey = 0 }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const { data, loading, error, refetch } = useSupplierOrders(statusFilter === 'ALL' ? undefined : statusFilter)
+  const { data, loading, error, refetch } = useSupplierOrders(statusFilter === 'ALL' ? undefined : statusFilter, refreshKey)
 
   const orders = sortOrders(data?.orders ?? [])
 

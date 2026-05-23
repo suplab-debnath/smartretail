@@ -1,14 +1,14 @@
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { useExceptionQueue } from '../hooks/useExceptionQueue'
 import { SeverityBadge } from './SeverityBadge'
 import type { AlertType } from '../types'
-import { useState } from 'react'
 
 type DcFilter = 'ALL' | 'DC-LONDON' | 'DC-MANCHESTER' | 'DC-BIRMINGHAM'
 
 interface Props {
   onTriggerReplenishment: (skuId: string, dcId: string) => void
+  refreshKey?: number
 }
 
 function alertTypeChip(type: AlertType) {
@@ -42,13 +42,9 @@ const TABLE_HEADERS: { label: string; term?: string }[] = [
   { label: 'Action' },
 ]
 
-export function ExceptionQueueTab({ onTriggerReplenishment }: Props) {
+export function ExceptionQueueTab({ onTriggerReplenishment, refreshKey = 0 }: Props) {
   const [dcFilter, setDcFilter] = useState<DcFilter>('ALL')
-  const { data, loading, error, refetch } = useExceptionQueue()
-
-  useEffect(() => {
-    refetch()
-  }, [refetch])
+  const { data, loading, error, refetch } = useExceptionQueue(undefined, refreshKey)
 
   const alerts = data?.alerts ?? []
   const filtered = dcFilter === 'ALL' ? alerts : alerts.filter(a => a.dcId === dcFilter)

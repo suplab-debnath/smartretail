@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { InventoryPositionListResponse } from '../types'
 
-export function useInventoryPositions(dcId?: string) {
+export function useInventoryPositions(dcId?: string, refreshKey = 0) {
   const [data, setData] = useState<InventoryPositionListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<FetchError | null>(null)
@@ -39,7 +39,7 @@ export function useInventoryPositions(dcId?: string) {
     return () => {
       cancelled = true
     }
-  }, [dcId, retryKey])
+  }, [dcId, retryKey, refreshKey])
 
   return { data, loading, error, refetch }
 }

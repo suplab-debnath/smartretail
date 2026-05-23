@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth, Tooltip } from '@smartretail/auth'
 import { useScPlannerDashboard } from '../hooks/useScPlannerDashboard'
 import { ExceptionQueueTab } from './ExceptionQueueTab'
@@ -44,11 +44,17 @@ interface TriggerTarget {
 
 export function ScPlannerConsole() {
   const { isAuthenticated, isLoading: authLoading, signIn, signOut, user, hasRole } = useAuth()
-  const { data: dashData, loading: dashLoading, lastUpdated } = useScPlannerDashboard()
+  const { data: dashData, loading: dashLoading, lastUpdated, refresh: refreshDashboard } = useScPlannerDashboard()
 
   const [activeTab, setActiveTab] = useState<TabId>('exceptions')
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(new Set(['exceptions']))
   const [triggerTarget, setTriggerTarget] = useState<TriggerTarget | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const bumpRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1)
+    refreshDashboard()
+  }, [refreshDashboard])
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -162,12 +168,12 @@ export function ScPlannerConsole() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {visitedTabs.has('exceptions') && (
           <div className={activeTab === 'exceptions' ? '' : 'hidden'}>
-            <ExceptionQueueTab onTriggerReplenishment={handleTriggerReplenishment} />
+            <ExceptionQueueTab onTriggerReplenishment={handleTriggerReplenishment} refreshKey={refreshKey} />
           </div>
         )}
         {visitedTabs.has('inventory') && (
           <div className={activeTab === 'inventory' ? '' : 'hidden'}>
-            <InventoryOverviewTab />
+            <InventoryOverviewTab refreshKey={refreshKey} />
           </div>
         )}
         {visitedTabs.has('forecast') && (
@@ -182,12 +188,12 @@ export function ScPlannerConsole() {
         )}
         {visitedTabs.has('approvals') && (
           <div className={activeTab === 'approvals' ? '' : 'hidden'}>
-            <ApprovalWorkflowsTab />
+            <ApprovalWorkflowsTab refreshKey={refreshKey} />
           </div>
         )}
         {visitedTabs.has('supplier-orders') && (
           <div className={activeTab === 'supplier-orders' ? '' : 'hidden'}>
-            <SupplierOrderTrackingTab />
+            <SupplierOrderTrackingTab refreshKey={refreshKey} />
           </div>
         )}
         {visitedTabs.has('scorecard') && (
@@ -197,7 +203,10 @@ export function ScPlannerConsole() {
         )}
         {visitedTabs.has('demo') && (
           <div className={activeTab === 'demo' ? '' : 'hidden'}>
-            <DemoTab onSwitchToApprovals={() => switchTab('approvals')} />
+            <DemoTab
+              onSwitchToApprovals={() => switchTab('approvals')}
+              onDataChanged={bumpRefresh}
+            />
           </div>
         )}
       </main>
@@ -210,6 +219,8 @@ export function ScPlannerConsole() {
           onClose={() => setTriggerTarget(null)}
           onSuccess={(_poId) => {
             setTriggerTarget(null)
+            bumpRefresh()
+            switchTab('approvals')
           }}
         />
       )}

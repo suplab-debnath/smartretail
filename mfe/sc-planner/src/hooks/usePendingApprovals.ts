@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { PurchaseOrder, PurchaseOrderListResponse } from '../types'
 
-export function usePendingApprovals() {
+export function usePendingApprovals(refreshKey = 0) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<FetchError | null>(null)
@@ -25,7 +25,7 @@ export function usePendingApprovals() {
 
   useEffect(() => {
     fetch_()
-  }, [fetch_])
+  }, [fetch_, refreshKey])
 
   const removeOrder = useCallback((poId: string) => {
     setOrders(prev => prev.filter(o => o.poId !== poId))
