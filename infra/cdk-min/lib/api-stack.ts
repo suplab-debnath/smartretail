@@ -14,14 +14,16 @@ export interface ApiStackProps extends cdk.StackProps {
 }
 
 export class ApiStack extends cdk.Stack {
+  public readonly alb: elbv2.ApplicationLoadBalancer;
+
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api-dev');
+    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
 
     const { srEnv, network, compute } = props;
 
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+    this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
       loadBalancerName: `smartretail-alb-${srEnv}`,
       vpc: network.vpc,
       internetFacing: true,
@@ -29,7 +31,7 @@ export class ApiStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
     });
 
-    const listener = alb.addListener('HttpListener', {
+    const listener = this.alb.addListener('HttpListener', {
       port: 80,
       defaultAction: elbv2.ListenerAction.fixedResponse(404, {
         contentType: 'application/json',
@@ -38,12 +40,11 @@ export class ApiStack extends cdk.Stack {
     });
 
     const routes: Array<{ name: string; path: string; port: number; service: ecs.FargateService }> = [
-      { name: 'sis', path: '/v1/ingest/*',        port: 8080, service: compute.sisService },
-      { name: 'ims', path: '/v1/inventory/*',      port: 8081, service: compute.imsService },
-      { name: 're',  path: '/v1/replenishment/*',  port: 8082, service: compute.reService  },
-      { name: 'ars', path: '/v1/dashboard/*',      port: 8083, service: compute.arsService },
-      { name: 'dfs', path: '/v1/forecast/*',       port: 8084, service: compute.dfsService },
-      { name: 'sup', path: '/v1/supplier/*',       port: 8085, service: compute.supService },
+      { name: 'ims', path: '/v1/inventory/*',     port: 8081, service: compute.imsService },
+      { name: 're',  path: '/v1/replenishment/*', port: 8082, service: compute.reService  },
+      { name: 'ars', path: '/v1/dashboard/*',     port: 8083, service: compute.arsService },
+      { name: 'dfs', path: '/v1/forecast/*',      port: 8084, service: compute.dfsService },
+      { name: 'sup', path: '/v1/supplier/*',      port: 8085, service: compute.supService },
     ];
 
     routes.forEach(({ name, path, port, service }, i) => {
@@ -67,11 +68,11 @@ export class ApiStack extends cdk.Stack {
 
     new ssm.StringParameter(this, 'AlbEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,
-      stringValue: `http://${alb.loadBalancerDnsName}`,
+      stringValue: `http://${this.alb.loadBalancerDnsName}`,
     });
 
     new cdk.CfnOutput(this, 'AlbEndpoint', {
-      value: `http://${alb.loadBalancerDnsName}`,
+      value: `http://${this.alb.loadBalancerDnsName}`,
       description: 'SmartRetail ALB Endpoint (HTTP)',
     });
   }
