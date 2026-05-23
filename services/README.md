@@ -1,6 +1,6 @@
 # Services
 
-Six Spring Boot microservices that together implement the SmartRetail demand-forecasting and supply-chain prototype. Each service owns exactly one PostgreSQL schema and communicates with others only through EventBridge events or HTTP (never via cross-schema SQL joins).
+Seven Spring Boot microservices that together implement the SmartRetail demand-forecasting and supply-chain prototype. Each service owns exactly one PostgreSQL schema and communicates with others only through EventBridge events or HTTP (never via cross-schema SQL joins).
 
 ## Services at a glance
 
@@ -12,6 +12,7 @@ Six Spring Boot microservices that together implement the SmartRetail demand-for
 | `ars/` | Aggregated Reporting Service | 8083 | reads all schemas |
 | `dfs/` | Demand Forecasting Service | 8084 | `forecasting` |
 | `sup/` | Supplier Service | 8085 | `supplier` |
+| `pps/` | Pricing & Promotions Service | 8086 | `promotions` |
 
 ## Technology
 
@@ -26,7 +27,7 @@ Six Spring Boot microservices that together implement the SmartRetail demand-for
 
 ```bash
 # From the repository root — builds all services and the lambda
-JAVA_HOME=<java-21-home> mvn clean verify -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup
+JAVA_HOME=<java-21-home> mvn clean verify -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps
 
 # Single service
 JAVA_HOME=<java-21-home> mvn clean verify -pl services/sis
@@ -42,6 +43,7 @@ make local-re    # port 8082
 make local-ars   # port 8083
 make local-dfs   # port 8084
 make local-sup   # port 8085
+make local-pps   # port 8086
 ```
 
 Requires `make local-up` (Postgres + LocalStack) and `make local-migrate` to be run first.
