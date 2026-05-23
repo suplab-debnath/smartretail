@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
@@ -14,6 +15,7 @@ export interface DataStackProps extends cdk.StackProps {
 
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
+  public readonly rdsInstance: rds.DatabaseInstance;
   public readonly idempotencyTable: dynamodb.Table;
   public readonly eventsBucketName: string;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
@@ -26,8 +28,8 @@ export class DataStack extends cdk.Stack {
     const { srEnv, network } = props;
     const account = this.account;
 
-    // RDS — t4g.small, single-AZ (dev sizing)
-    const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+    // RDS — t4g.small, single-AZ (dev sizing), private isolated subnets
+    this.rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_4,
       }),
@@ -44,12 +46,14 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       enablePerformanceInsights: false,
       storageEncrypted: true,
+      cloudwatchLogsExports: ['postgresql'],
+      cloudwatchLogsRetention: logs.RetentionDays.ONE_MONTH,
     });
 
     // RDS Proxy — same pattern as prod
-    const proxy = rdsInstance.addProxy('RdsProxy', {
-      proxyName: `smartretail-rds-proxy-${srEnv}`,
-      secrets: [rdsInstance.secret!],
+    const proxy = this.rdsInstance.addProxy('RdsProxy', {
+      dbProxyName: `smartretail-rds-proxy-${srEnv}`,
+      secrets: [this.rdsInstance.secret!],
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [network.sgRdsProxy],
@@ -98,7 +102,7 @@ export class DataStack extends cdk.Stack {
       });
 
     put('rds/proxy-endpoint',              proxy.endpoint);
-    put('rds/secret-arn',                  rdsInstance.secret!.secretArn);
+    put('rds/secret-arn',                  this.rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
     put('s3/events-bucket-name',           eventsBucket.bucketName);
   }

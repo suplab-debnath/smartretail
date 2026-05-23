@@ -35,6 +35,7 @@ export class ComputeStack extends cdk.Stack {
   public readonly dfsService: ecs.FargateService;
   public readonly supService: ecs.FargateService;
   public readonly ppsService: ecs.FargateService;
+  public readonly kinesisConsumerFn: lambda.DockerImageFunction;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -46,7 +47,7 @@ export class ComputeStack extends cdk.Stack {
     this.cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
-      containerInsightsV2: ecs.ContainerInsights.DISABLED,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
       enableFargateCapacityProviders: true,
     });
 
@@ -248,7 +249,7 @@ export class ComputeStack extends cdk.Stack {
       resources: [data.idempotencyTable.tableArn],
     }));
 
-    const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
+    this.kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
       architecture: lambda.Architecture.X86_64,
@@ -265,7 +266,7 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
-    kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(messaging.kinesisStream, {
+    this.kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(messaging.kinesisStream, {
       startingPosition: lambda.StartingPosition.LATEST,
       batchSize: 100,
       bisectBatchOnError: true,
@@ -310,7 +311,7 @@ export class ComputeStack extends cdk.Stack {
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_WEEK,
+      retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 

@@ -14,6 +14,8 @@ export interface ApiStackProps extends cdk.StackProps {
 }
 
 export class ApiStack extends cdk.Stack {
+  public readonly alb: elbv2.ApplicationLoadBalancer;
+
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
@@ -22,7 +24,7 @@ export class ApiStack extends cdk.Stack {
     const { srEnv, network, compute } = props;
 
     // ALB replaces HTTP API v2 + VPC Link — saves ~$230/month
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+    this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
       loadBalancerName: `smartretail-alb-${srEnv}`,
       vpc: network.vpc,
       internetFacing: true,
@@ -30,7 +32,7 @@ export class ApiStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
     });
 
-    const listener = alb.addListener('HttpListener', {
+    const listener = this.alb.addListener('HttpListener', {
       port: 80,
       defaultAction: elbv2.ListenerAction.fixedResponse(404, {
         contentType: 'application/json',
@@ -69,11 +71,11 @@ export class ApiStack extends cdk.Stack {
 
     new ssm.StringParameter(this, 'AlbEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,
-      stringValue: `http://${alb.loadBalancerDnsName}`,
+      stringValue: `http://${this.alb.loadBalancerDnsName}`,
     });
 
     new cdk.CfnOutput(this, 'AlbEndpoint', {
-      value: `http://${alb.loadBalancerDnsName}`,
+      value: `http://${this.alb.loadBalancerDnsName}`,
       description: 'SmartRetail ALB Endpoint (HTTP)',
     });
   }
