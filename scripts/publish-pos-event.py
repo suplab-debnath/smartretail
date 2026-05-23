@@ -150,9 +150,9 @@ def inject_flow2_alert(args):
       "dcId": args.dc_id,
       "alertType": "LOW_STOCK",
       "severity": "HIGH",
-      "atp": 45,
-      "reorderPoint": 100,
-      "currentOnHand": 45
+      "thresholdValue": 100,
+      "actualValue": 5,
+      "status": "OPEN"
     }
   }
 

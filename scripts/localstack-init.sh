@@ -51,7 +51,7 @@ awslocal --endpoint-url=$ENDPOINT sqs create-queue \
 
 awslocal --endpoint-url=$ENDPOINT sqs create-queue \
     --queue-name "smartretail-re-alert-${ENV}.fifo" \
-    --attributes '{"FifoQueue":"true","ContentBasedDeduplication":"false"}' \
+    --attributes "{\"FifoQueue\":\"true\",\"ContentBasedDeduplication\":\"true\",\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"arn:aws:sqs:${REGION}:${ACCOUNT}:smartretail-re-alert-${ENV}-dlq.fifo\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"}" \
     --region $REGION
 
 awslocal --endpoint-url=$ENDPOINT sqs create-queue \

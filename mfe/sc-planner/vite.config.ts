@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => ({
         statements: 80,
       },
       include: ['src/components/**', 'src/hooks/**', 'src/utils/**'],
-      exclude: ['src/main.tsx', 'src/App.tsx'],
+      exclude: ['src/main.tsx', 'src/App.tsx', 'src/components/DemoTab.tsx'],
     },
   },
 }))

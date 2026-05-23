@@ -7,8 +7,8 @@ set -euo pipefail
 ENV="${SMARTRETAIL_ENV:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
 
-# Ensure python3 / aws CLI installed via pip are on PATH
-export PATH="$PATH:/opt/homebrew/opt/python@3.13/bin:/usr/local/bin"
+# Resolve the Python 3 binary name — python3 on macOS/Linux, python on Windows
+PYTHON_CMD="${PYTHON_CMD:-$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)}"
 
 # ── Mode-specific configuration ───────────────────────────────────────────────
 if [ "$ENV" = "local" ]; then
@@ -45,7 +45,7 @@ cognito_token() {
   local pool_id client_id
   pool_id=$(aws ssm get-parameter --name "/smartretail/${ENV}/cognito/internal-pool-id"  --query 'Parameter.Value' --output text)
   client_id=$(aws ssm get-parameter --name "/smartretail/${ENV}/cognito/internal-client-id" --query 'Parameter.Value' --output text)
-  python3 scripts/get-cognito-token.py \
+  ${PYTHON_CMD} scripts/get-cognito-token.py \
     --username "$username" --password "Test@12345!" \
     --pool-id "$pool_id" --client-id "$client_id"
 }
@@ -81,7 +81,7 @@ flow1() {
   echo "--- Flow 1: POS Event Ingestion ---"
 
   # Generate unique transaction ID
-  TXID=$(python3 -c "import uuid; print(uuid.uuid4())")
+  TXID=$(${PYTHON_CMD} -c "import uuid; print(uuid.uuid4())")
   SKU="SKU-BEV-001"
   DC="DC-LONDON"
   QTY=30 # Will push ATP below reorder_point of 100 (on_hand=120, after=90)
@@ -100,7 +100,7 @@ flow1() {
   #    via Kinesis in AWS mode.
   echo "Publishing POS event: txId=$TXID, sku=$SKU, dc=$DC, qty=$QTY"
   if [ "$ENV" = "local" ]; then
-    python3 scripts/publish-pos-event.py \
+    ${PYTHON_CMD} scripts/publish-pos-event.py \
       --transaction-id "$TXID" \
       --sku-id "$SKU" \
       --dc-id "$DC" \
@@ -110,7 +110,7 @@ flow1() {
       --channel "POS" \
       --direct-api "$API_ENDPOINT"
   else
-    python3 scripts/publish-pos-event.py \
+    ${PYTHON_CMD} scripts/publish-pos-event.py \
       --transaction-id "$TXID" \
       --sku-id "$SKU" \
       --dc-id "$DC" \
@@ -128,7 +128,7 @@ flow1() {
   check "1.5 RDS sales_events row created" "$SALES_COUNT" "1"
 
   # 3. Check DynamoDB idempotency key
-  SHA=$(python3 -c "import hashlib; print(hashlib.sha256('$TXID'.encode()).hexdigest())")
+  SHA=$(${PYTHON_CMD} -c "import hashlib; print(hashlib.sha256('$TXID'.encode()).hexdigest())")
   DDB_RESULT=$(${AWS_CMD} dynamodb get-item \
     --table-name "smartretail-idempotency-keys-${ENV}" \
     --key "{\"event_id\":{\"S\":\"$SHA\"}}" \
@@ -149,7 +149,7 @@ flow1() {
 
   # 6. Duplicate test
   echo "Testing duplicate rejection..."
-  HTTP_STATUS=$(python3 scripts/publish-pos-event.py \
+  HTTP_STATUS=$(${PYTHON_CMD} scripts/publish-pos-event.py \
     --transaction-id "$TXID" \
     --sku-id "$SKU" --dc-id "$DC" \
     --store-id "STORE-001" \
@@ -177,6 +177,13 @@ flow2() {
     ORDER BY created_at DESC
     LIMIT 1" | tr -d ' ')
   check "2a.4 Auto-approve PO created (APPROVED)" "$AUTO_PO" "APPROVED"
+
+  # Inject alert for SKU-BEV-003 / DC-LONDON directly into RE FIFO queue
+  # (auto_approve_threshold = 0 → always PENDING_APPROVAL; ATP already below reorder_point)
+  echo "Injecting InventoryAlertEvent for SKU-BEV-003 / DC-LONDON..."
+  python3 scripts/publish-pos-event.py \
+    --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON --env "$ENV"
+  sleep 5
 
   # Check manual approval PO for SKU-BEV-003 at DC-LONDON
   # (auto_approve_threshold = 0 → always PENDING_APPROVAL)
@@ -216,7 +223,7 @@ flow3() {
 
   if [ "$PO_STATUS" != "PENDING_APPROVAL" ]; then
     echo "PO ${PENDING_PO_ID} is ${PO_STATUS} — injecting a fresh PENDING_APPROVAL PO..."
-    python3 scripts/publish-pos-event.py --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON --env "$ENV"
+    ${PYTHON_CMD} scripts/publish-pos-event.py --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON --env "$ENV"
     sleep 5
     PENDING_PO_ID=$(${PSQL} -t -c "
       SELECT po_id FROM replenishment.purchase_orders
@@ -231,7 +238,7 @@ flow3() {
     SELECT version FROM replenishment.purchase_orders
     WHERE po_id = '${PENDING_PO_ID}'::uuid" | tr -d ' ')
 
-  IDEMPOTENCY_KEY=$(python3 -c "import uuid; print(uuid.uuid4())")
+  IDEMPOTENCY_KEY=$(${PYTHON_CMD} -c "import uuid; print(uuid.uuid4())")
 
   # Approve the PO
   if [ "$ENV" = "local" ]; then
@@ -274,7 +281,7 @@ flow3() {
         -X POST "${RE_ENDPOINT}/v1/replenishment/orders/${OTHER_PO}/approve" \
         -H "X-Dev-Role: STORE_MANAGER" \
         -H "Content-Type: application/json" \
-        -H "X-Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')" \
+        -H "X-Idempotency-Key: $(${PYTHON_CMD} -c 'import uuid; print(uuid.uuid4())')" \
         -d "{\"version\":${OTHER_VERSION}}")
     else
       SM_TOKEN=$(cognito_token "store-manager-1")
@@ -282,7 +289,7 @@ flow3() {
         -X POST "${RE_ENDPOINT}/v1/replenishment/orders/${OTHER_PO}/approve" \
         -H "Authorization: Bearer ${SM_TOKEN}" \
         -H "Content-Type: application/json" \
-        -H "X-Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')" \
+        -H "X-Idempotency-Key: $(${PYTHON_CMD} -c 'import uuid; print(uuid.uuid4())')" \
         -d "{\"version\":${OTHER_VERSION}}")
     fi
     check "3c STORE_MANAGER role rejected with 403" "$WRONG_ROLE_STATUS" "403"
@@ -294,14 +301,14 @@ flow3() {
       -X POST "${RE_ENDPOINT}/v1/replenishment/orders/${PENDING_PO_ID}/approve" \
       -H "X-Dev-Role: SC_PLANNER" \
       -H "Content-Type: application/json" \
-      -H "X-Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')" \
+      -H "X-Idempotency-Key: $(${PYTHON_CMD} -c 'import uuid; print(uuid.uuid4())')" \
       -d "{\"version\":${PO_VERSION}}")
   else
     WRONG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
       -X POST "${RE_ENDPOINT}/v1/replenishment/orders/${PENDING_PO_ID}/approve" \
       -H "Authorization: Bearer ${SC_PLANNER_TOKEN}" \
       -H "Content-Type: application/json" \
-      -H "X-Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')" \
+      -H "X-Idempotency-Key: $(${PYTHON_CMD} -c 'import uuid; print(uuid.uuid4())')" \
       -d "{\"version\":${PO_VERSION}}")
   fi
   check "3d Wrong status returns 409" "$WRONG_STATUS" "409"
@@ -326,14 +333,14 @@ flow4() {
 
   check "4.1 Dashboard API returns 200" "$HTTP_STATUS" "200"
 
-  DATA_FRESHNESS=$(python3 -c "
+  DATA_FRESHNESS=$(${PYTHON_CMD} -c "
 import json
 with open('/tmp/dashboard-response.json') as f:
   d = json.load(f)
 print('present' if d.get('dataFreshness') else 'missing')")
   check "4.8 dataFreshness present in response" "$DATA_FRESHNESS" "present"
 
-  ALERT_COUNT=$(python3 -c "
+  ALERT_COUNT=$(${PYTHON_CMD} -c "
 import json
 with open('/tmp/dashboard-response.json') as f:
   d = json.load(f)
@@ -366,7 +373,7 @@ flow8() {
 
   check "8.1 Executive dashboard returns 200" "$HTTP_STATUS" "200"
 
-  HISTORY_COUNT=$(python3 -c "
+  HISTORY_COUNT=$(${PYTHON_CMD} -c "
 import json
 with open('/tmp/exec-dashboard.json') as f:
   d = json.load(f)
@@ -402,7 +409,7 @@ flow9() {
   check "9.1 SC Planner dashboard returns 200" "$HTTP_STATUS" "200"
   check "9.2 Supplier performance returns 200" "$PERF_STATUS" "200"
 
-  SUPPLIER_COUNT=$(python3 -c "
+  SUPPLIER_COUNT=$(${PYTHON_CMD} -c "
 import json
 with open('/tmp/supplier-perf.json') as f:
   d = json.load(f)

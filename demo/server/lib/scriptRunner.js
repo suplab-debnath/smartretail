@@ -40,12 +40,20 @@ function run({ flowId, stepId, cmd, args, env = {} }) {
     const mergedEnv = {
       ...process.env,
       SMARTRETAIL_ENV: process.env.SMARTRETAIL_ENV || 'local',
-      PATH: process.env.PATH + ':/opt/homebrew/opt/python@3.13/bin:/usr/local/bin',
+      // TODO: remove this after all envs use python3
+      PYTHON_CMD: process.env.PYTHON_CMD ||
+        (process.platform === 'darwin'
+          ? '/opt/homebrew/opt/python@3.13/bin/python3'
+          : process.platform === 'win32'
+            ? 'python'
+            : 'python3'),
       ...env,
     };
 
-    broadcaster.emit({ flowId, stepId, service: 'demo-server', level: 'info',
-      message: `▶ ${cmd} ${args.join(' ')}` });
+    broadcaster.emit({
+      flowId, stepId, service: 'demo-server', level: 'info',
+      message: `▶ ${cmd} ${args.join(' ')}`
+    });
 
     const child = spawn(cmd, args, { cwd: REPO_ROOT, env: mergedEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     activeProcesses.set(flowId, child);
@@ -73,15 +81,19 @@ function run({ flowId, stepId, cmd, args, env = {} }) {
     child.on('close', exitCode => {
       activeProcesses.delete(flowId);
       const level = exitCode === 0 ? 'pass' : 'fail';
-      broadcaster.emit({ flowId, stepId, service: 'demo-server', level,
-        message: `Process exited with code ${exitCode}` });
+      broadcaster.emit({
+        flowId, stepId, service: 'demo-server', level,
+        message: `Process exited with code ${exitCode}`
+      });
       resolve({ exitCode: exitCode ?? 0 });
     });
 
     child.on('error', err => {
       activeProcesses.delete(flowId);
-      broadcaster.emit({ flowId, stepId, service: 'demo-server', level: 'fail',
-        message: `Spawn error: ${err.message}` });
+      broadcaster.emit({
+        flowId, stepId, service: 'demo-server', level: 'fail',
+        message: `Spawn error: ${err.message}`
+      });
       reject(err);
     });
   });

@@ -6,6 +6,26 @@ No code changes required to switch modes.
  
 ---
  
+## Windows Setup
+
+Git Bash + Docker Desktop (WSL 2 backend) gives full parity with macOS/Linux. Native CMD/PowerShell is not supported.
+
+**Required software:**
+- [Git for Windows](https://gitforwindows.org/) — provides Git Bash
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) — enable **WSL 2 backend** in Settings → General (the `/var/run/docker.sock` LocalStack mount requires it)
+- Python 3 from [python.org](https://www.python.org/downloads/windows/) — check "Add to PATH" during install
+- `make` — run `choco install make` or use the Git Bash bundled version
+
+**Python binary name:** On Windows, Python 3 is invoked as `python`, not `python3`. Add this to your `~/.bash_profile` (Git Bash):
+
+```bash
+export PYTHON_CMD=python
+```
+
+All scripts and the demo server read `PYTHON_CMD` and fall back to `python3` when unset, so macOS/Linux developers need no configuration.
+
+---
+
 ## Prerequisites
  
 ### Required for both modes
