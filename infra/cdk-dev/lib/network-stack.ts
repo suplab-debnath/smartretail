@@ -12,6 +12,7 @@ export class NetworkStack extends cdk.Stack {
   public readonly sgAlb: ec2.SecurityGroup;
   public readonly sgEcsTasks: ec2.SecurityGroup;
   public readonly sgLambda: ec2.SecurityGroup;
+  public readonly sgRdsProxy: ec2.SecurityGroup;
   public readonly sgRds: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
@@ -21,22 +22,47 @@ export class NetworkStack extends cdk.Stack {
 
     const { srEnv } = props;
 
-    // Public subnets for ECS/ALB + isolated for RDS only — no NAT, no VPC endpoints
+    // 2 AZs: Public (ALB/Lambda) + PrivateApp (ECS, EGRESS via single NAT) + Isolated (RDS/Proxy)
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `smartretail-dev-vpc-${srEnv}`,
       maxAzs: 2,
-      natGateways: 0,
+      natGateways: 1,
       subnetConfiguration: [
-        { name: 'Public',   subnetType: ec2.SubnetType.PUBLIC,           cidrMask: 24 },
-        { name: 'Isolated', subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
+        { name: 'Public',     subnetType: ec2.SubnetType.PUBLIC,                cidrMask: 24 },
+        { name: 'PrivateApp', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,   cidrMask: 24 },
+        { name: 'Isolated',   subnetType: ec2.SubnetType.PRIVATE_ISOLATED,      cidrMask: 24 },
       ],
       enableDnsHostnames: true,
       enableDnsSupport: true,
     });
 
-    // Gateway endpoints are free — keep them for S3/DynamoDB access without internet round-trip
+    // Gateway endpoints — free
     this.vpc.addGatewayEndpoint('S3Endpoint',       { service: ec2.GatewayVpcEndpointAwsService.S3 });
     this.vpc.addGatewayEndpoint('DynamoDBEndpoint', { service: ec2.GatewayVpcEndpointAwsService.DYNAMODB });
+
+    // Interface endpoints — same set as prod, allow private-subnet services to reach AWS APIs
+    const ifaceEndpointSg = new ec2.SecurityGroup(this, 'SgVpcEndpoints', {
+      vpc: this.vpc, description: 'VPC interface endpoints', allowAllOutbound: false,
+    });
+    ifaceEndpointSg.addIngressRule(ec2.Peer.ipv4(this.vpc.vpcCidrBlock), ec2.Port.tcp(443), 'HTTPS from VPC');
+
+    const ifaceSubnets = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
+
+    [
+      ec2.InterfaceVpcEndpointAwsService.ECR,
+      ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER,
+      ec2.InterfaceVpcEndpointAwsService.SQS,
+      ec2.InterfaceVpcEndpointAwsService.EVENTBRIDGE,
+      ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
+      ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+    ].forEach((svc, i) => {
+      this.vpc.addInterfaceEndpoint(`IfaceEndpoint${i}`, {
+        service: svc,
+        subnets: ifaceSubnets,
+        securityGroups: [ifaceEndpointSg],
+        privateDnsEnabled: true,
+      });
+    });
 
     // ALB — internet-facing HTTP
     this.sgAlb = new ec2.SecurityGroup(this, 'SgAlb', {
@@ -44,12 +70,12 @@ export class NetworkStack extends cdk.Stack {
     });
     this.sgAlb.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP from internet');
 
-    // ECS tasks — public subnets, reached via ALB
+    // ECS tasks — private app subnets, reached via ALB
     this.sgEcsTasks = new ec2.SecurityGroup(this, 'SgEcsTasks', {
-      vpc: this.vpc, description: 'ECS tasks in public subnets', allowAllOutbound: true,
+      vpc: this.vpc, description: 'ECS tasks in private app subnets', allowAllOutbound: true,
     });
-    this.sgEcsTasks.addIngressRule(this.sgAlb,      ec2.Port.tcpRange(8080, 8085), 'ALB to ECS services');
-    this.sgEcsTasks.addIngressRule(this.sgEcsTasks, ec2.Port.allTcp(),             'ECS service-to-service');
+    this.sgEcsTasks.addIngressRule(this.sgAlb,      ec2.Port.tcpRange(8080, 8086), 'ALB to ECS services');
+    this.sgEcsTasks.addIngressRule(this.sgEcsTasks, ec2.Port.allTcp(),              'ECS service-to-service');
 
     // Lambda — Kinesis consumer, calls SIS via CloudMap
     this.sgLambda = new ec2.SecurityGroup(this, 'SgLambda', {
@@ -57,12 +83,17 @@ export class NetworkStack extends cdk.Stack {
     });
     this.sgEcsTasks.addIngressRule(this.sgLambda, ec2.Port.tcp(8080), 'Lambda to SIS');
 
-    // RDS — isolated subnet, only reachable from ECS/Lambda
+    // RDS Proxy — isolated subnet, only reachable from ECS tasks
+    this.sgRdsProxy = new ec2.SecurityGroup(this, 'SgRdsProxy', {
+      vpc: this.vpc, description: 'RDS Proxy', allowAllOutbound: true,
+    });
+    this.sgRdsProxy.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(5432), 'ECS to RDS Proxy');
+
+    // RDS — isolated subnet, only reachable from RDS Proxy
     this.sgRds = new ec2.SecurityGroup(this, 'SgRds', {
       vpc: this.vpc, description: 'RDS PostgreSQL', allowAllOutbound: false,
     });
-    this.sgRds.addIngressRule(this.sgEcsTasks, ec2.Port.tcp(5432), 'ECS to RDS');
-    this.sgRds.addIngressRule(this.sgLambda,   ec2.Port.tcp(5432), 'Lambda to RDS');
+    this.sgRds.addIngressRule(this.sgRdsProxy, ec2.Port.tcp(5432), 'RDS Proxy to RDS');
 
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {
@@ -70,9 +101,10 @@ export class NetworkStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('vpc-id',          this.vpc.vpcId);
-    put('sg-alb-id',       this.sgAlb.securityGroupId);
-    put('sg-ecs-tasks-id', this.sgEcsTasks.securityGroupId);
-    put('sg-rds-id',       this.sgRds.securityGroupId);
+    put('vpc-id',             this.vpc.vpcId);
+    put('sg-alb-id',          this.sgAlb.securityGroupId);
+    put('sg-ecs-tasks-id',    this.sgEcsTasks.securityGroupId);
+    put('sg-rds-proxy-id',    this.sgRdsProxy.securityGroupId);
+    put('sg-rds-id',          this.sgRds.securityGroupId);
   }
 }

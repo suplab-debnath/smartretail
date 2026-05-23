@@ -1,0 +1,196 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Pricing & Promotions Service API
+  version: "1.0.0"
+  description: |
+    Read-only service that exposes active promotion schedules from the promotions schema.
+    Queries run within the promotions schema only — no cross-schema SQL joins.
+    Writes are handled exclusively via EventBridge events from the Campaign Management System.
+    JWT role-based access enforced at the service layer.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8086
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: promotion-schedules
+    description: Active promotion schedules for forecast uplift signals
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      $ref: './components/schemas.yaml#/ErrorResponse'
+
+    PromotionStatus:
+      type: string
+      description: Lifecycle status of a promotion schedule
+      enum:
+        - ACTIVE
+        - EXPIRED
+        - CANCELLED
+      example: ACTIVE
+
+    PromotionSchedule:
+      type: object
+      description: |
+        A promotional schedule that applies an uplift factor to demand forecasts.
+        Sourced from Campaign Management System events. Read by DFS and SC Planner MFE.
+      required:
+        - promotionId
+        - promotionName
+        - skuIds
+        - dcIds
+        - discountPct
+        - upliftFactor
+        - validFrom
+        - validTo
+        - status
+      additionalProperties: false
+      properties:
+        promotionId:
+          type: string
+          format: uuid
+          description: Promotion UUID
+          example: "aa000001-0000-0000-0000-000000000001"
+        promotionName:
+          type: string
+          description: Human-readable promotion name
+          example: "Summer Beverage Blitz"
+        skuIds:
+          type: array
+          description: SKUs this promotion applies to
+          items:
+            type: string
+          example: ["SKU-BEV-001", "SKU-BEV-002"]
+        dcIds:
+          type: array
+          description: Distribution centres in scope
+          items:
+            type: string
+          example: ["DC-LONDON", "DC-MANCHESTER"]
+        discountPct:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: Discount percentage applied to the customer price
+          example: 15.0
+        upliftFactor:
+          type: number
+          format: double
+          minimum: 1.0
+          description: Demand uplift multiplier for forecast adjustment (1.0 = no uplift)
+          example: 1.35
+        elasticityCoeff:
+          type: number
+          format: double
+          nullable: true
+          description: Price elasticity coefficient used by DFS (optional)
+          example: -1.2
+        validFrom:
+          type: string
+          format: date
+          description: Start date of the promotion (inclusive)
+          example: "2026-06-01"
+        validTo:
+          type: string
+          format: date
+          description: End date of the promotion (inclusive)
+          example: "2026-06-14"
+        status:
+          $ref: '#/components/schemas/PromotionStatus'
+        sourceEventId:
+          type: string
+          format: uuid
+          nullable: true
+          description: EventBridge event ID that created this schedule
+          example: "bb000001-0000-0000-0000-000000000001"
+
+    PromotionScheduleListResponse:
+      type: object
+      description: List of promotion schedules with data freshness timestamp
+      required:
+        - schedules
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        schedules:
+          type: array
+          description: Promotion schedules sorted by validFrom ascending
+          items:
+            $ref: '#/components/schemas/PromotionSchedule'
+        dataFreshness:
+          type: string
+          format: date-time
+          description: MAX(created_at) across returned promotion schedules
+          example: "2026-05-15T14:23:00Z"
+
+  responses:
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/Forbidden'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+
+paths:
+  /v1/promotions/schedules:
+    get:
+      tags:
+        - promotion-schedules
+      operationId: getPromotionSchedules
+      summary: List promotion schedules
+      description: |
+        Returns promotion schedules from promotions.promotion_schedules.
+        All queries run within the promotions schema — no cross-schema SQL joins.
+        Sorted by validFrom ascending.
+        Allowed roles: SC_PLANNER, ADMIN.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PromotionStatus'
+          description: Filter by promotion status. Omit to return all statuses.
+          example: ACTIVE
+      responses:
+        '200':
+          description: List of promotion schedules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromotionScheduleListResponse'
+              example:
+                schedules:
+                  - promotionId: "aa000001-0000-0000-0000-000000000001"
+                    promotionName: "Summer Beverage Blitz"
+                    skuIds: ["SKU-BEV-001", "SKU-BEV-002"]
+                    dcIds: ["DC-LONDON", "DC-MANCHESTER"]
+                    discountPct: 15.0
+                    upliftFactor: 1.35
+                    elasticityCoeff: -1.2
+                    validFrom: "2026-06-01"
+                    validTo: "2026-06-14"
+                    status: ACTIVE
+                    sourceEventId: "bb000001-0000-0000-0000-000000000001"
+                dataFreshness: "2026-05-15T14:23:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

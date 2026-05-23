@@ -20,7 +20,7 @@ import java.util.Set;
 @Tag(name = "supplier-orders", description = "Supplier order tracking with shipment progress")
 public class SupplierOrderController implements SupplierOrdersApi {
 
-    private static final Set<String> ALLOWED_ROLES = Set.of("SC_PLANNER", "ADMIN");
+    private static final Set<String> ALLOWED_ROLES = Set.of("SC_PLANNER", "ADMIN", "SUPPLIER_ADMIN");
 
     private final SupplierOrderQueryPort supplierOrderQueryPort;
     private final SupplierOrderResponseMapper supplierOrderResponseMapper;

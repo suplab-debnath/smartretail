@@ -26,12 +26,12 @@ export class DataStack extends cdk.Stack {
     const { srEnv, network } = props;
     const account = this.account;
 
-    // RDS — t4g.micro, single-AZ, direct connection (no proxy in dev)
+    // RDS — t4g.small, single-AZ (dev sizing)
     const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_4,
       }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL),
       allocatedStorage: 20,
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
@@ -46,7 +46,18 @@ export class DataStack extends cdk.Stack {
       storageEncrypted: true,
     });
 
-    this.dbEndpoint = rdsInstance.instanceEndpoint.hostname;
+    // RDS Proxy — same pattern as prod
+    const proxy = rdsInstance.addProxy('RdsProxy', {
+      proxyName: `smartretail-rds-proxy-${srEnv}`,
+      secrets: [rdsInstance.secret!],
+      vpc: network.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [network.sgRdsProxy],
+      requireTLS: false,
+      iamAuth: false,
+    });
+
+    this.dbEndpoint = proxy.endpoint;
 
     // DynamoDB — on-demand, TTL for idempotency
     this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
@@ -69,15 +80,12 @@ export class DataStack extends cdk.Stack {
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
-    // MFE S3 buckets — website hosting with public-read (no CloudFront in dev)
-    ['store-manager', 'sc-planner', 'executive'].forEach(mfe => {
+    // MFE S3 buckets — private, served via CloudFront (same pattern as prod)
+    ['store-manager', 'sc-planner', 'executive', 'supplier'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
         bucketName: `smartretail-mfe-${srEnv}-${mfe}-${account}`,
-        websiteIndexDocument: 'index.html',
-        websiteErrorDocument: 'index.html',
-        publicReadAccess: true,
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         autoDeleteObjects: true,
       });
@@ -89,7 +97,7 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/instance-endpoint',           rdsInstance.instanceEndpoint.hostname);
+    put('rds/proxy-endpoint',              proxy.endpoint);
     put('rds/secret-arn',                  rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
     put('s3/events-bucket-name',           eventsBucket.bucketName);

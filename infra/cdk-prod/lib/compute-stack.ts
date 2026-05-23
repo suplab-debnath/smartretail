@@ -34,18 +34,19 @@ export class ComputeStack extends cdk.Stack {
   public readonly arsService: ecs.FargateService;
   public readonly dfsService: ecs.FargateService;
   public readonly supService: ecs.FargateService;
+  public readonly ppsService: ecs.FargateService;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-compute-prod');
 
     const { srEnv, network, data, messaging } = props;
 
     this.cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
-      containerInsightsV2: ecs.ContainerInsights.DISABLED,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
       enableFargateCapacityProviders: true,
     });
 
@@ -196,18 +197,38 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
+    const ppsConfig: ServiceConfig = {
+      name: 'pps', port: 8086,
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA: 'promotions',
+        DB_USERNAME: 'smartretail_admin',
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${this.region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
     this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
     this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
     this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
     this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
+    this.ppsService = this.createFargateService(ppsConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — public subnet, ARM64
+    // Kinesis consumer Lambda — X86_64, private app subnet
     const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
       repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     const lambdaRole = new iam.Role(this, 'KinesisConsumerRole', {
@@ -229,12 +250,11 @@ export class ComputeStack extends cdk.Stack {
     const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.ARM_64,
+      architecture: lambda.Architecture.X86_64,
       vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      allowPublicSubnet: true,  // Lambda in public subnet has no internet access; calls SIS via VPC-internal CloudMap
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgLambda],
-      timeout: cdk.Duration.seconds(180),
+      timeout: cdk.Duration.seconds(300),
       memorySize: 512,
       role: lambdaRole,
       environment: {
@@ -265,9 +285,8 @@ export class ComputeStack extends cdk.Stack {
   ): ecs.FargateService {
     const ecrRepo = new ecr.Repository(this, `${config.name}Repo`, {
       repositoryName: `smartretail-${config.name}-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-      lifecycleRules: [{ maxImageCount: 5 }],
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      lifecycleRules: [{ maxImageCount: 10 }],
     });
 
     const taskRole = new iam.Role(this, `${config.name}TaskRole`, {
@@ -277,20 +296,20 @@ export class ComputeStack extends cdk.Stack {
 
     const taskDef = new ecs.FargateTaskDefinition(this, `${config.name}TaskDef`, {
       family: `smartretail-${config.name}-${srEnv}`,
-      cpu: 256,
-      memoryLimitMiB: 512,
+      cpu: 512,
+      memoryLimitMiB: 1024,
       taskRole,
       executionRole,
       runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64,
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
     });
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_WEEK,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     taskDef.addContainer(`${config.name}Container`, {
@@ -299,7 +318,7 @@ export class ComputeStack extends cdk.Stack {
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup }),
       healthCheck: {
         command: ['CMD-SHELL', `curl -f http://localhost:${config.port}/actuator/health || exit 1`],
-        interval: cdk.Duration.seconds(30),
+        interval: cdk.Duration.seconds(15),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
         startPeriod: cdk.Duration.seconds(60),
@@ -311,21 +330,21 @@ export class ComputeStack extends cdk.Stack {
       cluster: this.cluster,
       taskDefinition: taskDef,
       serviceName: `smartretail-${config.name}-${srEnv}`,
-      desiredCount: 1,
-      assignPublicIp: true,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      desiredCount: 2,
+      assignPublicIp: false,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgEcsTasks],
-      healthCheckGracePeriod: cdk.Duration.seconds(60),
+      healthCheckGracePeriod: cdk.Duration.seconds(90),
       circuitBreaker: { rollback: true },
       cloudMapOptions: { name: `smartretail-${config.name}-${srEnv}` },
       capacityProviderStrategies: [
-        { capacityProvider: 'FARGATE_SPOT', weight: 4 },
+        { capacityProvider: 'FARGATE_SPOT', weight: 2 },
         { capacityProvider: 'FARGATE',      weight: 1 },
       ],
     });
 
-    const scaling = service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 2 });
-    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 70 });
+    const scaling = service.autoScaleTaskCount({ minCapacity: 2, maxCapacity: 6 });
+    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 60 });
 
     return service;
   }

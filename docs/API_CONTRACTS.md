@@ -609,5 +609,46 @@ Returns supplier POs with shipment progress. EXCEPTION rows first, then sorted b
   "dataFreshness": "2026-05-15T14:23:00Z"
 }
 ```
+
+---
+
+## PPS — Pricing & Promotions Service
+
+Base URL (local): `http://localhost:8086`
+
+### GET /v1/promotions/schedules
+
+Returns promotion schedules from `promotions.promotion_schedules`.
+Sorted by `valid_from` ascending. Optionally filtered by `status`.
+
+**Allowed roles:** SC_PLANNER, ADMIN
+
+**Query params:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | `ACTIVE \| EXPIRED \| CANCELLED` | No | Filter by promotion status |
+
+**Response 200:**
+```json
+{
+  "schedules": [
+    {
+      "promotionId": "aa000001-0000-0000-0000-000000000001",
+      "promotionName": "Summer Beverage Blitz",
+      "skuIds": ["SKU-BEV-001", "SKU-BEV-002"],
+      "dcIds": ["DC-LONDON", "DC-MANCHESTER"],
+      "discountPct": 15.0,
+      "upliftFactor": 1.35,
+      "elasticityCoeff": -1.2,
+      "validFrom": "2026-06-01",
+      "validTo": "2026-06-14",
+      "status": "ACTIVE",
+      "sourceEventId": "bb000001-0000-0000-0000-000000000001"
+    }
+  ],
+  "dataFreshness": "2026-05-15T14:23:00Z"
+}
+```
  
  
