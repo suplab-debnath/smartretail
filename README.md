@@ -352,7 +352,7 @@ docker exec smartretail-postgres psql -U smartretail_admin -d smartretail \
 
 ### 3. Start services
 
-Open 4 terminals (or use `&` to background):
+Open terminals (or use `&` to background):
 
 ```bash
 make local-sis   # :8080 — Sales Ingestion Service
@@ -361,11 +361,12 @@ make local-re    # :8082 — Replenishment Engine
 make local-ars   # :8083 — Analytics & Reporting Service
 make local-dfs   # :8084 — Demand Forecasting Service
 make local-sup   # :8085 — Supplier Service
+make local-pps   # :8086 — Pricing & Promotions Service
 ```
 
 Health-check all services:
 ```bash
-for port in 8080 8081 8082 8083 8084 8085; do
+for port in 8080 8081 8082 8083 8084 8085 8086; do
   curl -s http://localhost:$port/actuator/health | python3 -m json.tool
 done
 # All should return: {"status":"UP"}
@@ -442,6 +443,7 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 | ARS — Analytics & Reporting   | 8083     |
 | DFS — Demand Forecasting      | 8084     |
 | SUP — Supplier Service        | 8085     |
+| PPS — Pricing & Promotions    | 8086     |
 | PostgreSQL                    | 5432     |
 | LocalStack (all AWS services) | 4566     |
 | Store Manager MFE             | 5173     |
@@ -449,6 +451,7 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 | Executive MFE                 | 5175     |
 | **Demo Control Center MFE**   | **5176** |
 | **Demo Control Server**       | **3099** |
+| **Supplier Portal MFE**       | **5077** |
 
 ---
 
@@ -572,12 +575,12 @@ com.smartretail.{service}/
 
 | Schema          | Owner      |
 | --------------- | ---------- |
-| `sales`         | SIS        |
-| `inventory`     | IMS        |
-| `replenishment` | RE         |
-| `forecasting`   | DFS        |
-| `supplier`      | SUP        |
-| `promotions`    | PPS (stub) |
+| `sales`         | SIS |
+| `inventory`     | IMS |
+| `replenishment` | RE  |
+| `forecasting`   | DFS |
+| `supplier`      | SUP |
+| `promotions`    | PPS |
 
 No cross-schema SQL joins anywhere. ARS reads multiple schemas via separate queries merged in Java.
 
@@ -595,15 +598,17 @@ smartretail/
 │   └── standards/              ← coding standards (java, openapi, maven, frontend, sql, testing)
 ├── docs/                       ← architecture, API contracts, flow specs, schemas
 ├── openapi/                    ← OpenAPI 3.1 YAML (source of truth for all REST APIs)
-├── infra/cdk-min/              ← demo/dev CDK stacks (SQS, default VPC) — run this
-├── infra/cdk-prod/             ← production CDK stacks (Kinesis, dedicated VPC)
+├── infra/cdk-min/              ← demo CDK stack (ARM64, SQS, default VPC) — lowest cost
+├── infra/cdk-dev/              ← dev CDK stack (X86_64, same services as prod, dev sizing)
+├── infra/cdk-prod/             ← production CDK stack (X86_64, Multi-AZ, RDS Proxy, CloudFront)
 ├── services/
 │   ├── sis/                    ← Sales Ingestion Service
 │   ├── ims/                    ← Inventory Management Service
 │   ├── re/                     ← Replenishment Engine
 │   ├── ars/                    ← Analytics & Reporting Service
 │   ├── dfs/                    ← Demand Forecasting Service
-│   └── sup/                    ← Supplier Service
+│   ├── sup/                    ← Supplier Service
+│   └── pps/                    ← Pricing & Promotions Service (stub)
 ├── lambdas/kinesis-consumer/   ← Kinesis → SIS adapter Lambda
 ├── migrations/flyway/          ← Flyway SQL migrations (V1–V7)
 ├── mfe/
@@ -611,7 +616,8 @@ smartretail/
 │   ├── store-manager/          ← Store Manager Dashboard MFE (:5173)
 │   ├── sc-planner/             ← SC Planner Console MFE (:5174)
 │   ├── executive/              ← Executive Insights Dashboard MFE (:5175)
-│   └── demo/                   ← Demo Control Center MFE (:5176)
+│   ├── demo/                   ← Demo Control Center MFE (:5176)
+│   └── supplier/               ← Supplier Portal MFE (:5077, SUPPLIER_ADMIN role)
 ├── demo-server/                ← Demo control server (:3099) — triggers scripts, streams SSE
 └── scripts/
     ├── localstack-init.sh      ← creates all LocalStack resources on startup
@@ -650,15 +656,15 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 The demo/dev stack is in `infra/cdk-min/` (SQS-only, reuses existing default VPC, `Min-*` stack names). Stacks must be deployed in dependency order.
 
-| Stack            | What it provisions                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------- |
-| `NetworkStack`   | VPC, subnets, NAT gateways, security groups                                                     |
-| `DataStack`      | RDS PostgreSQL (+ RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×4) |
-| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                      |
-| `IdentityStack`  | Cognito User Pool, app clients, user groups (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE)          |
-| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup), ECR repos, Kinesis consumer Lambda      |
-| `ApiStack`       | HTTP API Gateway, VPC Link, JWT authoriser, routes for all six services                         |
-| `HostingStack`   | CloudFront distributions (×4 MFEs) with S3 OAC, SSM outputs for distribution IDs and URLs       |
+| Stack            | What it provisions                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `NetworkStack`   | VPC, subnets, NAT gateways, security groups, VPC interface endpoints                             |
+| `DataStack`      | RDS PostgreSQL (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×5) |
+| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                        |
+| `IdentityStack`  | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier pool (SUPPLIER\_ADMIN) |
+| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup/pps), ECR repos, Kinesis consumer Lambda    |
+| `ApiStack`       | ALB with path-based routing to all 7 services                                                     |
+| `HostingStack`   | CloudFront distributions (×5 MFEs) with private S3 OAC, SSM outputs for distribution IDs and URLs |
 
 ### Prerequisites
 
@@ -748,7 +754,7 @@ Options:
   --env       dev|prod               Environment (default: $SMARTRETAIL_ENV or dev)
   --profile   aws-profile            AWS CLI profile (default: smartretail-dev)
   --region    region                 AWS region (default: us-east-1)
-  --services  sis,ims,re,ars,dfs,sup Comma-separated subset to deploy (default: all six)
+  --services  sis,ims,re,ars,dfs,sup,pps Comma-separated subset to deploy (default: all seven)
   --no-lambda                        Skip Lambda build and update
   --skip-build                       Reuse existing JARs in target/ — skip Maven
   --skip-push                        Build Docker images locally but skip ECR push + ECS update
@@ -776,14 +782,14 @@ Builds each React MFE, syncs `dist/` to the S3 bucket, and creates a CloudFront 
 Options:
   --env       dev|prod                              Environment (default: $SMARTRETAIL_ENV or dev)
   --profile   aws-profile                           AWS CLI profile (default: smartretail-dev)
-  --mfes      store-manager,sc-planner,executive,demo  Subset to deploy (default: all four)
+  --mfes      store-manager,sc-planner,executive,demo,supplier  Subset to deploy (default: all five)
   --skip-build                                      Reuse existing dist/ — skip npm build
 ```
 
 Examples:
 
 ```bash
-# Deploy all four MFEs
+# Deploy all five MFEs
 ./scripts/deploy-mfes.sh --env dev
 
 # Redeploy only the demo MFE after a presentation fix
@@ -831,15 +837,17 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | `local-up`          | Start Postgres + LocalStack via Docker Compose; wait for readiness            |
 | `local-migrate`     | Run Flyway migrations V1–V6 against local Postgres                            |
 | `local-seed`        | Apply seed data (V7)                                                          |
-| `local-sis`         | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local`                        |
-| `local-ims`         | Start IMS on :8081                                                            |
-| `local-re`          | Start RE on :8082                                                             |
-| `local-ars`         | Start ARS on :8083                                                            |
-| `local-dfs`         | Start DFS on :8084                                                            |
-| `local-sup`         | Start SUP on :8085                                                            |
-| `local-mfe-sm`      | Start Store Manager MFE on :5173                                              |
-| `local-mfe-scp`     | Start SC Planner MFE on :5174                                                 |
-| `local-mfe-exec`    | Start Executive MFE on :5175                                                  |
+| `local-sis`          | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local`                       |
+| `local-ims`          | Start IMS on :8081                                                           |
+| `local-re`           | Start RE on :8082                                                            |
+| `local-ars`          | Start ARS on :8083                                                           |
+| `local-dfs`          | Start DFS on :8084                                                           |
+| `local-sup`          | Start SUP on :8085                                                           |
+| `local-pps`          | Start PPS on :8086                                                           |
+| `local-mfe-sm`       | Start Store Manager MFE on :5173                                             |
+| `local-mfe-scp`      | Start SC Planner MFE on :5174                                                |
+| `local-mfe-exec`     | Start Executive MFE on :5175                                                 |
+| `local-mfe-supplier` | Start Supplier Portal MFE on :5077                                           |
 | `local-demo-server` | Start Demo Control Server on :3099                                            |
 | `local-mfe-demo`    | Start Demo Control Center MFE on :5176                                        |
 | `local-demo`        | Start both demo-server and demo MFE in parallel                               |
@@ -851,7 +859,7 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 | Target       | Description                                             |
 | ------------ | ------------------------------------------------------- |
-| `test-unit`  | Run unit tests for all 6 services via Maven             |
+| `test-unit`  | Run unit tests for all 7 services via Maven             |
 | `test-flow1` | Smoke test Flow 1 (POS → SIS → IMS → stock alert)       |
 | `test-flow2` | Smoke test Flow 2 (RE auto-approve + PENDING\_APPROVAL) |
 | `test-flow3` | Smoke test Flow 3 (SC Planner approve/reject)           |
@@ -864,13 +872,13 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 | Target                | Description                                                                 |
 | --------------------- | --------------------------------------------------------------------------- |
-| `build-services`      | `mvn clean package -DskipTests` for all 6 services                          |
-| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                 |
-| `build-mfes`          | `npm run build` for all 4 MFEs (store-manager, sc-planner, executive, demo) |
-| `build-all`           | All of the above                                                            |
-| `docker-build-sis`    | Build SIS Docker image locally                                              |
-| `docker-build-all`    | Build Docker images for all 6 services locally                              |
-| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                          |
+| `build-services`      | `mvn clean package -DskipTests` for all 7 services                                       |
+| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                              |
+| `build-mfes`          | `npm run build` for all 5 MFEs (store-manager, sc-planner, executive, demo, supplier)    |
+| `build-all`           | All of the above                                                                         |
+| `docker-build-sis`    | Build SIS Docker image locally                                                           |
+| `docker-build-all`    | Build Docker images for all 7 services locally                                           |
+| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                                       |
 
 ### AWS infrastructure
 
@@ -891,13 +899,13 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | Target                     | Description                                                    |
 | -------------------------- | -------------------------------------------------------------- |
 | `aws-ecr-login`            | Authenticate Docker to ECR                                     |
-| `aws-push-<svc>`           | Build + push a single service image (e.g. `aws-push-sis`)      |
-| `aws-push-all`             | Build + push all 6 service images                              |
-| `aws-push-lambda`          | Build + push Lambda container image                            |
-| `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-demo`)       |
-| `aws-deploy-mfes`          | Build + deploy all 4 MFEs                                      |
-| `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy |
-| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning     |
+| `aws-push-<svc>`           | Build + push a single service image (e.g. `aws-push-sis`, `aws-push-pps`) |
+| `aws-push-all`             | Build + push all 7 service images                                          |
+| `aws-push-lambda`          | Build + push Lambda container image                                        |
+| `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-supplier`)               |
+| `aws-deploy-mfes`          | Build + deploy all 5 MFEs                                                  |
+| `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy             |
+| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning                 |
 
 ### AWS operations
 
@@ -1026,6 +1034,7 @@ make local-re  &
 make local-ars &
 make local-dfs &
 make local-sup &
+make local-pps &
 
 # Step 5 — operational MFEs (needed for iframe reveals in chapters 3, 4, 5, 6)
 make local-mfe-sm   &

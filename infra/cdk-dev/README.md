@@ -1,43 +1,71 @@
-# SmartRetail CDK
+# cdk-dev — Development Infrastructure
 
-Minimal-cost SmartRetail infrastructure. Designed for development, and cost-conscious testing. All six services run end-to-end.
+Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS config patterns — same VPC topology, RDS Proxy, CloudFront, VPC endpoints, Kinesis, and supplier Cognito pool. Differs only in sizing, compute, and autoscaling targets.
 
-## Key trade-offs
+## Stack names
 
-- **HTTP only** — no HTTPS at the API or MFE layer. Acceptable for dev, not for prod.
-- **No auth at gateway** — JWT validation happens in Spring Boot only (no API Gateway authorizer).
-- **ECS tasks have public IPs** — security is enforced by security groups, not subnet isolation.
-- **S3 website SPA caveat** — 404s return the error document with a `404` status (CloudFront remaps to `200`). Apps still load correctly.
+`Dev-NetworkStack`, `Dev-DataStack`, `Dev-MessagingStack`, `Dev-IdentityStack`,
+`Dev-ComputeStack`, `Dev-ApiStack`, `Dev-HostingStack`
+
+## What this stack deploys
+
+| Layer | Resource |
+|-------|----------|
+| Network | New VPC (2 AZs, public + private-app + isolated subnets, 1 NAT Gateway, 6 interface VPC endpoints) |
+| Data | RDS PostgreSQL t4g.small single-AZ (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, 5 private MFE S3 buckets |
+| Messaging | Kinesis stream (POS ingestion) + EventBridge bus + IMS/RE/ARS SQS queues |
+| Identity | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier Cognito pool (SUPPLIER\_ADMIN) |
+| Compute | 7 ECS Fargate services (X86\_64, 0.25 vCPU / 512 MB, FARGATE\_SPOT 80/20) + Kinesis consumer Lambda (X86\_64) |
+| API | ALB with path-based routing to all 7 services |
+| Hosting | CloudFront distributions (×5 MFEs) with private S3 origin using OAC (SIGV4) |
 
 ## Architecture
 
 ```
 Internet
   │
-  ├── ALB (:80) ──── ECS Fargate tasks (public subnets, ARM64)
-  │      path-based routing                │
-  │      /v1/ingest/*        → SIS :8080   │
-  │      /v1/inventory/*     → IMS :8081   │
-  │      /v1/replenishment/* → RE  :8082   │
-  │      /v1/dashboard/*     → ARS :8083   │
-  │      /v1/forecast/*      → DFS :8084   │
-  │      /v1/supplier/*      → SUP :8085   │
-  │                                        ↓
-  │                              RDS t4g.micro (isolated subnet)
+  ├── ALB (:80) ──── ECS Fargate tasks (PRIVATE_WITH_EGRESS, X86_64)
+  │      path-based routing
+  │      /v1/ingest/*        → SIS :8080
+  │      /v1/inventory/*     → IMS :8081
+  │      /v1/replenishment/* → RE  :8082
+  │      /v1/dashboard/*     → ARS :8083
+  │      /v1/forecast/*      → DFS :8084
+  │      /v1/supplier/*      → SUP :8085
+  │      /v1/promotions/*    → PPS :8086
+  │                                    │
+  │                          RDS Proxy → RDS t4g.small (isolated subnet)
   │
-  └── S3 website buckets (HTTP)
-       store-manager / sc-planner / executive
+  └── CloudFront (HTTPS) ──── private S3 buckets (OAC)
+       store-manager / sc-planner / executive / supplier / demo
 ```
 
-VPC: 2 AZs · public subnets (ECS + ALB) · isolated subnets (RDS only) · no NAT · free Gateway endpoints for S3/DynamoDB
+VPC: 2 AZs · public subnets (ALB) · private-app subnets (ECS + Lambda) · isolated subnets (RDS Proxy + RDS) · 1 NAT Gateway · free Gateway endpoints (S3, DynamoDB) · interface endpoints (ECR API, ECR Docker, SQS, EventBridge, CloudWatch Logs, Secrets Manager)
+
+## Sizing vs prod
+
+| Property | cdk-dev | cdk-prod |
+|----------|---------|----------|
+| AZs | 2 | 3 |
+| NAT Gateways | 1 | 3 |
+| RDS instance | t4g.small | r6g.large |
+| Multi-AZ RDS | No | Yes |
+| Backup retention | 1 day | 7 days |
+| Performance Insights | No | Yes |
+| Task CPU / memory | 256 / 512 | 512 / 1024 |
+| Desired count | 1 | 2 |
+| Autoscale max | 3 | 6 |
+| Container insights | Disabled | Enabled |
+| Log retention | 1 week | 1 month |
+| Removal policy | DESTROY | RETAIN |
 
 ## Deploy
 
 ```bash
-cd infra/cdk
+cd infra/cdk-dev
 npm install
 
-export SMARTRETAIL_ENV=demo        # must differ from other stack sets in the same account
+export SMARTRETAIL_ENV=dev
 export AWS_PROFILE=smartretail-dev
 export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 export CDK_DEFAULT_REGION=us-east-1
@@ -46,58 +74,42 @@ npx cdk bootstrap
 npx cdk deploy --all --require-approval never
 ```
 
-Stacks deployed (in dependency order):
-1. `Demo-NetworkStack`
-2. `Demo-DataStack`
-3. `Demo-MessagingStack`
-4. `Demo-IdentityStack`
-5. `Demo-ComputeStack`
-6. `Demo-ApiStack`
-7. `Demo-HostingStack`
+Stacks deployed in dependency order:
+1. `Dev-NetworkStack`
+2. `Dev-DataStack`
+3. `Dev-MessagingStack`
+4. `Dev-IdentityStack`
+5. `Dev-ComputeStack`
+6. `Dev-ApiStack`
+7. `Dev-HostingStack`
 
 ## After deploy
 
 ```bash
-# API endpoint
-aws cloudformation describe-stacks --stack-name Demo-ApiStack \
+# API endpoint (ALB)
+aws cloudformation describe-stacks --stack-name Dev-ApiStack \
   --query 'Stacks[0].Outputs[?OutputKey==`AlbEndpoint`].OutputValue' --output text
 
-# MFE URLs
-aws cloudformation describe-stacks --stack-name Demo-HostingStack \
+# MFE CloudFront URLs
+aws cloudformation describe-stacks --stack-name Dev-HostingStack \
   --query 'Stacks[0].Outputs' --output table
 
-# Health check
-curl http://<alb-dns>/v1/inventory/health
+# Or via SSM
+aws ssm get-parameters-by-path --path /smartretail/dev/hosting/ --output table
 ```
 
 ## Push a service image
 
 ```bash
-SERVICE=sis   # or ims, re, ars, dfs, sup
+SERVICE=pps   # sis | ims | re | ars | dfs | sup | pps
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-$SERVICE-demo
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-$SERVICE-dev
 
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
-docker build --platform linux/arm64 -t $REPO:latest services/$SERVICE
+docker build --platform linux/amd64 -t $REPO:latest services/$SERVICE
 docker push $REPO:latest
+aws ecs update-service --cluster smartretail-dev --service smartretail-$SERVICE-dev --force-new-deployment
 ```
-
-## Cost breakdown (~$135/month at 0 traffic)
-
-| Component                                                                   | ~Cost/month |
-| --------------------------------------------------------------------------- | ----------- |
-| ECS Fargate ARM64 × 6 (1 task, 0.25 vCPU / 512 MB) — 80% Spot / 20% regular | ~$22        |
-| ALB                                                                         | $16         |
-| Kinesis on-demand                                                           | $50         |
-| SQS + EventBridge                                                           | $15         |
-| RDS t4g.micro single-AZ                                                     | $13         |
-| CloudWatch Logs                                                             | $15         |
-| Cognito (1 pool)                                                            | $3          |
-| S3 (4 buckets)                                                              | $3          |
-| **Total**                                                                   | **~$137**   |
-
-> Fargate Spot (80/20 split) reduces ECS compute cost by ~50%. Spot tasks can be interrupted with a 2-minute warning — acceptable for demo use.
-> Use `cdk destroy --all` when not in use to stop all costs.
 
 ## Teardown
 
@@ -105,4 +117,16 @@ docker push $REPO:latest
 npx cdk destroy --all
 ```
 
-RDS and S3 have `RemovalPolicy.DESTROY` so they are deleted on teardown.
+RDS, S3, ECR, and CloudFront have `RemovalPolicy.DESTROY` so they are deleted on teardown.
+
+## Key differences from cdk-min (demo stack)
+
+| Property | cdk-min (demo) | cdk-dev |
+|----------|---------------|---------|
+| CPU architecture | ARM64 | X86\_64 |
+| VPC | Default VPC reused | Dedicated VPC with private subnets |
+| RDS | No Proxy, public subnet | RDS Proxy, isolated subnet |
+| MFE hosting | S3 static website (HTTP) | CloudFront + OAC (HTTPS) |
+| Auth | Internal pool only | Internal + Supplier pool |
+| Services | 6 (no PPS) | 7 (includes PPS) |
+| MFE buckets | 4 | 5 (includes supplier) |

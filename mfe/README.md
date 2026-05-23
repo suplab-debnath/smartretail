@@ -1,6 +1,6 @@
 # MFE — Micro-Frontends
 
-Four React applications that form the SmartRetail user-facing layer. Each runs as an independent Vite dev server in local mode.
+Five React applications that form the SmartRetail user-facing layer. Each runs as an independent Vite dev server in local mode.
 
 ## Applications at a glance
 
@@ -10,6 +10,7 @@ Four React applications that form the SmartRetail user-facing layer. Each runs a
 | `sc-planner/` | SC Planner Console | 5174 | PO approval, exception queue, forecast view, manual replenishment (Flow 9) |
 | `executive/` | Executive Dashboard | 5175 | MAPE trend, OTD, supplier ranking, carrying cost (Flow 8) |
 | `demo/` | Demo Runner | 5176 | Interactive flow walkthrough for architect demos |
+| `supplier/` | Supplier Portal | 5077 | External supplier view — PO status, shipment tracking (SUPPLIER\_ADMIN role) |
 
 ## Technology
 
@@ -33,6 +34,11 @@ mfe/shared/auth/
 
 In `LOCAL` mode the auth library bypasses Cognito and returns a mock user automatically.
 
+**Important:** build the shared auth package before running any MFE for the first time:
+```bash
+cd mfe/shared/auth && npm install && npm run build
+```
+
 ## Running locally
 
 ```bash
@@ -42,15 +48,17 @@ cd mfe/store-manager && npm install && npm run dev   # → http://localhost:5173
 cd mfe/sc-planner    && npm install && npm run dev   # → http://localhost:5174
 cd mfe/executive     && npm install && npm run dev   # → http://localhost:5175
 cd mfe/demo          && npm install && npm run dev   # → http://localhost:5176
+cd mfe/supplier      && npm install && npm run dev   # → http://localhost:5077
 ```
 
 Or via Make from the repo root:
 
 ```bash
-make local-mfe-store    # starts store-manager
-make local-mfe-planner  # starts sc-planner
-make local-mfe-exec     # starts executive
-make local-mfe-demo     # starts demo runner
+make local-mfe-store      # starts store-manager
+make local-mfe-planner    # starts sc-planner
+make local-mfe-exec       # starts executive
+make local-mfe-demo       # starts demo runner
+make local-mfe-supplier   # starts supplier portal
 ```
 
 ## Testing
