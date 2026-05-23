@@ -10,54 +10,44 @@ export interface MessagingStackProps extends cdk.StackProps {
 }
 
 /**
- * Dev messaging stack — SQS-only ingestion.
- * Kinesis is intentionally absent: POS events are published directly to an SQS queue
- * and consumed by the SIS service via @SqsListener. All inter-service routing
- * (EventBridge → SQS) is identical to the prod stack.
+ * Demo messaging stack — SQS inter-service routing only, no POS ingestion queue.
+ * SIS is not deployed in the demo; all data is pre-seeded. The three inter-service
+ * queues (IMS, RE, ARS) are retained so RE can raise live alerts during demos.
  */
 export class MessagingStack extends cdk.Stack {
-  public readonly posEventsQueue: sqs.Queue;
   public readonly eventBus: events.EventBus;
   public readonly imsSalesQueue: sqs.Queue;
+  public readonly imsSalesDlq: sqs.Queue;
   public readonly reAlertQueue: sqs.Queue;
+  public readonly reAlertDlq: sqs.Queue;
   public readonly arsUpdatesQueue: sqs.Queue;
+  public readonly arsUpdatesDlq: sqs.Queue;
+  public readonly alertToReRule: events.Rule;
+  public readonly allToArsRule: events.Rule;
 
   constructor(scope: Construct, id: string, props: MessagingStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-messaging-dev');
+    cdk.Tags.of(this).add('Name', 'smartretail-messaging-demo');
 
     const { srEnv } = props;
 
-    // POS event ingestion queue — replaces Kinesis in dev
-    const posEventsDlq = new sqs.Queue(this, 'PosEventsDlq', {
-      queueName: `smartretail-pos-events-${srEnv}-dlq`,
-      encryption: sqs.QueueEncryption.SQS_MANAGED,
-      retentionPeriod: cdk.Duration.days(14),
-    });
-    this.posEventsQueue = new sqs.Queue(this, 'PosEventsQueue', {
-      queueName: `smartretail-pos-events-${srEnv}`,
-      deadLetterQueue: { queue: posEventsDlq, maxReceiveCount: 3 },
-      visibilityTimeout: cdk.Duration.seconds(120),
-    });
-
-    // EventBridge bus — inter-service routing (same as prod)
     this.eventBus = new events.EventBus(this, 'SmartRetailBus', {
       eventBusName: `smartretail-events-${srEnv}`,
     });
 
-    const imsSalesDlq = new sqs.Queue(this, 'ImsSalesDlq', {
+    this.imsSalesDlq = new sqs.Queue(this, 'ImsSalesDlq', {
       queueName: `smartretail-ims-sales-${srEnv}-dlq`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: cdk.Duration.days(14),
     });
     this.imsSalesQueue = new sqs.Queue(this, 'ImsSalesQueue', {
       queueName: `smartretail-ims-sales-${srEnv}`,
-      deadLetterQueue: { queue: imsSalesDlq, maxReceiveCount: 3 },
+      deadLetterQueue: { queue: this.imsSalesDlq, maxReceiveCount: 3 },
       visibilityTimeout: cdk.Duration.seconds(120),
     });
 
-    const reAlertDlq = new sqs.Queue(this, 'ReAlertDlq', {
+    this.reAlertDlq = new sqs.Queue(this, 'ReAlertDlq', {
       queueName: `smartretail-re-alert-${srEnv}-dlq.fifo`,
       fifo: true,
     });
@@ -66,28 +56,22 @@ export class MessagingStack extends cdk.Stack {
       fifo: true,
       contentBasedDeduplication: true,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
-      deadLetterQueue: { queue: reAlertDlq, maxReceiveCount: 3 },
+      deadLetterQueue: { queue: this.reAlertDlq, maxReceiveCount: 3 },
       visibilityTimeout: cdk.Duration.seconds(120),
     });
 
-    const arsUpdatesDlq = new sqs.Queue(this, 'ArsUpdatesDlq', {
+    this.arsUpdatesDlq = new sqs.Queue(this, 'ArsUpdatesDlq', {
       queueName: `smartretail-ars-updates-${srEnv}-dlq`,
       retentionPeriod: cdk.Duration.days(14),
     });
     this.arsUpdatesQueue = new sqs.Queue(this, 'ArsUpdatesQueue', {
       queueName: `smartretail-ars-updates-${srEnv}`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
-      deadLetterQueue: { queue: arsUpdatesDlq, maxReceiveCount: 3 },
+      deadLetterQueue: { queue: this.arsUpdatesDlq, maxReceiveCount: 3 },
     });
 
-    new events.Rule(this, 'SalesTransactionToIms', {
-      eventBus: this.eventBus,
-      ruleName: `smartretail-sales-to-ims-${srEnv}`,
-      eventPattern: { source: ['smartretail.sis'], detailType: ['SalesTransactionEvent'] },
-      targets: [new eventsTargets.SqsQueue(this.imsSalesQueue)],
-    });
-
-    new events.Rule(this, 'InventoryAlertToRe', {
+    // IMS raises InventoryAlertEvent → RE picks up for PO creation
+    this.alertToReRule = new events.Rule(this, 'InventoryAlertToRe', {
       eventBus: this.eventBus,
       ruleName: `smartretail-alert-to-re-${srEnv}`,
       eventPattern: { source: ['smartretail.ims'], detailType: ['InventoryAlertEvent'] },
@@ -96,10 +80,11 @@ export class MessagingStack extends cdk.Stack {
       })],
     });
 
-    new events.Rule(this, 'AllEventsToArs', {
+    // All domain events → ARS for dashboard aggregation
+    this.allToArsRule = new events.Rule(this, 'AllEventsToArs', {
       eventBus: this.eventBus,
       ruleName: `smartretail-all-to-ars-${srEnv}`,
-      eventPattern: { source: ['smartretail.sis', 'smartretail.ims', 'smartretail.re'] },
+      eventPattern: { source: ['smartretail.ims', 'smartretail.re'] },
       targets: [new eventsTargets.SqsQueue(this.arsUpdatesQueue)],
     });
 
@@ -109,11 +94,10 @@ export class MessagingStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('sqs/pos-events-queue-url',  this.posEventsQueue.queueUrl);
-    put('eventbridge/bus-name',      this.eventBus.eventBusName);
-    put('eventbridge/bus-arn',       this.eventBus.eventBusArn);
-    put('sqs/ims-sales-queue-url',   this.imsSalesQueue.queueUrl);
-    put('sqs/re-alert-queue-url',    this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url', this.arsUpdatesQueue.queueUrl);
+    put('eventbridge/bus-name',       this.eventBus.eventBusName);
+    put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
+    put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
+    put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
+    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
   }
 }

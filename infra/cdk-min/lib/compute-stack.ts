@@ -25,13 +25,12 @@ interface ServiceConfig {
 }
 
 /**
- * Dev compute stack — no Kinesis Lambda.
- * SIS consumes POS events directly from SQS via @SqsListener (dev-aws Spring profile).
- * All other services are identical to the demo/prod compute stack.
+ * Demo compute stack — SC Planner backend only (IMS, RE, ARS, DFS, SUP).
+ * SIS is intentionally absent; all sales data is pre-seeded.
+ * Container Insights enabled for CloudWatch observability.
  */
 export class ComputeStack extends cdk.Stack {
   public readonly cluster: ecs.Cluster;
-  public readonly sisService: ecs.FargateService;
   public readonly imsService: ecs.FargateService;
   public readonly reService: ecs.FargateService;
   public readonly arsService: ecs.FargateService;
@@ -41,14 +40,14 @@ export class ComputeStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-compute-dev');
+    cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
 
     const { srEnv, network, data, messaging } = props;
 
     this.cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: `smartretail-${srEnv}`,
       vpc: network.vpc,
-      containerInsightsV2: ecs.ContainerInsights.DISABLED,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
       enableFargateCapacityProviders: true,
     });
 
@@ -65,41 +64,6 @@ export class ComputeStack extends cdk.Stack {
       SMARTRETAIL_ENV: srEnv,
       AWS_REGION: cdk.Stack.of(this).region,
       RDS_PROXY_ENDPOINT: data.dbEndpoint,
-    };
-
-    const sisConfig: ServiceConfig = {
-      name: 'sis', port: 8080,
-      envVars: {
-        ...commonEnv,
-        DB_SCHEMA: 'sales',
-        DB_USERNAME: 'smartretail_admin',
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        EVENTS_BUCKET_NAME: data.eventsBucketName,
-        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
-        POS_EVENTS_QUEUE_URL: messaging.posEventsQueue.queueUrl,
-      },
-      policies: [
-        new iam.PolicyStatement({
-          actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-          resources: [messaging.posEventsQueue.queueArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-          resources: [data.idempotencyTable.tableArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['s3:PutObject'],
-          resources: [`arn:aws:s3:::${data.eventsBucketName}/*`],
-        }),
-        new iam.PolicyStatement({
-          actions: ['events:PutEvents'],
-          resources: [messaging.eventBus.eventBusArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['rds-db:connect'],
-          resources: [`arn:aws:rds-db:${this.region}:${this.account}:dbuser:*/smartretail_admin`],
-        }),
-      ],
     };
 
     const imsConfig: ServiceConfig = {
@@ -203,7 +167,6 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
-    this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
     this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
     this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
@@ -248,7 +211,7 @@ export class ComputeStack extends cdk.Stack {
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_WEEK,
+      retention: logs.RetentionDays.TWO_WEEKS,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 

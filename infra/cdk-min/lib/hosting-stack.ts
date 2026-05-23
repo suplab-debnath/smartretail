@@ -8,45 +8,35 @@ export interface HostingStackProps extends cdk.StackProps {
   mfeBuckets: Record<string, s3.Bucket>;
 }
 
-const MFE_NAMES = ['store-manager', 'sc-planner', 'executive'] as const;
-type MfeName = typeof MFE_NAMES[number];
-
-function toPascal(kebab: string): string {
-  return kebab.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
-}
-
 export class HostingStack extends cdk.Stack {
-  public readonly websiteUrls: Record<string, string> = {};
+  public readonly scPlannerUrl: string;
 
   constructor(scope: Construct, id: string, props: HostingStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-hosting-dev');
+    cdk.Tags.of(this).add('Name', 'smartretail-hosting-demo');
 
     const { srEnv, mfeBuckets } = props;
 
-    for (const mfe of MFE_NAMES) {
-      const bucket = mfeBuckets[mfe];
-      if (!bucket) throw new Error(`MFE bucket for '${mfe}' not found`);
+    const bucket = mfeBuckets['sc-planner'];
+    if (!bucket) throw new Error("MFE bucket for 'sc-planner' not found");
 
-      const url = bucket.bucketWebsiteUrl;
-      this.websiteUrls[mfe] = url;
+    this.scPlannerUrl = bucket.bucketWebsiteUrl;
 
-      new ssm.StringParameter(this, `${toPascal(mfe)}UrlParam`, {
-        parameterName: `/smartretail/${srEnv}/hosting/${mfe}-url`,
-        stringValue: url,
-      });
+    new ssm.StringParameter(this, 'ScPlannerUrlParam', {
+      parameterName: `/smartretail/${srEnv}/hosting/sc-planner-url`,
+      stringValue: this.scPlannerUrl,
+    });
 
-      new ssm.StringParameter(this, `${toPascal(mfe)}BucketNameParam`, {
-        parameterName: `/smartretail/${srEnv}/hosting/${mfe}-bucket-name`,
-        stringValue: bucket.bucketName,
-      });
+    new ssm.StringParameter(this, 'ScPlannerBucketNameParam', {
+      parameterName: `/smartretail/${srEnv}/hosting/sc-planner-bucket-name`,
+      stringValue: bucket.bucketName,
+    });
 
-      new cdk.CfnOutput(this, `${toPascal(mfe)}Url`, {
-        value: url,
-        description: `${mfe} MFE S3 website URL (HTTP only)`,
-        exportName: `smartretail-${srEnv}-${mfe}-url`,
-      });
-    }
+    new cdk.CfnOutput(this, 'ScPlannerUrl', {
+      value: this.scPlannerUrl,
+      description: 'SC Planner MFE S3 website URL (HTTP only)',
+      exportName: `smartretail-${srEnv}-sc-planner-url`,
+    });
   }
 }
