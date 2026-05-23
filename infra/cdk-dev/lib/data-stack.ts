@@ -30,8 +30,9 @@ export class DataStack extends cdk.Stack {
 
     // RDS — t4g.small, single-AZ (dev sizing), private isolated subnets
     this.rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+      instanceIdentifier: `smartretail-rds-${srEnv}`,
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_4,
+        version: rds.PostgresEngineVersion.VER_16_13,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL),
       allocatedStorage: 20,

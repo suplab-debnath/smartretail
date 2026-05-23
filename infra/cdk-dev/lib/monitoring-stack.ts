@@ -80,8 +80,8 @@ export class MonitoringStack extends cdk.Stack {
     });
 
     // ── Metric helpers ────────────────────────────────────────────────────────
-    const p2  = cdk.Duration.minutes(2);
-    const p5  = cdk.Duration.minutes(5);
+    const p2 = cdk.Duration.minutes(2);
+    const p5 = cdk.Duration.minutes(5);
     const p10 = cdk.Duration.minutes(10);
 
     const albM = (name: string, stat: string, period: cdk.Duration) =>
@@ -222,7 +222,7 @@ export class MonitoringStack extends cdk.Stack {
     dashboard.addWidgets(
       new cloudwatch.TextWidget({
         markdown: [
-          `# SmartRetail ${srEnv.toUpperCase()} — Full Stack Ops Dashboard`,
+          `# SmartRetail ${srEnv.toUpperCase()} — Ops Dashboard`,
           `**Services:** SIS · IMS · RE · ARS · DFS · SUP · PPS  |  **Env:** ${srEnv}  |  **Stack:** cdk-dev`,
         ].join('\n'),
         width: 24, height: 2,
@@ -261,9 +261,9 @@ export class MonitoringStack extends cdk.Stack {
         title: 'Business Pipeline Events / 5 min',
         width: 12, height: 6,
         left: [
-          appM('POSEventsIngested',      'POS Events Ingested'),
-          appM('InventoryAlertsRaised',  'Inventory Alerts Raised'),
-          appM('PurchaseOrdersCreated',  'POs Created'),
+          appM('POSEventsIngested', 'POS Events Ingested'),
+          appM('InventoryAlertsRaised', 'Inventory Alerts Raised'),
+          appM('PurchaseOrdersCreated', 'POs Created'),
         ],
       }),
       new cloudwatch.GraphWidget({

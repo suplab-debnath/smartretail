@@ -28,8 +28,9 @@ export class DataStack extends cdk.Stack {
 
     // RDS — r6g.large, Multi-AZ, 7-day backup, performance insights
     const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+      instanceIdentifier: `smartretail-rds-${srEnv}`,
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_4,
+        version: rds.PostgresEngineVersion.VER_16_13,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.R6G, ec2.InstanceSize.LARGE),
       allocatedStorage: 100,
@@ -95,9 +96,9 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/proxy-endpoint',              proxy.endpoint);
-    put('rds/secret-arn',                  rdsInstance.secret!.secretArn);
+    put('rds/proxy-endpoint', proxy.endpoint);
+    put('rds/secret-arn', rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
-    put('s3/events-bucket-name',           eventsBucket.bucketName);
+    put('s3/events-bucket-name', eventsBucket.bucketName);
   }
 }

@@ -12,10 +12,14 @@ export interface DataStackProps extends cdk.StackProps {
   network: NetworkStack;
 }
 
+// Services whose ECR repos must exist before ComputeStack deploys ECS services.
+const DEMO_SERVICES = ['ims', 're', 'ars', 'dfs', 'sup'] as const;
+
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
   public readonly rdsInstance: rds.DatabaseInstance;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
+  public readonly ecrRepos: Record<string, ecr.Repository> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -27,8 +31,9 @@ export class DataStack extends cdk.Stack {
 
     // RDS — public subnet (default VPC has no isolated subnets); access restricted to ECS SG only
     this.rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+      instanceIdentifier: `smartretail-rds-${srEnv}`,
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_4,
+        version: rds.PostgresEngineVersion.VER_16_13,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       allocatedStorage: 20,
@@ -49,6 +54,17 @@ export class DataStack extends cdk.Stack {
 
     this.dbEndpoint = this.rdsInstance.instanceEndpoint.hostname;
 
+    // ECR repos — created here (DataStack) so images can be pushed before
+    // ComputeStack runs, preventing the Fargate circuit-breaker on first deploy.
+    for (const svc of DEMO_SERVICES) {
+      this.ecrRepos[svc] = new ecr.Repository(this, `${svc}Repo`, {
+        repositoryName: `smartretail-${svc}-${srEnv}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+        lifecycleRules: [{ maxImageCount: 5 }],
+      });
+    }
+
     // SC Planner MFE bucket only — demo stack serves one portal
     this.mfeBuckets['sc-planner'] = new s3.Bucket(this, 'MfeBucketScPlanner', {
       bucketName: `smartretail-mfe-${srEnv}-sc-planner-${account}`,
@@ -67,6 +83,6 @@ export class DataStack extends cdk.Stack {
       });
 
     put('rds/instance-endpoint', this.rdsInstance.instanceEndpoint.hostname);
-    put('rds/secret-arn',        this.rdsInstance.secret!.secretArn);
+    put('rds/secret-arn', this.rdsInstance.secret!.secretArn);
   }
 }

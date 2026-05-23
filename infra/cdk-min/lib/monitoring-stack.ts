@@ -74,8 +74,8 @@ export class MonitoringStack extends cdk.Stack {
     });
 
     // ── Metric helpers ────────────────────────────────────────────────────────
-    const p2  = cdk.Duration.minutes(2);
-    const p5  = cdk.Duration.minutes(5);
+    const p2 = cdk.Duration.minutes(2);
+    const p5 = cdk.Duration.minutes(5);
     const p10 = cdk.Duration.minutes(10);
 
     const albM = (name: string, stat: string, period: cdk.Duration) =>
@@ -184,7 +184,7 @@ export class MonitoringStack extends cdk.Stack {
     dashboard.addWidgets(
       new cloudwatch.TextWidget({
         markdown: [
-          `# SmartRetail ${srEnv.toUpperCase()} — SC Planner Ops Dashboard`,
+          `# SmartRetail ${srEnv.toUpperCase()} - Ops Dashboard`,
           `**Services:** IMS · RE · ARS · DFS · SUP  |  **Env:** ${srEnv}  |  **Stack:** cdk-min`,
         ].join('\n'),
         width: 24, height: 2,

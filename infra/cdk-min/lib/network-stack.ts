@@ -27,7 +27,7 @@ export class NetworkStack extends cdk.Stack {
     this.vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
 
     this.sgAlb = new ec2.SecurityGroup(this, 'SgAlb', {
-      vpc: this.vpc, description: 'ALB — internet-facing HTTP', allowAllOutbound: true,
+      vpc: this.vpc, description: 'ALB - internet-facing HTTP', allowAllOutbound: true,
     });
     this.sgAlb.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP from internet');
 
