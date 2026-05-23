@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${RDS_PROXY_ENDPOINT}:5432/smartretail
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${COGNITO_ISSUER_URI}

@@ -23,6 +23,7 @@
         <module>ars</module>
         <module>dfs</module>
         <module>sup</module>
+        <module>pps</module>
         <module>coverage</module>
     </modules>
 </project>

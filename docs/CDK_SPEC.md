@@ -9,6 +9,41 @@ The specifications below describe `infra/cdk-min/` (the demo stack).
 Deploy in order: Network → Data → Messaging → Identity → Compute → API.
  
 ---
+
+## Stack Variants
+
+| Stack | Path | Purpose | CPU arch | Stack prefix |
+|-------|------|---------|----------|-------------|
+| **cdk-min** | `infra/cdk-min/` | Demo only — SQS, default VPC, ARM64, cheap | ARM64 | `Min-*` |
+| **cdk-dev** | `infra/cdk-dev/` | Full dev — Kinesis, 2-AZ VPC, RDS Proxy, CloudFront, X86_64 | X86_64 | `Dev-*` |
+| **cdk-prod** | `infra/cdk-prod/` | Production — Kinesis, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64 | `Prod-*` |
+
+**cdk-min** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
+**cdk-dev** and **cdk-prod** are deployed manually from their respective directories.
+
+### Dev vs Prod Sizing Comparison
+
+`cdk-dev` and `cdk-prod` use the same services and AWS config patterns. Only sizing differs:
+
+| Dimension | cdk-dev | cdk-prod |
+|-----------|---------|---------|
+| VPC AZs | 2 | 3 |
+| NAT Gateways | 1 | 3 |
+| RDS instance | t4g.small | r6g.large |
+| RDS Multi-AZ | No | Yes |
+| RDS backup retention | 1 day | 7 days |
+| ECS task CPU/mem | 256 / 512 MB | 512 / 1024 MB |
+| ECS desired count | 1 | 2 |
+| ECS autoscale max | 3 | 6 |
+| Container insights | Disabled | Enabled |
+| Log retention | 1 week | 1 month |
+
+Both stacks deploy 7 ECS services (SIS, IMS, RE, ARS, DFS, SUP, PPS), 4 MFE CloudFront
+distributions (store-manager, sc-planner, executive, supplier), 2 Cognito pools
+(internal + supplier), Kinesis + Lambda consumer, and RDS Proxy.
+
+---
+
  
 ## Stack 1: NetworkStack
  

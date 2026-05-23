@@ -17,11 +17,10 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
+    cdk.Tags.of(this).add('Name', 'smartretail-api-prod');
 
     const { srEnv, network, compute } = props;
 
-    // ALB replaces HTTP API v2 + VPC Link — saves ~$230/month
     const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
       loadBalancerName: `smartretail-alb-${srEnv}`,
       vpc: network.vpc,
@@ -45,6 +44,7 @@ export class ApiStack extends cdk.Stack {
       { name: 'ars', path: '/v1/dashboard/*',      port: 8083, service: compute.arsService },
       { name: 'dfs', path: '/v1/forecast/*',       port: 8084, service: compute.dfsService },
       { name: 'sup', path: '/v1/supplier/*',       port: 8085, service: compute.supService },
+      { name: 'pps', path: '/v1/promotions/*',     port: 8086, service: compute.ppsService },
     ];
 
     routes.forEach(({ name, path, port, service }, i) => {

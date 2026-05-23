@@ -34,6 +34,7 @@ export class ComputeStack extends cdk.Stack {
   public readonly arsService: ecs.FargateService;
   public readonly dfsService: ecs.FargateService;
   public readonly supService: ecs.FargateService;
+  public readonly ppsService: ecs.FargateService;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -196,14 +197,35 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
+    const ppsConfig: ServiceConfig = {
+      name: 'pps', port: 8086,
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA: 'promotions',
+        DB_USERNAME: 'smartretail_admin',
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      policies: [
+        new iam.PolicyStatement({
+          actions: ['events:PutEvents'],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['rds-db:connect'],
+          resources: [`arn:aws:rds-db:${this.region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
+    };
+
     this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
     this.reService  = this.createFargateService(reConfig,  network, ecsExecutionRole, srEnv);
     this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
     this.dfsService = this.createFargateService(dfsConfig, network, ecsExecutionRole, srEnv);
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
+    this.ppsService = this.createFargateService(ppsConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — public subnet, ARM64
+    // Kinesis consumer Lambda — X86_64, private app subnet
     const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
       repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -229,10 +251,9 @@ export class ComputeStack extends cdk.Stack {
     const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
       functionName: `smartretail-kinesis-consumer-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.ARM_64,
+      architecture: lambda.Architecture.X86_64,
       vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      allowPublicSubnet: true,  // Lambda in public subnet has no internet access; calls SIS via VPC-internal CloudMap
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgLambda],
       timeout: cdk.Duration.seconds(180),
       memorySize: 512,
@@ -282,7 +303,7 @@ export class ComputeStack extends cdk.Stack {
       taskRole,
       executionRole,
       runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64,
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
     });
@@ -312,8 +333,8 @@ export class ComputeStack extends cdk.Stack {
       taskDefinition: taskDef,
       serviceName: `smartretail-${config.name}-${srEnv}`,
       desiredCount: 1,
-      assignPublicIp: true,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      assignPublicIp: false,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgEcsTasks],
       healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
@@ -324,7 +345,7 @@ export class ComputeStack extends cdk.Stack {
       ],
     });
 
-    const scaling = service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 2 });
+    const scaling = service.autoScaleTaskCount({ minCapacity: 1, maxCapacity: 3 });
     scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 70 });
 
     return service;

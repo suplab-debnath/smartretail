@@ -800,3 +800,54 @@ All SQL runs within the `supplier` schema only. The `SupplierOrderRepository`
 joins `supplier.supplier_pos`, `supplier.supplier_records`, and
 `supplier.shipment_updates` — all within the same schema. EXCEPTION rows are
 returned first, then sorted by `eta` ascending.
+
+Allowed roles: `SC_PLANNER`, `ADMIN`, `SUPPLIER_ADMIN`.
+
+---
+
+## PPS — Pricing & Promotions Service
+
+Location: `services/pps/`
+Main class: `com.smartretail.pps.PpsApplication`
+Port: 8086
+Schema: `promotions`
+
+### Responsibilities
+
+Read-only REST facade over promotion schedules sourced from Campaign Management
+System events. Writes happen exclusively via EventBridge. ARS and DFS read from
+the `promotions` schema for forecast uplift signals.
+
+### Package Structure
+
+```
+com.smartretail.pps/
+├── PpsApplication.java
+├── config/
+│   └── SecurityConfig.java
+├── domain/
+│   ├── model/
+│   │   └── PromotionList.java           ← record: List<PromotionSchedule> + dataFreshness
+│   └── usecase/
+│       └── PromotionQueryUseCase.java
+├── port/
+│   ├── inbound/
+│   │   └── PromotionQueryPort.java
+│   └── outbound/
+│       └── PromotionReadPort.java
+└── adapter/
+    ├── inbound/
+    │   └── rest/
+    │       ├── PromotionController.java
+    │       ├── PromotionResponseMapper.java
+    │       └── GlobalExceptionHandler.java
+    └── outbound/
+        └── persistence/
+            └── PromotionRepository.java  ← queries promotions schema only
+```
+
+### Key Rule
+
+All SQL runs within the `promotions` schema only. No cross-schema SQL joins.
+Schedules are sorted by `valid_from` ascending.
+Allowed roles: `SC_PLANNER`, `ADMIN`.

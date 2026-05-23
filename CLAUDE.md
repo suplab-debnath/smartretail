@@ -83,10 +83,10 @@ smartretail/
 │  │  │  ├──compute-stack.ts
 │  │  │  └── api-stack.ts
 │  │  └── package.json
-│  ├── cdk-prod/             ← production stack (Kinesis, dedicated VPC) — manual deploys only
-│  └── cdk-dev/              ← gitignored; drop in manually if needed
+│  ├── cdk-prod/             ← production stack (Kinesis, 3-AZ VPC, RDS Proxy, CloudFront) — manual deploys only
+│  └── cdk-dev/              ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront) — same services as prod, smaller sizing
 ├── services/
-│   ├── sis/  ims/  re/  ars/  dfs/  sup/
+│   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
 ├── lambdas/kinesis-consumer/
 ├── migrations
 │  └── flyway/
@@ -102,7 +102,8 @@ smartretail/
 │   ├── shared/auth/
 │   ├── store-manager/
 │   ├── sc-planner/
-│   └── executive/
+│   ├── executive/
+│   └── supplier/             ← Supplier Portal (port 5077, SUPPLIER_ADMIN role)
 └── scripts/
   ├──localstack-init.sh
   ├──publish-pos-event.py
@@ -211,11 +212,13 @@ Enforced by ArchUnit tests. Violations fail the build.
 | ARS | 8083 |
 | DFS | 8084 |
 | SUP | 8085 |
+| PPS | 8086 |
 | PostgreSQL | 5432 |
 | LocalStack | 4566 |
 | Store Manager MFE | 5173 |
 | SC Planner MFE | 5174 |
 | Executive MFE | 5175 |
+| Supplier MFE | 5077 |
 
 ---
 
