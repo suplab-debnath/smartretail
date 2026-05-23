@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "sc-planner-mfe",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5174,
+      "cwd": "mfe/sc-planner"
+    },
+    {
       "name": "executive-mfe",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],

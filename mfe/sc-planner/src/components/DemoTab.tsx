@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { PurchaseOrder, PurchaseOrderListResponse } from '../types'
+import type { InventoryPosition, InventoryPositionListResponse, PurchaseOrder, PurchaseOrderListResponse } from '../types'
 
 interface FormValues {
   storeId: string
@@ -11,7 +11,12 @@ interface FormValues {
 
 type DemoPhase = 'idle' | 'injecting' | 'polling' | 'found' | 'approving' | 'done' | 'timeout'
 
-const PIPELINE_STEPS = ['Sale accepted', 'Inventory updated', 'Stock alert raised', 'PO created']
+const PIPELINE_STEPS = [
+  { label: 'Sale accepted',     hint: 'SIS records the POS transaction' },
+  { label: 'Inventory updated', hint: 'IMS decrements DC stock' },
+  { label: 'Stock alert raised',hint: 'IMS detects low stock → publishes alert via EventBridge' },
+  { label: 'PO created',        hint: 'RE processes the alert → raises a Purchase Order' },
+]
 
 const DC_OPTIONS = [
   { value: 'DC-LONDON',     label: 'London DC'     },
@@ -19,28 +24,50 @@ const DC_OPTIONS = [
   { value: 'DC-BIRMINGHAM', label: 'Birmingham DC' },
 ]
 
+// SKU-SNK-002 at DC-LONDON: auto_approve_threshold = £0 → every PO lands in PENDING_APPROVAL
+// on_hand (35) is already below reorder_point (80), so any sale triggers the full pipeline
+const DEFAULT_FORM: FormValues = {
+  storeId:  'STORE-001',
+  skuId:    'SKU-SNK-002',
+  dcId:     'DC-LONDON',
+  quantity: '1',
+  unitPrice: '9.75',
+}
+
+const MAX_POLL_ATTEMPTS = 12   // 24 s at 2 s intervals
+
 interface Props {
   onSwitchToApprovals: () => void
 }
 
 export function DemoTab({ onSwitchToApprovals }: Props) {
-  const [form, setForm] = useState<FormValues>({
-    storeId:  'STORE-001',
-    skuId:    'SKU-BEV-001',
-    dcId:     'DC-LONDON',
-    quantity: '30',
-    unitPrice: '8.50',
-  })
+  const [form, setForm] = useState<FormValues>(DEFAULT_FORM)
   const [phase, setPhase]               = useState<DemoPhase>('idle')
   const [completedSteps, setCompleted]  = useState(0)
   const [foundPO, setFoundPO]           = useState<PurchaseOrder | null>(null)
   const [error, setError]               = useState<string | null>(null)
+  const [position, setPosition]         = useState<InventoryPosition | null>(null)
 
   const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const snapshotRef = useRef<Set<string>>(new Set())
   const attemptRef  = useRef(0)
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  // Fetch inventory position whenever SKU / DC changes (idle only)
+  useEffect(() => {
+    if (phase !== 'idle' || !form.skuId || !form.dcId) return
+    let cancelled = false
+    fetch(`/v1/inventory/positions?skuId=${encodeURIComponent(form.skuId)}&dcId=${encodeURIComponent(form.dcId)}`, {
+      headers: { 'X-Dev-Role': 'SC_PLANNER' },
+    })
+      .then(r => r.ok ? r.json() as Promise<InventoryPositionListResponse> : null)
+      .then(data => {
+        if (!cancelled) setPosition(data?.positions[0] ?? null)
+      })
+      .catch(() => { if (!cancelled) setPosition(null) })
+    return () => { cancelled = true }
+  }, [form.skuId, form.dcId, phase])
 
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -58,7 +85,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
 
   const checkForNewPO = useCallback(async () => {
     attemptRef.current += 1
-    if (attemptRef.current > 7) {
+    if (attemptRef.current > MAX_POLL_ATTEMPTS) {
       stopPolling()
       setPhase('timeout')
       return
@@ -123,12 +150,12 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       return
     }
 
-    setCompleted(1)   // sale accepted
+    setCompleted(1)
     setPhase('polling')
     attemptRef.current = 0
 
-    setTimeout(() => setCompleted(prev => Math.max(prev, 2)), 2000)  // inventory updated
-    setTimeout(() => setCompleted(prev => Math.max(prev, 3)), 4000)  // alert raised
+    setTimeout(() => setCompleted(prev => Math.max(prev, 2)), 2000)
+    setTimeout(() => setCompleted(prev => Math.max(prev, 3)), 4000)
 
     pollRef.current = setInterval(checkForNewPO, 2000)
   }
@@ -161,19 +188,54 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
     }
   }
 
+  const isLowStock = position ? position.onHand <= position.reorderPoint : null
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">End-to-End Demo</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Simulate a POS sale that triggers the automated replenishment flow: sale → inventory
-          update → stock alert → PO creation → approval.
+
+      {/* Scenario card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+        <h2 className="text-base font-semibold text-blue-900 mb-1">Flow 1 + 2 — End-to-End Replenishment Demo</h2>
+        <p className="text-sm text-blue-800 leading-relaxed">
+          You are an SC Planner. A store just sold an item that is running low at its Distribution Centre.
+          Submit the POS transaction below to watch the pipeline run automatically: the sale is recorded,
+          DC stock is decremented, a LOW_STOCK alert fires on EventBridge, and the Replenishment Engine
+          raises a Purchase Order for your approval.
+        </p>
+        <p className="mt-2 text-xs text-blue-700">
+          <span className="font-semibold">Before you submit:</span> The pre-filled SKU is already below
+          its reorder point at DC-LONDON — even 1 unit sold is enough to trigger the full chain.{' '}
+          <span className="font-semibold">After the PO appears:</span> click{' '}
+          <span className="italic">Approve this PO</span> to complete the flow and send the order to the supplier.
         </p>
       </div>
 
-      {/* Step 1 — trigger card */}
+      {/* Step 1 — trigger */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">1 — Simulate POS Sale</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 1 — Simulate POS Sale</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Represents a unit sold at the store whose stock is replenished from the selected DC.
+        </p>
+
+        {/* Inventory context */}
+        {position && phase === 'idle' && (
+          <div className={[
+            'flex items-center gap-2 mb-4 px-3 py-2 rounded text-xs font-medium border',
+            isLowStock
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : 'bg-green-50 border-green-200 text-green-700',
+          ].join(' ')}>
+            <span>{isLowStock ? 'LOW STOCK' : 'OK'}</span>
+            <span className="text-gray-400">|</span>
+            <span>
+              DC-{form.dcId.replace('DC-', '')} stock for {form.skuId}:{' '}
+              <span className="font-semibold">{position.onHand} units</span> on hand,{' '}
+              reorder point <span className="font-semibold">{position.reorderPoint}</span>
+              {isLowStock ? ' — any sale triggers an alert' : ''}
+            </span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4 mb-5">
           <label className="block">
             <span className="text-xs text-gray-500">Store</span>
@@ -185,7 +247,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">SKU</span>
+            <span className="text-xs text-gray-500">SKU sold</span>
             <input
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
               value={form.skuId}
@@ -194,7 +256,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">Distribution Centre</span>
+            <span className="text-xs text-gray-500">Replenishing DC</span>
             <select
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
               value={form.dcId}
@@ -205,7 +267,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">Quantity sold</span>
+            <span className="text-xs text-gray-500">Units sold at store</span>
             <input
               type="number" min="1"
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
@@ -215,7 +277,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">Unit price (£)</span>
+            <span className="text-xs text-gray-500">Sale price per unit (£)</span>
             <input
               type="number" step="0.01" min="0"
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
@@ -252,24 +314,27 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       {/* Step 2 — pipeline */}
       {phase !== 'idle' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">2 — Replenishment Pipeline</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {PIPELINE_STEPS.map((label, i) => {
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Step 2 — Replenishment Pipeline</h3>
+          <div className="flex flex-wrap items-start gap-2">
+            {PIPELINE_STEPS.map(({ label, hint }, i) => {
               const done   = completedSteps > i
               const active = completedSteps === i && phase === 'polling'
               return (
                 <div key={label} className="flex items-center gap-2">
-                  <span className={[
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
-                    done   ? 'bg-green-100 text-green-700' :
-                    active ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                             'bg-gray-100 text-gray-400',
-                  ].join(' ')}>
-                    <span>{done ? '✓' : active ? '⟳' : '○'}</span>
-                    {label}
-                  </span>
+                  <div className="flex flex-col items-start gap-0.5">
+                    <span className={[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
+                      done   ? 'bg-green-100 text-green-700' :
+                      active ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                               'bg-gray-100 text-gray-400',
+                    ].join(' ')}>
+                      <span>{done ? '✓' : active ? '⟳' : '○'}</span>
+                      {label}
+                    </span>
+                    <span className="text-xs text-gray-400 px-3">{hint}</span>
+                  </div>
                   {i < PIPELINE_STEPS.length - 1 && (
-                    <span className="text-gray-300 text-xs">→</span>
+                    <span className="text-gray-300 text-xs mb-4">→</span>
                   )}
                 </div>
               )
@@ -277,13 +342,13 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
           </div>
 
           {phase === 'polling' && (
-            <p className="mt-3 text-xs text-gray-400">
-              Waiting for replenishment engine to create PO…
+            <p className="mt-4 text-xs text-gray-400">
+              Waiting for Replenishment Engine to create PO… (checking every 2 s)
             </p>
           )}
           {phase === 'timeout' && (
-            <p className="mt-3 text-sm text-amber-600">
-              PO not detected after 15 s — the system may still be processing.{' '}
+            <p className="mt-4 text-sm text-amber-600">
+              PO not detected after 24 s — the system may still be processing.{' '}
               <button onClick={onSwitchToApprovals} className="underline hover:text-amber-700">
                 Check Approvals tab
               </button>
@@ -292,10 +357,17 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
         </div>
       )}
 
-      {/* Step 3 — PO card */}
+      {/* Step 3 — PO approval */}
       {(phase === 'found' || phase === 'approving' || phase === 'done') && foundPO && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">3 — Purchase Order</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 3 — Approve Purchase Order</h3>
+          {phase !== 'done' && (
+            <p className="text-xs text-gray-500 mb-4">
+              The Replenishment Engine created this PO and flagged it for manual approval — its value
+              exceeds the auto-approve threshold. Review the details and approve to complete the flow.
+            </p>
+          )}
+
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm mb-5">
             <div>
               <dt className="text-xs text-gray-500">PO ID</dt>
@@ -319,7 +391,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
               <dd className="text-gray-800">{foundPO.dcId}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Quantity</dt>
+              <dt className="text-xs text-gray-500">Quantity ordered</dt>
               <dd className="text-gray-800">{foundPO.quantity.toLocaleString()} units</dd>
             </div>
             <div>
@@ -337,9 +409,13 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
           </dl>
 
           {phase === 'done' ? (
-            <p className="text-sm text-green-700 font-medium">
-              Flow complete — order sent to supplier.
-            </p>
+            <div className="bg-green-50 border border-green-200 rounded p-3">
+              <p className="text-sm text-green-700 font-medium">Flow complete — order sent to supplier.</p>
+              <p className="text-xs text-green-600 mt-1">
+                The approved PO is now visible in the <strong>Supplier Orders</strong> tab. You can run
+                the demo again by clicking Reset above.
+              </p>
+            </div>
           ) : (
             <button
               onClick={handleApprove}
