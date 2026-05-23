@@ -64,10 +64,10 @@ check() {
   local expected=$3
 
   if [ "$result" = "$expected" ]; then
-    echo "✅$test_name"
+    echo "[PASS] $test_name"
     PASS=$((PASS + 1))
   else
-    echo "❌$test_name"
+    echo "[FAIL] $test_name"
     echo "  Expected: $expected"
     echo "  Got:   $result"
     FAIL=$((FAIL + 1))
@@ -181,7 +181,7 @@ flow2() {
   # Inject alert for SKU-BEV-003 / DC-LONDON directly into RE FIFO queue
   # (auto_approve_threshold = 0 → always PENDING_APPROVAL; ATP already below reorder_point)
   echo "Injecting InventoryAlertEvent for SKU-BEV-003 / DC-LONDON..."
-  python3 scripts/publish-pos-event.py \
+  ${PYTHON_CMD} scripts/publish-pos-event.py \
     --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON --env "$ENV"
   sleep 5
 
@@ -211,7 +211,7 @@ flow3() {
   echo "--- Flow 3: SC Planner Approval ---"
 
   source /tmp/smartretail-flow2-state 2>/dev/null || {
-    echo "❌Flow 2 state not found. Run flow2 first."
+    echo "[FAIL] Flow 2 state not found. Run flow2 first."
     FAIL=$((FAIL + 1))
     return
   }
@@ -443,7 +443,7 @@ esac
 
 echo ""
 echo "─────────────────────────────────"
-echo "Results: ✅$PASS passed ❌$FAIL failed"
+echo "Results: $PASS passed $FAIL failed"
 echo "─────────────────────────────────"
 
 [ $FAIL -eq 0 ] && exit 0 || exit 1

@@ -85,7 +85,7 @@ def publish_to_kinesis(event, args):
     PartitionKey=f"{event['dcId']}#{event['skuId']}"
   )
 
-  print(f"✅Published to Kinesis stream: {stream_name}")
+  print(f"[OK] Published to Kinesis stream: {stream_name}")
   print(f"  Shard ID: {response['ShardId']}")
   print(f"  Sequence: {response['SequenceNumber']}")
   print(f"  Transaction ID: {event['transactionId']}")
@@ -112,7 +112,7 @@ def publish_to_api(event, api_base_url, return_status):
       if return_status:
         print(str(status))
       else:
-        print(f"✅SIS accepted event: {status}")
+        print(f"[OK] SIS accepted event: {status}")
         print(f"  Response: {body}")
   except urllib.error.HTTPError as e:
     status = e.code
@@ -120,7 +120,7 @@ def publish_to_api(event, api_base_url, return_status):
       print(str(status))
     else:
       body = json.loads(e.read().decode())
-      print(f"{'⚠️' if status == 409 else '❌'} SIS returned {status}: {body}")
+      print(f"{'[WARN]' if status == 409 else '[FAIL]'} SIS returned {status}: {body}")
 
 def inject_flow2_alert(args):
   """
@@ -169,7 +169,7 @@ def inject_flow2_alert(args):
     MessageDeduplicationId=message_dedup_id
   )
 
-  print(f"✅Injected InventoryAlertEvent into RE FIFO queue")
+  print(f"[OK] Injected InventoryAlertEvent into RE FIFO queue")
   print(f"  SKU: {args.sku_id}, DC: {args.dc_id}")
   print(f"  Message group: {message_group_id}")
 

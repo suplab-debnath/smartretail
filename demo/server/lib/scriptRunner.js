@@ -12,11 +12,11 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 /**
  * Parse a raw stdout line from smoke-test.sh into a log level.
- * Lines starting with ✅ are pass, ❌ are fail, otherwise info.
+ * Lines starting with [PASS] are pass, [FAIL] are fail, otherwise info.
  */
 function parseLevel(line) {
-  if (line.includes('✅')) return 'pass';
-  if (line.includes('❌')) return 'fail';
+  if (line.includes('[PASS]')) return 'pass';
+  if (line.includes('[FAIL]')) return 'fail';
   if (line.toLowerCase().includes('error') || line.toLowerCase().includes('fail')) return 'fail';
   if (line.toLowerCase().includes('warn')) return 'warn';
   return 'info';
@@ -66,7 +66,7 @@ function run({ flowId, stepId, cmd, args, env = {} }) {
           stepId,
           service: inferService(line, flowId),
           level: parseLevel(line),
-          message: line.replace(/[✅❌]/g, '').trim(), // strip emoji for display text
+          message: line.trim(),
           raw: line,
         });
         if (stream === 'stderr') {
