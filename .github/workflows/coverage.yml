@@ -55,21 +55,15 @@ jobs:
 
       # === FIXED INSTALL STEPS ===
       - name: Install dependencies — store-manager
-        run: |
-          rm -rf node_modules package-lock.json
-          npm ci
+        run: npm ci
         working-directory: mfe/store-manager
 
       - name: Install dependencies — sc-planner
-        run: |
-          rm -rf node_modules package-lock.json
-          npm ci
+        run: npm ci
         working-directory: mfe/sc-planner
 
       - name: Install dependencies — executive
-        run: |
-          rm -rf node_modules package-lock.json
-          npm ci
+        run: npm ci
         working-directory: mfe/executive
 
       # Optional: Force install rollup linux binary (extra safety)
