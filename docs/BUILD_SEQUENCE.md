@@ -177,7 +177,7 @@ cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)
 ```bash
 # Build Java JARs (needed for CDK to package Lambda and seed task)
 mvn clean package -DskipTests \
-    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/lambdas/kinesis-consumer \
+    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/lambdas/kinesis-consumer,backend/lambdas/batch-post-processor \
     -am --no-transfer-progress
  
 # Verify JARs created
@@ -186,6 +186,7 @@ ls -la backend/services/ims/target/*.jar
 ls -la backend/services/re/target/*.jar
 ls -la backend/services/ars/target/*.jar
 ls -la backend/lambdas/kinesis-consumer/target/*.jar
+ls -la backend/lambdas/batch-post-processor/target/*.jar
  
 # Build MFEs
 cd mfe/shared/auth && npm run build && cd ../../..

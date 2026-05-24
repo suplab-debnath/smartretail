@@ -627,7 +627,7 @@ build-services:
     -am --no-transfer-progress
  
 build-lambda:
-  mvn clean package -pl backend/lambdas/kinesis-consumer --no-transfer-progress
+  mvn clean package -pl backend/lambdas/kinesis-consumer,backend/lambdas/batch-post-processor --no-transfer-progress
  
 build-mfes:
   cd mfe/store-manager && npm run build

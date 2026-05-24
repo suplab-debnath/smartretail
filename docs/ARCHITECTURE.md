@@ -40,7 +40,7 @@ Three Lambda functions exist in the full production architecture. Two have sourc
 | Lambda | Directory | Trigger | Status |
 |--------|-----------|---------|--------|
 | Kinesis Consumer Lambda | `backend/lambdas/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
-| Batch Post-Processor Lambda | `backend/lambdas/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Code present — no CDK deployment in prototype |
+| Batch Post-Processor Lambda | `backend/lambdas/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
 | SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
  
 **Kinesis Consumer Lambda** is a SIS inbound adapter: deduplicates POS events via DynamoDB and forwards to SIS via HTTP.

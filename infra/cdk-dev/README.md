@@ -12,10 +12,10 @@ Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS 
 | Layer | Resource |
 |-------|----------|
 | Network | New VPC (2 AZs, public + private-app + isolated subnets, 1 NAT Gateway, 6 interface VPC endpoints) |
-| Data | RDS PostgreSQL t4g.small single-AZ (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, 5 private MFE S3 buckets |
+| Data | RDS PostgreSQL t4g.small single-AZ (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 SageMaker bucket, 5 private MFE S3 buckets |
 | Messaging | Kinesis stream (POS ingestion) + EventBridge bus + IMS/RE/ARS SQS queues |
 | Identity | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier Cognito pool (SUPPLIER\_ADMIN) |
-| Compute | 7 ECS Fargate services (X86\_64, 0.25 vCPU / 512 MB, FARGATE\_SPOT 80/20) + Kinesis consumer Lambda (X86\_64) |
+| Compute | 7 ECS Fargate services (X86\_64, 0.25 vCPU / 512 MB, FARGATE\_SPOT 80/20) + Kinesis consumer Lambda (X86\_64) + Batch Post-Processor Lambda (X86\_64) |
 | API | ALB with path-based routing to all 7 services |
 | Hosting | CloudFront distributions (×5 MFEs) with private S3 origin using OAC (SIGV4) |
 
@@ -39,6 +39,8 @@ Internet ── ALB :80 ───►│  │  path-based routing (single listene
                         │  │  /v1/promotions/*    ──► PPS :8086                  │      │  │
                         │  │                                                      ▼      │  │
                         │  │  Kinesis consumer Lambda ─► SIS (CloudMap discovery) │      │  │
+                        │  │  Batch post-processor Lambda ◄─ S3 SageMaker bucket  │      │  │
+                        │  │                          └──► DFS (CloudMap discovery)│      │  │
                         │  │                                          │            │      │  │
                         │  │  ECS Fargate (X86_64, FARGATE_SPOT 80%) │            │      │  │
                         │  └──────────────────────────────────────────┼────────────┘      │  │
@@ -51,7 +53,8 @@ Internet ── ALB :80 ───►│  │  path-based routing (single listene
                         │  CloudWatch, Secrets Manager) · Gateway endpoints (S3, DDB)      │
                         └──────────────────────────────────────────────────────────────────┘
 
-Kinesis stream (POS ingestion)  ──► Lambda consumer  ──► SIS :8080
+Kinesis stream (POS ingestion)  ──► Kinesis consumer Lambda  ──► SIS :8080
+S3 SageMaker bucket (ObjectCreated) ──► Batch Post-Processor Lambda ──► DFS :8084
 
 EventBridge bus (smartretail-events-dev)
   InventoryAlertEvent  ──► RE alert SQS FIFO  ──► RE service
@@ -135,6 +138,25 @@ aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOU
 docker build --platform linux/amd64 -t $REPO:latest backend/services/$SERVICE
 docker push $REPO:latest
 aws ecs update-service --cluster smartretail-dev --service smartretail-$SERVICE-dev --force-new-deployment
+```
+
+## Push a Lambda image
+
+```bash
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+
+# Kinesis Consumer Lambda
+mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev
+docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/kinesis-consumer
+docker push $REPO:latest
+
+# Batch Post-Processor Lambda
+mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev
+docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/batch-post-processor
+docker push $REPO:latest
 ```
 
 ## Teardown
