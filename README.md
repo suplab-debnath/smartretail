@@ -597,7 +597,6 @@ smartretail/
 │   ├── settings.json           ← AI agent definitions
 │   └── standards/              ← coding standards (java, openapi, maven, frontend, sql, testing)
 ├── docs/                       ← architecture, API contracts, flow specs, schemas
-├── openapi/                    ← OpenAPI 3.1 YAML (source of truth for all REST APIs)
 ├── .make/                      ← Makefile includes (vars, local, test, build, aws, demo, coverage)
 ├── demo/
 │   ├── server/                 ← Demo control server (:3099) — triggers scripts, streams SSE
@@ -607,9 +606,9 @@ smartretail/
 ├── infra/cdk-prod/             ← production CDK stack (X86_64, Multi-AZ, RDS Proxy, CloudFront)
 ├── backend/
 │   ├── services/
-│   │   ├── sis/                ← Sales Ingestion Service
-│   │   ├── ims/                ← Inventory Management Service
-│   │   ├── re/                 ← Replenishment Engine
+│   │   ├── sis/                ← Sales Ingestion Service (sis-api.yaml · sis-asyncapi.yaml)
+│   │   ├── ims/                ← Inventory Management Service (ims-api.yaml · ims-asyncapi.yaml)
+│   │   ├── re/                 ← Replenishment Engine (re-api.yaml · re-asyncapi.yaml)
 │   │   ├── ars/                ← Analytics & Reporting Service
 │   │   ├── dfs/                ← Demand Forecasting Service
 │   │   ├── sup/                ← Supplier Service
