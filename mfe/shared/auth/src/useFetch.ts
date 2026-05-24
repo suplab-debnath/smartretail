@@ -9,9 +9,13 @@ export function isFetchError(e: unknown): e is FetchError {
 }
 
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  // In AWS the apiGatewayEndpoint is injected via config.js at deploy time.
+  // In local dev it is empty — Vite's proxy handles routing by path.
+  const base: string = (window as any).SMARTRETAIL_CONFIG?.apiGatewayEndpoint ?? ''
+  const resolvedUrl = base && url.startsWith('/') ? `${base}${url}` : url
   let res: Response
   try {
-    res = await fetch(url, init)
+    res = await fetch(resolvedUrl, init)
   } catch {
     throw {
       kind: 'network',

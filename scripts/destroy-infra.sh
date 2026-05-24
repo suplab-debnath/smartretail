@@ -9,27 +9,33 @@ ENV=dev
 ACCOUNT_ID=123456789012
 
 STACKS=(
-  HostingStack
-  ApiStack
-  ComputeStack
-  IdentityStack
-  MessagingStack
-  DataStack
-  NetworkStack
+  Min-MonitoringStack
+  Min-HostingStack
+  Min-ApiStack
+  Min-ComputeStack
+  Min-IdentityStack
+  Min-MessagingStack
+  Min-DataStack
+  Min-NetworkStack
 )
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CDK_DIR="${SCRIPT_DIR}/../infra/cdk-demo"
 
 # =========================================================
 # Destroy CDK stacks
 # =========================================================
 
+cd "$CDK_DIR"
 for STACK in "${STACKS[@]}"
 do
   echo "Destroying ${STACK}"
 
-  cdk destroy ${STACK} \
+  npx cdk destroy "${STACK}" \
     --force || true
 
 done
+cd "$SCRIPT_DIR/.."
 
 # =========================================================
 # Disable and delete orphaned CloudFront distributions
@@ -66,8 +72,20 @@ for DIST_ID in $CF_DISTS; do
 done
 
 # =========================================================
-# Empty S3 Buckets
+# Empty S3 Buckets (app + CDK bootstrap)
+# CDK bootstrap bucket has DeletionPolicy: Retain — CloudFormation leaves it
+# behind when CDKToolkit is deleted, so we must remove it explicitly.
 # =========================================================
+
+BOOTSTRAP_BUCKET=$(aws s3api list-buckets \
+  --query "Buckets[?starts_with(Name, 'cdk-') && contains(Name, \`${ACCOUNT_ID}\`)].Name" \
+  --output text 2>/dev/null || true)
+
+if [[ -n "$BOOTSTRAP_BUCKET" ]]; then
+  echo "Cleaning CDK bootstrap bucket: $BOOTSTRAP_BUCKET"
+  aws s3 rm "s3://${BOOTSTRAP_BUCKET}" --recursive || true
+  aws s3api delete-bucket --bucket "$BOOTSTRAP_BUCKET" || true
+fi
 
 BUCKETS=$(aws s3api list-buckets \
   --query "Buckets[?contains(Name, 'smartretail')].Name" \

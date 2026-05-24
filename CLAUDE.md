@@ -23,14 +23,14 @@ Implement specifications faithfully. Architecture decisions live in `docs/`. Bui
 
 Six end-to-end flows on real AWS infrastructure (or LocalStack locally). Build in order — later flows depend on earlier ones.
 
-| Flow | Name | Depends on |
-|------|------|------------|
-| 1 | POS event → SIS → RDS → IMS → stock alert → EventBridge | — |
-| 2 | Inventory alert → RE auto-approve → RDS state transition | Flow 1 |
-| 3 | SC Planner MFE → RE approve/reject → RDS → EventBridge | Flow 2 |
-| 4 | ARS → Store Manager Dashboard MFE | Flows 1–3 |
-| 8 | Executive Dashboard — MAPE trend + forecast accuracy, fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, inventory carrying cost, replenishment lead time, top stockout SKUs | Seed data |
-| 9 | SC Planner Console — supplier performance scorecard, exception queue, inventory overview by DC, demand forecast view (P10/P50/P90), stockout risk indicators, PO approval workflows, supplier order tracking, replenishment action trigger, forecast adjustment controls | Seed data |
+| Flow | Name                                                                                                                                                                                                                                                                     | Depends on |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 1    | POS event → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                                                                                                  | —          |
+| 2    | Inventory alert → RE auto-approve → RDS state transition                                                                                                                                                                                                                 | Flow 1     |
+| 3    | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                                                                                                   | Flow 2     |
+| 4    | ARS → Store Manager Dashboard MFE                                                                                                                                                                                                                                        | Flows 1–3  |
+| 8    | Executive Dashboard — MAPE trend + forecast accuracy, fulfilment rate, stockout incidents, MAPE, OTD, supplier comparison, inventory carrying cost, replenishment lead time, top stockout SKUs                                                                           | Seed data  |
+| 9    | SC Planner Console — supplier performance scorecard, exception queue, inventory overview by DC, demand forecast view (P10/P50/P90), stockout risk indicators, PO approval workflows, supplier order tracking, replenishment action trigger, forecast adjustment controls | Seed data  |
 
 Flows 8 and 9 use pre-populated seed data. Flow 9 also exercises a write path for manual replenishment triggers.
 
@@ -38,20 +38,20 @@ Flows 8 and 9 use pre-populated seed data. Flow 9 also exercises a write path fo
 
 ## Document Map
 
-| # | Document | Contents |
-|---|----------|----------|
-| 1 | `CLAUDE.md` | Overview, rules, repository structure |
-| 2 | `docs/ARCHITECTURE.md` | Confirmed architecture decisions |
-| 3 | `docs/SCHEMAS.md` | All 6 RDS schemas + DynamoDB table |
-| 4 | `docs/API_CONTRACTS.md` | REST endpoints, request/response shapes, EventBridge events |
-| 5 | `docs/FLOWS.md` | Flow specifications + observable evidence checklists |
-| 6 | `docs/SEED_DATA.md` | Reference data, test users, seed SQL |
-| 7 | `docs/CDK_SPEC.md` | CDK TypeScript stack specifications |
-| 8 | `docs/SERVICE_SPECS.md` | Per-service hexagonal package structure + key code patterns |
-| 9 | `docs/MFE_SPECS.md` | React MFE components, API calls, auth library |
-| 10 | `docs/LOCAL_DEV.md` | Local development with Docker Compose + LocalStack |
-| 11 | `docs/BUILD_SEQUENCE.md` | Exact commands for local and AWS build/deploy |
-| 12 | `docs/DEVELOPER_GUIDE.md` | Developer onboarding, daily workflow, debugging |
+| #   | Document                  | Contents                                                    |
+| --- | ------------------------- | ----------------------------------------------------------- |
+| 1   | `CLAUDE.md`               | Overview, rules, repository structure                       |
+| 2   | `docs/ARCHITECTURE.md`    | Confirmed architecture decisions                            |
+| 3   | `docs/SCHEMAS.md`         | All 6 RDS schemas + DynamoDB table                          |
+| 4   | `docs/API_CONTRACTS.md`   | REST endpoints, request/response shapes, EventBridge events |
+| 5   | `docs/FLOWS.md`           | Flow specifications + observable evidence checklists        |
+| 6   | `docs/SEED_DATA.md`       | Reference data, test users, seed SQL                        |
+| 7   | `docs/CDK_SPEC.md`        | CDK TypeScript stack specifications                         |
+| 8   | `docs/SERVICE_SPECS.md`   | Per-service hexagonal package structure + key code patterns |
+| 9   | `docs/MFE_SPECS.md`       | React MFE components, API calls, auth library               |
+| 10  | `docs/LOCAL_DEV.md`       | Local development with Docker Compose + LocalStack          |
+| 11  | `docs/BUILD_SEQUENCE.md`  | Exact commands for local and AWS build/deploy               |
+| 12  | `docs/DEVELOPER_GUIDE.md` | Developer onboarding, daily workflow, debugging             |
 
 ---
 
@@ -107,7 +107,7 @@ smartretail/
 │   ├── store-manager/     ← Store Manager Dashboard (:5173) — ARS, IMS
 │   ├── sc-planner/        ← SC Planner Console (:5174) — RE, ARS, DFS, SUP
 │   ├── executive/         ← Executive Dashboard (:5175) — ARS, DFS
-│   └── supplier/          ← Supplier Portal (:5077, SUPPLIER_ADMIN role) — SUP
+│   └── supplier/          ← Supplier Portal (:5177, SUPPLIER_ADMIN role) — SUP
 └── scripts/
   ├──localstack-init.sh
   ├──publish-pos-event.py
@@ -121,30 +121,30 @@ smartretail/
 
 ## Technology Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Language | Java | 21 |
-| Framework | Spring Boot | 3.3.x |
-| Build | Maven | 3.9.x |
-| DB access | Spring Data JDBC | 3.3.x |
-| Migrations | Flyway | 10.x |
-| IaC | AWS CDK TypeScript | 2.x |
-| MFE | React + TypeScript | 18 / 5.x |
-| MFE styling | Tailwind CSS | 3.x |
-| MFE charts | Recharts | 2.x |
-| MFE auth | @aws-amplify/auth | 6.x |
-| Lambda | Java | 21 |
-| Local AWS | LocalStack | 3.x |
-| Local DB | PostgreSQL Docker | 15 |
+| Layer       | Technology         | Version  |
+| ----------- | ------------------ | -------- |
+| Language    | Java               | 21       |
+| Framework   | Spring Boot        | 3.3.x    |
+| Build       | Maven              | 3.9.x    |
+| DB access   | Spring Data JDBC   | 3.3.x    |
+| Migrations  | Flyway             | 10.x     |
+| IaC         | AWS CDK TypeScript | 2.x      |
+| MFE         | React + TypeScript | 18 / 5.x |
+| MFE styling | Tailwind CSS       | 3.x      |
+| MFE charts  | Recharts           | 2.x      |
+| MFE auth    | @aws-amplify/auth  | 6.x      |
+| Lambda      | Java               | 21       |
+| Local AWS   | LocalStack         | 3.x      |
+| Local DB    | PostgreSQL Docker  | 15       |
 
 ---
 
 ## Run Modes
 
-| Mode | Profile | AWS services | Database | Auth |
-|------|---------|-------------|----------|------|
+| Mode  | Profile | AWS services     | Database              | Auth        |
+| ----- | ------- | ---------------- | --------------------- | ----------- |
 | LOCAL | `local` | LocalStack :4566 | Postgres Docker :5432 | Mock bypass |
-| AWS | `aws` | Real AWS | RDS via RDS Proxy | Cognito JWT |
+| AWS   | `aws`   | Real AWS         | RDS via RDS Proxy     | Cognito JWT |
 
 ```bash
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
@@ -177,54 +177,54 @@ If an API shape changes → change the YAML first, then regenerate.
 
 Enforced by ArchUnit tests. Violations fail the build.
 
-| # | Rule |
-|---|------|
-| 1 | No cross-schema SQL joins. ARS uses separate queries merged in Java. |
-| 2 | No service writes to another service's schema. |
-| 3 | All ECS services connect to RDS via RDS Proxy only. |
-| 4 | Hexagonal architecture. Domain core has zero AWS imports. |
-| 5 | Lambda is an infrastructure adapter only. No domain logic. |
-| 6 | JWT validation at API Gateway AND service layer. |
-| 7 | `PENDING_APPROVAL` is the pre-approval state. Approve on `DRAFT` → 409. |
-| 8 | `REJECTED` for planner rejection. `CANCELLED` for system-level. |
-| 9 | Optimistic locking on all `purchase_orders` updates. Version column check required. |
-| 10 | No Step Functions. State machine lives in RDS. |
+| #   | Rule                                                                                |
+| --- | ----------------------------------------------------------------------------------- |
+| 1   | No cross-schema SQL joins. ARS uses separate queries merged in Java.                |
+| 2   | No service writes to another service's schema.                                      |
+| 3   | All ECS services connect to RDS via RDS Proxy only.                                 |
+| 4   | Hexagonal architecture. Domain core has zero AWS imports.                           |
+| 5   | Lambda is an infrastructure adapter only. No domain logic.                          |
+| 6   | JWT validation at API Gateway AND service layer.                                    |
+| 7   | `PENDING_APPROVAL` is the pre-approval state. Approve on `DRAFT` → 409.             |
+| 8   | `REJECTED` for planner rejection. `CANCELLED` for system-level.                     |
+| 9   | Optimistic locking on all `purchase_orders` updates. Version column check required. |
+| 10  | No Step Functions. State machine lives in RDS.                                      |
 
 **Forbidden patterns:**
 
-| Rule | Forbidden |
-|------|-----------|
-| R1 | `software.amazon.*` in `..domain..**` packages |
-| R2 | SQL JOINs across schema boundaries in ARS |
-| R3 | UPDATE `purchase_orders` without `WHERE version = :v` |
-| R4 | Approve endpoint proceeding if status ≠ `PENDING_APPROVAL` |
-| R5 | Direct RDS endpoint in JDBC URL (AWS mode) |
-| R6 | JWT checked only at API Gateway — must also be checked in service |
-| R7 | `WorkflowStatus.CANCELLED` for a planner rejection |
-| R8 | Hand-written DTO classes that duplicate openapi-generator output |
+| Rule | Forbidden                                                         |
+| ---- | ----------------------------------------------------------------- |
+| R1   | `software.amazon.*` in `..domain..**` packages                    |
+| R2   | SQL JOINs across schema boundaries in ARS                         |
+| R3   | UPDATE `purchase_orders` without `WHERE version = :v`             |
+| R4   | Approve endpoint proceeding if status ≠ `PENDING_APPROVAL`        |
+| R5   | Direct RDS endpoint in JDBC URL (AWS mode)                        |
+| R6   | JWT checked only at API Gateway — must also be checked in service |
+| R7   | `WorkflowStatus.CANCELLED` for a planner rejection                |
+| R8   | Hand-written DTO classes that duplicate openapi-generator output  |
 
 
 ---
 
 ## Port Assignments (local mode)
 
-| Service | Port | Primary MFE |
-|---------|------|-------------|
-| SIS | 8080 | — |
-| IMS | 8081 | Store Manager (5173) |
-| RE | 8082 | SC Planner (5174) |
-| ARS | 8083 | Store Manager (5173), SC Planner (5174), Executive (5175) |
-| DFS | 8084 | SC Planner (5174), Executive (5175) |
-| SUP | 8085 | SC Planner (5174), Supplier (5077) |
-| PPS | 8086 | — |
-| PostgreSQL | 5432 | — |
-| LocalStack | 4566 | — |
-| Store Manager MFE | 5173 | — |
-| SC Planner MFE | 5174 | — |
-| Executive MFE | 5175 | — |
-| Supplier MFE | 5077 | — |
-| Demo Control Center MFE | 5176 | — |
-| Demo Control Server | 3099 | — |
+| Service                 | Port | Primary MFE                                               |
+| ----------------------- | ---- | --------------------------------------------------------- |
+| SIS                     | 8080 | —                                                         |
+| IMS                     | 8081 | Store Manager (5173)                                      |
+| RE                      | 8082 | SC Planner (5174)                                         |
+| ARS                     | 8083 | Store Manager (5173), SC Planner (5174), Executive (5175) |
+| DFS                     | 8084 | SC Planner (5174), Executive (5175)                       |
+| SUP                     | 8085 | SC Planner (5174), Supplier (5177)                        |
+| PPS                     | 8086 | —                                                         |
+| PostgreSQL              | 5432 | —                                                         |
+| LocalStack              | 4566 | —                                                         |
+| Store Manager MFE       | 5173 | —                                                         |
+| SC Planner MFE          | 5174 | —                                                         |
+| Executive MFE           | 5175 | —                                                         |
+| Supplier MFE            | 5177 | —                                                         |
+| Demo Control Center MFE | 5176 | —                                                         |
+| Demo Control Server     | 3099 | —                                                         |
 
 ---
 
@@ -251,14 +251,14 @@ make aws-migrate && make aws-create-users && make aws-smoke-test
 
 Agents are defined in `.claude/settings.json`. Load the relevant one before starting work.
 
-| Agent | Standards file | Use when |
-|-------|---------------|----------|
-| `java-standards` | `.claude/standards/java.md` | Any Java service work |
-| `openapi-standards` | `.claude/standards/openapi.md` | Designing or editing API YAMLs |
-| `maven-standards` | `.claude/standards/maven.md` | Build config, code generation |
-| `frontend-standards` | `.claude/standards/frontend.md` | React MFE work |
-| `sql-standards` | `.claude/standards/sql.md` | Flyway migrations, schema changes |
-| `testing-standards` | `.claude/standards/testing.md` | Writing or fixing tests |
+| Agent                | Standards file                  | Use when                          |
+| -------------------- | ------------------------------- | --------------------------------- |
+| `java-standards`     | `.claude/standards/java.md`     | Any Java service work             |
+| `openapi-standards`  | `.claude/standards/openapi.md`  | Designing or editing API YAMLs    |
+| `maven-standards`    | `.claude/standards/maven.md`    | Build config, code generation     |
+| `frontend-standards` | `.claude/standards/frontend.md` | React MFE work                    |
+| `sql-standards`      | `.claude/standards/sql.md`      | Flyway migrations, schema changes |
+| `testing-standards`  | `.claude/standards/testing.md`  | Writing or fixing tests           |
 
 ---
 

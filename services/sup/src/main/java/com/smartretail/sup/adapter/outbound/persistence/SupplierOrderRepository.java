@@ -1,6 +1,9 @@
 package com.smartretail.sup.adapter.outbound.persistence;
 
 import com.smartretail.sup.port.outbound.SupplierOrderReadPort;
+import com.smartretail.sup.port.outbound.SupplierOrderWritePort;
+import com.smartretail.sup.port.outbound.SupplierReadPort;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -16,7 +19,7 @@ import java.util.UUID;
  * and supplier.shipment_updates.
  */
 @Repository
-public class SupplierOrderRepository implements SupplierOrderReadPort {
+public class SupplierOrderRepository implements SupplierOrderReadPort, SupplierOrderWritePort, SupplierReadPort {
 
     /**
      * EXCEPTION rows first, then sorted by eta ascending.
@@ -56,6 +59,19 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
             FROM supplier.shipment_updates su
             """;
 
+    private static final String INSERT_SUPPLIER_PO_SQL = """
+            INSERT INTO supplier.supplier_pos
+                (supplier_po_id, po_id, supplier_id, sku_id, dc_id, quantity, po_status, last_update_at)
+            VALUES
+                (:supplierPoId, :poId, :supplierId, :skuId, :dcId, :quantity, 'PENDING', NOW())
+            """;
+
+    private static final String ALL_SUPPLIERS_SQL = """
+            SELECT supplier_id, supplier_name
+            FROM supplier.supplier_records
+            ORDER BY supplier_name
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public SupplierOrderRepository(NamedParameterJdbcTemplate jdbc) {
@@ -92,6 +108,31 @@ public class SupplierOrderRepository implements SupplierOrderReadPort {
                 (rs, rowNum) -> toInstant(rs, "max_update")
         );
         return (results.isEmpty() || results.getFirst() == null) ? Instant.now() : results.getFirst();
+    }
+
+    @Override
+    public UUID insertSupplierOrder(UUID poId, UUID supplierId, String skuId, String dcId, int quantity) {
+        UUID supplierPoId = UUID.randomUUID();
+        try {
+            jdbc.update(INSERT_SUPPLIER_PO_SQL, new MapSqlParameterSource()
+                    .addValue("supplierPoId", supplierPoId.toString())
+                    .addValue("poId", poId.toString())
+                    .addValue("supplierId", supplierId.toString())
+                    .addValue("skuId", skuId)
+                    .addValue("dcId", dcId)
+                    .addValue("quantity", quantity));
+        } catch (DuplicateKeyException e) {
+            throw new DuplicatePoException(poId);
+        }
+        return supplierPoId;
+    }
+
+    @Override
+    public List<SupplierRow> findAllSuppliers() {
+        return jdbc.query(ALL_SUPPLIERS_SQL, new MapSqlParameterSource(),
+                (rs, rowNum) -> new SupplierRow(
+                        toUuid(rs, "supplier_id"),
+                        rs.getString("supplier_name")));
     }
 
     private Instant toInstant(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

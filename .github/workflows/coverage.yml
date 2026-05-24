@@ -23,7 +23,7 @@ jobs:
       - name: Run tests and generate aggregate report
         run: |
           mvn verify \
-            -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/coverage \
+            -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps,services/coverage \
             --also-make \
             --no-transfer-progress
 
@@ -49,6 +49,7 @@ jobs:
             mfe/store-manager/package-lock.json
             mfe/sc-planner/package-lock.json
             mfe/executive/package-lock.json
+            mfe/supplier/package-lock.json
 
       - name: Install lcov
         run: sudo apt-get install -y lcov
@@ -66,18 +67,26 @@ jobs:
         run: npm ci
         working-directory: mfe/executive
 
-      # Optional: Force install rollup linux binary (extra safety)
-      - name: Ensure Rollup Linux binary
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu
-        working-directory: mfe/store-manager 
+      - name: Install dependencies — supplier
+        run: npm ci
+        working-directory: mfe/supplier
 
-      - name: Ensure Rollup Linux binary — sc-planner
+      # Optional: Force install rollup linux binary (extra safety)
+      - name: Ensure Rollup Linux binary - store-manager
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+        working-directory: mfe/store-manager
+
+      - name: Ensure Rollup Linux binary - sc-planner
         run: npm install --no-save @rollup/rollup-linux-x64-gnu
         working-directory: mfe/sc-planner
 
-      - name: Ensure Rollup Linux binary — executive
+      - name: Ensure Rollup Linux binary - executive
         run: npm install --no-save @rollup/rollup-linux-x64-gnu
         working-directory: mfe/executive
+
+      - name: Ensure Rollup Linux binary - supplier
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+        working-directory: mfe/supplier
 
       - name: Run coverage — store-manager
         run: npm run test:coverage
@@ -91,6 +100,9 @@ jobs:
         run: npm run test:coverage
         working-directory: mfe/executive
 
+      - name: Run coverage — supplier
+        run: npm run test:coverage
+        working-directory: mfe/supplier
 
       - name: Merge LCOV reports
         run: bash scripts/merge-mfe-coverage.sh

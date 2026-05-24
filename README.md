@@ -451,7 +451,7 @@ make local-clean   # stop containers, destroy volumes (clean slate)
 | Executive MFE                 | 5175     |
 | **Demo Control Center MFE**   | **5176** |
 | **Demo Control Server**       | **3099** |
-| **Supplier Portal MFE**       | **5077** |
+| Supplier Portal MFE           | 5177     |
 
 ---
 
@@ -573,14 +573,14 @@ com.smartretail.{service}/
 
 **RDS schemas (one per bounded context):**
 
-| Schema          | Owner      |
-| --------------- | ---------- |
-| `sales`         | SIS |
-| `inventory`     | IMS |
-| `replenishment` | RE  |
-| `forecasting`   | DFS |
-| `supplier`      | SUP |
-| `promotions`    | PPS |
+| Schema          | Owner |
+| --------------- | ----- |
+| `sales`         | SIS   |
+| `inventory`     | IMS   |
+| `replenishment` | RE    |
+| `forecasting`   | DFS   |
+| `supplier`      | SUP   |
+| `promotions`    | PPS   |
 
 No cross-schema SQL joins anywhere. ARS reads multiple schemas via separate queries merged in Java.
 
@@ -620,7 +620,7 @@ smartretail/
 │   ├── store-manager/          ← Store Manager Dashboard MFE (:5173)
 │   ├── sc-planner/             ← SC Planner Console MFE (:5174)
 │   ├── executive/              ← Executive Insights Dashboard MFE (:5175)
-│   └── supplier/               ← Supplier Portal MFE (:5077, SUPPLIER_ADMIN role)
+│   └── supplier/               ← Supplier Portal MFE (:5177, SUPPLIER_ADMIN role)
 └── scripts/
     ├── localstack-init.sh      ← creates all LocalStack resources on startup
     ├── publish-pos-event.py    ← Flow 1 trigger / test harness
@@ -658,15 +658,15 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 The demo/dev stack is in `infra/cdk-demo/` (SQS-only, reuses existing default VPC, `Min-*` stack names). Stacks must be deployed in dependency order.
 
-| Stack            | What it provisions                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `NetworkStack`   | VPC, subnets, NAT gateways, security groups, VPC interface endpoints                             |
-| `DataStack`      | RDS PostgreSQL (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×5) |
-| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                        |
+| Stack            | What it provisions                                                                                 |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `NetworkStack`   | VPC, subnets, NAT gateways, security groups, VPC interface endpoints                               |
+| `DataStack`      | RDS PostgreSQL (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×5)  |
+| `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                         |
 | `IdentityStack`  | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier pool (SUPPLIER\_ADMIN) |
-| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup/pps), ECR repos, Kinesis consumer Lambda    |
-| `ApiStack`       | ALB with path-based routing to all 7 services                                                     |
-| `HostingStack`   | CloudFront distributions (×5 MFEs) with private S3 OAC, SSM outputs for distribution IDs and URLs |
+| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup/pps), ECR repos, Kinesis consumer Lambda     |
+| `ApiStack`       | ALB with path-based routing to all 7 services                                                      |
+| `HostingStack`   | CloudFront distributions (×5 MFEs) with private S3 OAC, SSM outputs for distribution IDs and URLs  |
 
 ### Prerequisites
 
@@ -834,28 +834,28 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 ### Local development
 
-| Target              | Description                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `local-up`          | Start Postgres + LocalStack via Docker Compose; wait for readiness            |
-| `local-migrate`     | Run Flyway migrations V1–V6 against local Postgres                            |
-| `local-seed`        | Apply seed data (V7)                                                          |
-| `local-sis`          | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local`                       |
-| `local-ims`          | Start IMS on :8081                                                           |
-| `local-re`           | Start RE on :8082                                                            |
-| `local-ars`          | Start ARS on :8083                                                           |
-| `local-dfs`          | Start DFS on :8084                                                           |
-| `local-sup`          | Start SUP on :8085                                                           |
-| `local-pps`          | Start PPS on :8086                                                           |
-| `local-mfe-sm`       | Start Store Manager MFE on :5173                                             |
-| `local-mfe-scp`      | Start SC Planner MFE on :5174                                                |
-| `local-mfe-exec`     | Start Executive MFE on :5175                                                 |
-| `local-mfe-supplier` | Start Supplier Portal MFE on :5077                                           |
-| `local-demo-server` | Start Demo Control Server (`demo/server/`) on :3099                           |
-| `local-mfe-demo`    | Start Demo Control Center MFE (`demo/ui/`) on :5176                           |
-| `local-demo`        | Start both demo/server and demo/ui in parallel                                |
-| `local-free-ports`  | Find and terminate host processes holding ports 8080-8085 and 5173-5176       |
-| `local-down`        | Stop containers, preserve data volumes (calls local-free-ports automatically) |
-| `local-clean`       | Stop containers, destroy volumes (calls local-free-ports automatically)       |
+| Target               | Description                                                                   |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `local-up`           | Start Postgres + LocalStack via Docker Compose; wait for readiness            |
+| `local-migrate`      | Run Flyway migrations V1–V6 against local Postgres                            |
+| `local-seed`         | Apply seed data (V7)                                                          |
+| `local-sis`          | Start SIS on :8080 with `SPRING_PROFILES_ACTIVE=local`                        |
+| `local-ims`          | Start IMS on :8081                                                            |
+| `local-re`           | Start RE on :8082                                                             |
+| `local-ars`          | Start ARS on :8083                                                            |
+| `local-dfs`          | Start DFS on :8084                                                            |
+| `local-sup`          | Start SUP on :8085                                                            |
+| `local-pps`          | Start PPS on :8086                                                            |
+| `local-mfe-sm`       | Start Store Manager MFE on :5173                                              |
+| `local-mfe-scp`      | Start SC Planner MFE on :5174                                                 |
+| `local-mfe-exec`     | Start Executive MFE on :5175                                                  |
+| `local-mfe-supplier` | Start Supplier Portal MFE on :5177                                            |
+| `local-demo-server`  | Start Demo Control Server (`demo/server/`) on :3099                           |
+| `local-mfe-demo`     | Start Demo Control Center MFE (`demo/ui/`) on :5176                           |
+| `local-demo`         | Start both demo/server and demo/ui in parallel                                |
+| `local-free-ports`   | Find and terminate host processes holding ports 8080-8085 and 5173-5176       |
+| `local-down`         | Stop containers, preserve data volumes (calls local-free-ports automatically) |
+| `local-clean`        | Stop containers, destroy volumes (calls local-free-ports automatically)       |
 
 ### Testing
 
@@ -872,15 +872,15 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 ### Build
 
-| Target                | Description                                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| `build-services`      | `mvn clean package -DskipTests` for all 7 services                                       |
-| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                              |
-| `build-mfes`          | `npm run build` for all 5 MFEs (store-manager, sc-planner, executive, demo, supplier)    |
-| `build-all`           | All of the above                                                                         |
-| `docker-build-sis`    | Build SIS Docker image locally                                                           |
-| `docker-build-all`    | Build Docker images for all 7 services locally                                           |
-| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                                       |
+| Target                | Description                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `build-services`      | `mvn clean package -DskipTests` for all 7 services                                    |
+| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                           |
+| `build-mfes`          | `npm run build` for all 5 MFEs (store-manager, sc-planner, executive, demo, supplier) |
+| `build-all`           | All of the above                                                                      |
+| `docker-build-sis`    | Build SIS Docker image locally                                                        |
+| `docker-build-all`    | Build Docker images for all 7 services locally                                        |
+| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                                    |
 
 ### AWS infrastructure
 
@@ -898,16 +898,16 @@ make <target> ENV=dev PROFILE=smartretail-dev
 
 ### AWS artifacts
 
-| Target                     | Description                                                    |
-| -------------------------- | -------------------------------------------------------------- |
-| `aws-ecr-login`            | Authenticate Docker to ECR                                     |
+| Target                     | Description                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `aws-ecr-login`            | Authenticate Docker to ECR                                                |
 | `aws-push-<svc>`           | Build + push a single service image (e.g. `aws-push-sis`, `aws-push-pps`) |
-| `aws-push-all`             | Build + push all 7 service images                                          |
-| `aws-push-lambda`          | Build + push Lambda container image                                        |
-| `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-supplier`)               |
-| `aws-deploy-mfes`          | Build + deploy all 5 MFEs                                                  |
-| `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy             |
-| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning                 |
+| `aws-push-all`             | Build + push all 7 service images                                         |
+| `aws-push-lambda`          | Build + push Lambda container image                                       |
+| `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-supplier`)              |
+| `aws-deploy-mfes`          | Build + deploy all 5 MFEs                                                 |
+| `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy            |
+| `aws-deploy-services-wait` | Same as above, waits for ECS steady state before returning                |
 
 ### AWS operations
 
@@ -976,10 +976,10 @@ The Demo Control Center is a single-browser experience for presenting all six fl
 
 Two new processes start alongside the existing services:
 
-| Process                        | Port | Role                                                                                                                                  |
-| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo/server` (Node/Express)   | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
-| `demo/ui` (Vite + React)       | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes                              |
+| Process                      | Port | Role                                                                                                                                  |
+| ---------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `demo/server` (Node/Express) | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
+| `demo/ui` (Vite + React)     | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes                              |
 
 The architecture diagram shows every service node (Kinesis → Lambda → SIS → EventBridge → IMS / RE → RDS → ARS → MFEs). Nodes pulse and animated dots travel along edges in real time as SSE log lines arrive. The live evidence checklist auto-checks each item when a matching string appears in the log stream.
 
@@ -1108,10 +1108,10 @@ Open **[http://localhost:5176](http://localhost:5176)**. The architecture diagra
 
 ### Demo troubleshooting
 
-| Symptom                                                   | Fix                                                                                                                              |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Symptom                                                   | Fix                                                                                                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | All health dots red                                       | `make local-demo-server` (`demo/server/`) must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health` |
-| "Flow X is already running" on trigger                    | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page              |
-| Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one                                                  |
-| MFE iframe shows login page instead of dashboard          | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services |
-| Event log empty after trigger                             | demo/server SSE connection dropped; reload the page — the `EventSource` auto-reconnects                                          |
+| "Flow X is already running" on trigger                    | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page                 |
+| Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one                                                     |
+| MFE iframe shows login page instead of dashboard          | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services    |
+| Event log empty after trigger                             | demo/server SSE connection dropped; reload the page — the `EventSource` auto-reconnects                                             |

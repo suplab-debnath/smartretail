@@ -61,6 +61,9 @@ local-mfe-scp:
 local-mfe-exec:
 	cd mfe/executive && npm run dev -- --port 5175
 
+local-mfe-supplier:
+	cd mfe/supplier && npm run dev -- --port 5177
+
 local-demo-server: ## Start demo control server at :3099 (local mode)
 	cd demo/server && npm install --silent && node server.js
 
@@ -80,9 +83,9 @@ aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
 	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make aws-demo-server & cd demo/ui && npm run dev
 
-local-free-ports: ## Free up ports 8080-8085, 5173-5176, and 3099
+local-free-ports: ## Free up ports 8080-8085, 5173-5177, and 3099
 	@echo "Checking and freeing ports..."
-	@for port in 3099 8080 8081 8082 8083 8084 8085 5173 5174 5175 5176; do \
+	@for port in 3099 8080 8081 8082 8083 8084 8085 5173 5174 5175 5176 5177; do \
 		pid=$$(lsof -t -i:$$port 2>/dev/null); \
 		if [ -n "$$pid" ]; then \
 			echo "Killing process $$pid holding port $$port..."; \

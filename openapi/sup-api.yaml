@@ -19,6 +19,8 @@ servers:
 tags:
   - name: supplier-orders
     description: Supplier order tracking with shipment progress
+  - name: suppliers
+    description: Supplier reference data
 
 security:
   - BearerAuth: []
@@ -122,6 +124,85 @@ components:
           description: Timestamp of the most recent shipment update
           example: "2026-05-16T08:00:00Z"
 
+    SupplierRecord:
+      type: object
+      description: Supplier reference record
+      required:
+        - supplierId
+        - supplierName
+      additionalProperties: false
+      properties:
+        supplierId:
+          type: string
+          format: uuid
+          example: "11111111-0000-0000-0000-000000000001"
+        supplierName:
+          type: string
+          example: "Acme Beverages Ltd"
+
+    SupplierListResponse:
+      type: object
+      description: All known suppliers
+      required:
+        - suppliers
+      additionalProperties: false
+      properties:
+        suppliers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupplierRecord'
+
+    CreateSupplierOrderRequest:
+      type: object
+      description: |
+        Creates a new supplier PO in PENDING status when a replenishment PO is approved.
+        Simulates the EventBridge-to-SUP notification path.
+      required:
+        - poId
+        - supplierId
+        - skuId
+        - dcId
+        - quantity
+      additionalProperties: false
+      properties:
+        poId:
+          type: string
+          format: uuid
+          description: Linked replenishment PO UUID
+          example: "c1b2c3d4-0000-0000-0000-000000000001"
+        supplierId:
+          type: string
+          format: uuid
+          description: Supplier UUID
+          example: "11111111-0000-0000-0000-000000000002"
+        skuId:
+          type: string
+          description: Stock-keeping unit identifier
+          example: "SKU-SNK-002"
+        dcId:
+          type: string
+          description: Destination distribution centre
+          example: "DC-LONDON"
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Ordered quantity (units)
+          example: 80
+
+    CreateSupplierOrderResponse:
+      type: object
+      description: Newly created supplier PO
+      required:
+        - supplierPoId
+      additionalProperties: false
+      properties:
+        supplierPoId:
+          type: string
+          format: uuid
+          description: Generated supplier PO UUID
+          example: "d1b2c3d4-0000-0000-0000-000000000099"
+
     SupplierOrderListResponse:
       type: object
       description: List of supplier orders for SC Planner tracking view
@@ -150,6 +231,30 @@ components:
       $ref: './components/responses.yaml#/InternalServerError'
 
 paths:
+  /v1/supplier/suppliers:
+    get:
+      tags:
+        - suppliers
+      operationId: getSuppliers
+      summary: List all supplier reference records
+      description: |
+        Returns all known suppliers with id and name.
+        Used by SC Planner to resolve supplier UUIDs to human-readable names.
+        Allowed roles: SC_PLANNER, ADMIN.
+      responses:
+        '200':
+          description: List of supplier records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /v1/supplier/orders:
     get:
       tags:
@@ -191,6 +296,40 @@ paths:
                     eta: "2026-04-19"
                     lastUpdateAt: "2026-04-18T08:00:00Z"
                 dataFreshness: "2026-05-15T14:23:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - supplier-orders
+      operationId: createSupplierOrder
+      summary: Create a supplier PO in PENDING status
+      description: |
+        Creates a supplier_pos record when a replenishment PO is approved.
+        Idempotent on poId — returns 409 if a supplier PO already exists for this replenishment PO.
+        Allowed roles: SC_PLANNER, ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierOrderRequest'
+      responses:
+        '201':
+          description: Supplier PO created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSupplierOrderResponse'
+        '409':
+          description: Supplier PO already exists for this replenishment PO
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

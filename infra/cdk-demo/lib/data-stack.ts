@@ -43,7 +43,9 @@ export class DataStack extends cdk.Stack {
       securityGroups: [network.sgRds],
       multiAz: false,
       databaseName: 'smartretail',
-      credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin'),
+      credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin', {
+        secretName: `smartretail-rds-secret-${srEnv}`,
+      }),
       backupRetention: cdk.Duration.days(1),
       deletionProtection: false,
       removalPolicy: cdk.RemovalPolicy.DESTROY,

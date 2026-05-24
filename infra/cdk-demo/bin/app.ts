@@ -28,7 +28,7 @@ const network   = new NetworkStack  (app, 'Min-NetworkStack',   { env: cdkEnv, s
 const data      = new DataStack     (app, 'Min-DataStack',      { env: cdkEnv, srEnv: env, network });
 const messaging = new MessagingStack(app, 'Min-MessagingStack', { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Min-IdentityStack',  { env: cdkEnv, srEnv: env });
-const compute   = new ComputeStack  (app, 'Min-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
+const compute   = new ComputeStack  (app, 'Min-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging, identity });
 const api       = new ApiStack      (app, 'Min-ApiStack',       { env: cdkEnv, srEnv: env, network, compute });
 new HostingStack   (app, 'Min-HostingStack',    { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
 new MonitoringStack(app, 'Min-MonitoringStack', {
@@ -36,8 +36,5 @@ new MonitoringStack(app, 'Min-MonitoringStack', {
   compute, messaging, data, api,
   alertEmail: app.node.tryGetContext('alertEmail'),
 });
-
-// Suppress unused variable warnings — identity exported for future JWT middleware use
-void identity;
 
 app.synth();

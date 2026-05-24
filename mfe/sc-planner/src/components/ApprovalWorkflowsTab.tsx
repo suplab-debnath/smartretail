@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { ErrorBanner, Tooltip } from '@smartretail/auth'
 import { usePendingApprovals } from '../hooks/usePendingApprovals'
+import { useSuppliers } from '../hooks/useSuppliers'
 
 interface Toast {
   id: number
@@ -16,6 +17,7 @@ interface Props {
 
 export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
   const { orders, loading, error, removeOrder, refetch } = usePendingApprovals(refreshKey)
+  const supplierMap = useSuppliers()
   const [toasts, setToasts] = useState<Toast[]>([])
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set())
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -122,10 +124,10 @@ export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {orders.map(po => (
-                <>
-                  <tr key={po.poId} className="hover:bg-gray-50">
+                <Fragment key={po.poId}>
+                  <tr className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs">{po.poId.slice(0, 12)}…</td>
-                    <td className="px-4 py-3 text-xs">{po.supplierId.slice(0, 12)}…</td>
+                    <td className="px-4 py-3 text-xs">{supplierMap[po.supplierId] ?? `${po.supplierId.slice(0, 12)}…`}</td>
                     <td className="px-4 py-3 font-mono text-xs">{po.skuId}</td>
                     <td className="px-4 py-3 text-xs">{po.dcId}</td>
                     <td className="px-4 py-3 text-right">{po.quantity.toLocaleString()}</td>
@@ -175,7 +177,7 @@ export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

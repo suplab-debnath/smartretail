@@ -587,7 +587,7 @@ The `config.js` file must be uploaded to S3 before the app bundle.
 ## Supplier Portal MFE
 
 **Location:** `mfe/supplier/`
-**Port (local dev):** 5077
+**Port (local dev):** 5177
 **Auth:** Supplier Cognito pool (separate from internal pool)
 **Allowed role:** `SUPPLIER_ADMIN`
 **Data source:** `GET /v1/supplier/orders` on the SUP service (port 8085 locally, ALB `/v1/supplier/*` in AWS)
@@ -600,12 +600,12 @@ pool, keeping supplier access completely separate from internal staff.
 
 ### Components
 
-| Component | File | Description |
-|-----------|------|-------------|
-| `SupplierPortal` | `src/components/SupplierPortal.tsx` | Root layout, auth gate, summary cards, order table |
-| `OrderListTab` | `src/components/OrderListTab.tsx` | Paginated PO table sortable by ETA/status/SKU |
-| `ShipmentStatusBadge` | `src/components/ShipmentStatusBadge.tsx` | Colour-coded status chip |
-| `DataFreshnessIndicator` | `src/components/DataFreshnessIndicator.tsx` | "Last updated N ago" footer |
+| Component                | File                                        | Description                                        |
+| ------------------------ | ------------------------------------------- | -------------------------------------------------- |
+| `SupplierPortal`         | `src/components/SupplierPortal.tsx`         | Root layout, auth gate, summary cards, order table |
+| `OrderListTab`           | `src/components/OrderListTab.tsx`           | Paginated PO table sortable by ETA/status/SKU      |
+| `ShipmentStatusBadge`    | `src/components/ShipmentStatusBadge.tsx`    | Colour-coded status chip                           |
+| `DataFreshnessIndicator` | `src/components/DataFreshnessIndicator.tsx` | "Last updated N ago" footer                        |
 
 ### Hook
 
@@ -614,11 +614,11 @@ In local mode, sends `X-Dev-Role: SUPPLIER_ADMIN` header (no real token).
 
 ### Routes
 
-| Path | Component |
-|------|-----------|
-| `/portal` | `SupplierPortal` |
-| `/callback` | `AuthCallback` |
-| `/logout` | Signed-out message |
+| Path        | Component          |
+| ----------- | ------------------ |
+| `/portal`   | `SupplierPortal`   |
+| `/callback` | `AuthCallback`     |
+| `/logout`   | Signed-out message |
 
 ### Config Injection
 
@@ -631,7 +631,7 @@ In AWS, `cognitoPoolId` / `cognitoClientId` point to the supplier pool
 ```bash
 cd mfe/supplier
 npm install
-npm run dev      # local dev server on http://localhost:5077
+npm run dev      # local dev server on http://localhost:5177
 npm run build    # Vite build → dist/
 aws s3 sync dist/ s3://smartretail-mfe-{env}-supplier-{account}/ --delete
 aws cloudfront create-invalidation --distribution-id {CF_ID} --paths "/*"

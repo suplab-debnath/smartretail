@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    port: 5077,
+    port: 5177,
     proxy: {
       '/v1/supplier': { target: 'http://localhost:8085', changeOrigin: true },
     },

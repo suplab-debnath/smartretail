@@ -9,12 +9,14 @@ import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
 import { DataStack } from './data-stack';
 import { MessagingStack } from './messaging-stack';
+import { IdentityStack } from './identity-stack';
 
 export interface ComputeStackProps extends cdk.StackProps {
   srEnv: string;
   network: NetworkStack;
   data: DataStack;
   messaging: MessagingStack;
+  identity: IdentityStack;
 }
 
 interface ServiceConfig {
@@ -22,6 +24,7 @@ interface ServiceConfig {
   port: number;
   ecrRepo: ecr.IRepository;
   envVars: Record<string, string>;
+  secrets?: Record<string, ecs.Secret>;
   policies: iam.PolicyStatement[];
 }
 
@@ -43,7 +46,7 @@ export class ComputeStack extends cdk.Stack {
 
     cdk.Tags.of(this).add('Name', 'smartretail-compute-demo');
 
-    const { srEnv, network, data, messaging } = props;
+    const { srEnv, network, data, messaging, identity } = props;
 
     this.cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: `smartretail-${srEnv}`,
@@ -61,10 +64,28 @@ export class ComputeStack extends cdk.Stack {
       ],
     });
 
+    // Grant execution role access to the RDS secret so ECS can inject DB_PASSWORD
+    data.rdsInstance.secret!.grantRead(ecsExecutionRole);
+
+    // Cognito issuer URI — built from the pool ID via Fn.join so CloudFormation
+    // resolves it correctly (SSM dynamic refs cannot be embedded in strings).
+    const cognitoIssuerUri = cdk.Fn.join('', [
+      'https://cognito-idp.',
+      this.region,
+      '.amazonaws.com/',
+      identity.internalPool.userPoolId,
+    ]);
+
     const commonEnv = {
-      SMARTRETAIL_ENV: srEnv,
-      AWS_REGION: cdk.Stack.of(this).region,
+      SMARTRETAIL_ENV:   srEnv,
+      AWS_REGION:        cdk.Stack.of(this).region,
       RDS_PROXY_ENDPOINT: data.dbEndpoint,
+      COGNITO_ISSUER_URI: cognitoIssuerUri,
+    };
+
+    // DB_PASSWORD injected via Secrets Manager at task launch — not a plain env var
+    const commonSecrets: Record<string, ecs.Secret> = {
+      DB_PASSWORD: ecs.Secret.fromSecretsManager(data.rdsInstance.secret!, 'password'),
     };
 
     const imsConfig: ServiceConfig = {
@@ -77,6 +98,7 @@ export class ComputeStack extends cdk.Stack {
         IMS_SALES_QUEUE_URL: messaging.imsSalesQueue.queueUrl,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
+      secrets: commonSecrets,
       policies: [
         new iam.PolicyStatement({
           actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
@@ -103,6 +125,7 @@ export class ComputeStack extends cdk.Stack {
         RE_ALERT_QUEUE_URL: messaging.reAlertQueue.queueUrl,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
+      secrets: commonSecrets,
       policies: [
         new iam.PolicyStatement({
           actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes', 'sqs:ChangeMessageVisibility'],
@@ -122,7 +145,11 @@ export class ComputeStack extends cdk.Stack {
     const arsConfig: ServiceConfig = {
       name: 'ars', port: 8083,
       ecrRepo: data.ecrRepos['ars'],
-      envVars: { ...commonEnv, DB_USERNAME: 'smartretail_admin' },
+      envVars: {
+        ...commonEnv,
+        DB_USERNAME: 'smartretail_admin',
+      },
+      secrets: commonSecrets,
       policies: [
         new iam.PolicyStatement({
           actions: ['rds-db:connect'],
@@ -140,6 +167,7 @@ export class ComputeStack extends cdk.Stack {
         DB_USERNAME: 'smartretail_admin',
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
+      secrets: commonSecrets,
       policies: [
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
@@ -161,6 +189,7 @@ export class ComputeStack extends cdk.Stack {
         DB_USERNAME: 'smartretail_admin',
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
+      secrets: commonSecrets,
       policies: [
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
@@ -221,13 +250,15 @@ export class ComputeStack extends cdk.Stack {
       portMappings: [{ containerPort: config.port }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup }),
       healthCheck: {
-        command: ['CMD-SHELL', `curl -f http://localhost:${config.port}/actuator/health || exit 1`],
+        // wget is available in eclipse-temurin:21-jre-alpine; curl is not
+        command: ['CMD-SHELL', `wget -q --spider http://localhost:${config.port}/actuator/health || exit 1`],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
         startPeriod: cdk.Duration.seconds(60),
       },
       environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'dev' },
+      secrets: config.secrets,
     });
 
     const service = new ecs.FargateService(this, `${config.name}Service`, {

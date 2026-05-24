@@ -310,7 +310,7 @@ export class MonitoringStack extends cdk.Stack {
           'fields @timestamp, @logStream, @message',
           'filter @message =~ /ERROR/',
           'sort @timestamp desc',
-          '| limit 25',
+          'limit 25',
         ],
       }),
       new cloudwatch.LogQueryWidget({
@@ -322,7 +322,7 @@ export class MonitoringStack extends cdk.Stack {
           'fields @timestamp, @logStream, @message',
           'filter @message =~ /InventoryAlertEvent|PurchaseOrderEvent/',
           'sort @timestamp desc',
-          '| limit 25',
+          'limit 25',
         ],
       }),
     );

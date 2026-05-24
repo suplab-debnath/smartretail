@@ -1,6 +1,6 @@
 coverage-backend: ## Run tests + generate JaCoCo aggregate report for all services
 	mvn verify \
-	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/coverage \
+	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps,services/coverage \
 	    --also-make \
 	    --no-transfer-progress
 
@@ -8,6 +8,7 @@ coverage-frontend: ## Run Vitest coverage on all MFEs and merge into a single LC
 	cd mfe/store-manager && npm run test:coverage
 	cd mfe/sc-planner    && npm run test:coverage
 	cd mfe/executive     && npm run test:coverage
+	cd mfe/supplier      && npm run test:coverage
 	cd demo/ui           && npm run test:coverage
 	bash scripts/merge-mfe-coverage.sh
 

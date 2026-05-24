@@ -1,9 +1,16 @@
-# AWS Deployment — SmartRetail
+# AWS Deployment — SmartRetail Demo
+
+This document covers deploying the **cdk-demo** stack:
+- 5 ECS Fargate services: IMS, RE, ARS, DFS, SUP (ARM64, FARGATE_SPOT 80%)
+- EventBridge → SQS → RE / ARS (no Kinesis, no Lambda)
+- RDS PostgreSQL direct connection (no RDS Proxy)
+- SC Planner MFE only, served via S3 static website (HTTP)
+
+---
 
 ## Prerequisites (one-time)
 
 ```bash
-# Tools needed
 java --version        # must be 21
 mvn --version         # must be 3.9.x
 node --version        # must be 20.x
@@ -30,10 +37,7 @@ export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --outpu
 ## Step 2 — Install CDK dependencies
 
 ```bash
-# no kinesis approach
 cd infra/cdk-demo
-# kinesis approach
-cd infra/cdk-dev
 npm install
 cd ../..
 ```
@@ -42,10 +46,7 @@ cd ../..
 Skip if you have already bootstrapped this account.
 
 ```bash
-# no kinesis approach
 cd infra/cdk-demo
-# kinesis approach
-cd infra/cdk-dev
 cdk bootstrap aws://${CDK_DEFAULT_ACCOUNT}/us-east-1
 cd ../..
 ```
@@ -55,39 +56,55 @@ Verify bootstrap:
 aws cloudformation describe-stacks --stack-name CDKToolkit
 ```
 
-## Step 4 — Deploy all infrastructure stacks
-This deploys in dependency order: network → data → messaging → identity → compute → api → hosting.
+## Steps 4–8 — One-shot full deployment (recommended)
+If you want everything deployed in a single command (CDK + images + migrations + MFE):
 
 ```bash
-# no kinesis approach
+chmod +x scripts/deploy-demo.sh
+./scripts/deploy-demo.sh
+```
+
+Then run Step 6 (create Cognito users) and Step 9 (smoke test) separately. Skip Steps 4–8 below.
+
+---
+
+## Step 4 — Deploy infrastructure stacks only
+Deploys in dependency order: network → data → messaging → identity → compute → api → hosting → monitoring.
+
+**CDK-only automated:**
+```bash
+chmod +x scripts/deploy-cdk.sh
+./scripts/deploy-cdk.sh
+```
+
+**Manual (easier to debug one stack at a time):**
+```bash
 cd infra/cdk-demo
-# kinesis approach
-cd infra/cdk-dev
-cdk deploy --all --require-approval never
+cdk deploy Min-NetworkStack   --require-approval never
+cdk deploy Min-DataStack      --require-approval never
+cdk deploy Min-MessagingStack --require-approval never
+cdk deploy Min-IdentityStack  --require-approval never
+cdk deploy Min-ComputeStack   --require-approval never
+cdk deploy Min-ApiStack       --require-approval never
+cdk deploy Min-HostingStack   --require-approval never
+cdk deploy Min-MonitoringStack --require-approval never
 cd ../..
 ```
 
-RDS takes 5–10 minutes. The rest is fast. Total: ~15 minutes.
-> If you prefer to deploy one stack at a time (easier to debug):
+RDS takes 5–10 minutes. Total: ~15 minutes.
 
-```bash
-cdk deploy NetworkStack   --require-approval never
-cdk deploy DataStack      --require-approval never
-cdk deploy MessagingStack --require-approval never
-cdk deploy IdentityStack  --require-approval never
-cdk deploy ComputeStack   --require-approval never
-cdk deploy ApiStack       --require-approval never
-cdk deploy HostingStack   --require-approval never
-```
+> `deploy-cdk.sh` deploys stacks 1–7 (`Min-NetworkStack` through `Min-HostingStack`).
+> Deploy `Min-MonitoringStack` separately if you want CloudWatch alarms.
 
 ## Step 5 — Run DB migrations
+Connects to RDS via the instance endpoint stored in Parameter Store (cdk-demo has no RDS Proxy).
 
 ```bash
-chmod +x scripts/run-flyway-aws.sh
-./scripts/run-flyway-aws.sh dev
+chmod +x scripts/run-flyway-aws-demo.sh
+./scripts/run-flyway-aws-demo.sh dev
 ```
 
-This connects to RDS via the proxy endpoint stored in Parameter Store, runs all Flyway migrations, and loads the seed data from V7__seed_data.sql.
+Runs all Flyway migrations V1–V7, including seed data from `V7__seed_data.sql`.
 
 ## Step 6 — Create Cognito test users
 
@@ -95,40 +112,47 @@ This connects to RDS via the proxy endpoint stored in Parameter Store, runs all 
 chmod +x scripts/create-cognito-users.sh
 ./scripts/create-cognito-users.sh dev
 ```
-Creates: `store-manager-1` , `sc-planner-1` , `executive-1`
 
+Creates: `store-manager-1`, `sc-planner-1`, `executive-1` (password: `Test@12345!`)
+
+The SC Planner MFE uses `sc-planner-1` (`SC_PLANNER` group).
 
 ## Step 7 — Build and push service images to ECR
-This builds all 6 services + the Lambda as ARM64 images and pushes them to ECR, then forces ECS redeployment.
+Builds 5 services as ARM64 images, pushes to ECR, and forces ECS redeployment.
+(SIS is not deployed in cdk-demo. There is no Lambda — SQS-only ingestion.)
+
 ```bash
-chmod +x scripts/deploy-services.sh
-./scripts/deploy-services.sh --env dev --wait
+chmod +x scripts/deploy-services-demo.sh
+./scripts/deploy-services-demo.sh --env dev --wait
 ```
 
-`--wait` blocks until all 6 ECS services reach steady state (~3–5 min after push). Drop it if you want to continue and check later.
+`--wait` blocks until all 5 ECS services reach steady state (~3–5 min after push).
 
 To redeploy a single service after a code change:
 ```bash
-./scripts/deploy-services.sh --env dev --services re --wait
+./scripts/deploy-services-demo.sh --env dev --services re --wait
 ```
 
-## Step 8 — Deploy MFEs
+## Step 8 — Deploy SC Planner MFE
+Builds the sc-planner React app and syncs it to the S3 static website bucket.
+(cdk-demo serves only the SC Planner MFE. No CloudFront — HTTP only.)
 
 ```bash
-# Generate runtime config pointing at the real API + Cognito pool
-./scripts/generate-mfe-config.sh dev
-
-chmod +x scripts/deploy-mfes.sh
-./scripts/deploy-mfes.sh --env dev --profile smartretail-dev
+chmod +x scripts/deploy-mfes-demo.sh
+./scripts/deploy-mfes-demo.sh --env dev --profile smartretail-dev
 ```
-This builds each React app, syncs to S3, and invalidates CloudFront.
+
+The SC Planner URL is printed at the end. You can also retrieve it from Parameter Store:
+```bash
+aws ssm get-parameter \
+  --name /smartretail/dev/hosting/sc-planner-url \
+  --query Parameter.Value --output text
+```
 
 ## Step 9 — Smoke test
 ```bash
 ./scripts/smoke-test.sh all
 ```
-
-Expected: `✅ 19 passed ❌ 0 failed`
 
 ## API endpoint
 ```bash
@@ -137,34 +161,50 @@ aws ssm get-parameter \
   --query Parameter.Value --output text
 ```
 
+---
 
 ## Iterative redeployment (after code changes)
-| Changed             | Command                                                                                             |
-| ------------------- | --------------------------------------------------------------------------------------------------- |
-| Single Java service | ./scripts/deploy-services.sh --env dev --services sis --wait                                        |
-| Lambda only         | ./scripts/deploy-services.sh --env dev --no-lambda → wrong flag, use --services without --no-lambda |
-| All services        | ./scripts/deploy-services.sh --env dev --wait                                                       |
-| CDK infra only      | cd infra/cdk-demo && npx cdk deploy Min-ComputeStack --require-approval never                        |
-| MFE only            | ./scripts/deploy-mfes.sh --env dev --profile smartretail-dev                                        |
 
+| Changed              | Command                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
+| Single Java service  | `./scripts/deploy-services-demo.sh --env dev --services re --wait`          |
+| All 5 services       | `./scripts/deploy-services-demo.sh --env dev --wait`                        |
+| CDK infra only       | `cd infra/cdk-demo && npx cdk deploy Min-ComputeStack --require-approval never` |
+| SC Planner MFE only  | `./scripts/deploy-mfes-demo.sh --env dev --profile smartretail-dev`         |
+
+---
 
 ## Teardown
+
+Full resource cleanup (CDK stacks + S3, ECR, CloudWatch logs, SSM, Cognito, security groups):
 ```bash
 ./scripts/destroy-infra.sh
 ```
-Or just the CDK stacks (leaves S3/ECR data):
+
+CDK-only destroy (leaves S3/ECR data intact):
 ```bash
-# Destroy app stacks
-cd infra/cdk-demo && npx cdk destroy --all --force
+cd infra/cdk-demo
+npx cdk destroy Min-MonitoringStack Min-HostingStack Min-ApiStack Min-ComputeStack \
+  Min-IdentityStack Min-MessagingStack Min-DataStack Min-NetworkStack \
+  --force
+cd ../..
 ```
 
 Delete bootstrap stack:
 ```bash
 aws cloudformation delete-stack --stack-name CDKToolkit
-
-# Verify
-aws cloudformation describe-stacks --stack-name CDKToolkit
 ```
+
+> **Note:** The CDK bootstrap bucket (`cdk-hnb659fds-assets-<account>-<region>`) has `DeletionPolicy: Retain` — CloudFormation intentionally leaves it behind. Delete it manually:
+> ```bash
+> # Find the bucket
+> aws s3 ls | grep cdk-
+>
+> # Empty then delete
+> aws s3 rm s3://cdk-hnb659fds-assets-<account>-us-east-1 --recursive
+> aws s3 rb s3://cdk-hnb659fds-assets-<account>-us-east-1
+> ```
+> `destroy-infra.sh` handles this automatically.
 
 ---
 
@@ -208,4 +248,3 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 1. In **Cost Explorer**, apply the filters mentioned above
 2. Click **Save** → Give it a name like `SmartRetail-Demo-Ephemeral`
 3. Next time, just open this saved report for instant view
-

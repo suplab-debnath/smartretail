@@ -1,6 +1,6 @@
 build-services:
 	mvn clean package -DskipTests \
-	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
+	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps \
 	    -am --no-transfer-progress
 
 build-lambda:
@@ -11,6 +11,7 @@ build-mfes:
 	cd mfe/store-manager && npm run build
 	cd mfe/sc-planner    && npm run build
 	cd mfe/executive     && npm run build
+	cd mfe/supplier      && npm run build
 	cd demo/ui           && npm run build
 
 build-all: build-services build-lambda build-mfes

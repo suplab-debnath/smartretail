@@ -2,18 +2,18 @@
 
 React micro-frontend for external supplier users. Provides a read-only view of purchase orders, shipment statuses, and summary counts — authenticated against the dedicated supplier Cognito pool.
 
-**Dev port:** `5077`  
+**Dev port:** `5177`  
 **Backend:** SUP service — `GET /v1/supplier/orders` (port 8085 locally, ALB `/v1/supplier/*` on AWS)  
 **Auth pool:** `smartretail-supplier-{env}` (Cognito), group `SUPPLIER_ADMIN`
 
 ## Components
 
-| Component | Description |
-|-----------|-------------|
-| `SupplierPortal.tsx` | Root layout — auth gate, header with user email + exception badge, summary cards, tab shell |
-| `OrderListTab.tsx` | Paginated (10/page) sortable table — PO Reference, SKU, DC, Qty, Status, ETA, Last Update |
-| `ShipmentStatusBadge.tsx` | Color-coded chip: PENDING=grey, CONFIRMED=blue, DISPATCHED=amber, DELIVERED=green, EXCEPTION=red |
-| `DataFreshnessIndicator.tsx` | "Data as of HH:MM" footer driven by `dataFreshness` timestamp from the API |
+| Component                    | Description                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `SupplierPortal.tsx`         | Root layout — auth gate, header with user email + exception badge, summary cards, tab shell      |
+| `OrderListTab.tsx`           | Paginated (10/page) sortable table — PO Reference, SKU, DC, Qty, Status, ETA, Last Update        |
+| `ShipmentStatusBadge.tsx`    | Color-coded chip: PENDING=grey, CONFIRMED=blue, DISPATCHED=amber, DELIVERED=green, EXCEPTION=red |
+| `DataFreshnessIndicator.tsx` | "Data as of HH:MM" footer driven by `dataFreshness` timestamp from the API                       |
 
 ## Hook
 
@@ -21,11 +21,11 @@ React micro-frontend for external supplier users. Provides a read-only view of p
 
 ## Routes
 
-| Path | Component |
-|------|-----------|
-| `/portal` | `SupplierPortal` (main view) |
+| Path        | Component                         |
+| ----------- | --------------------------------- |
+| `/portal`   | `SupplierPortal` (main view)      |
 | `/callback` | `AuthCallback` (Cognito redirect) |
-| `/logout` | Signed-out confirmation |
+| `/logout`   | Signed-out confirmation           |
 
 ## Running
 
@@ -35,7 +35,7 @@ cd mfe/shared/auth && npm install && npm run build
 
 cd mfe/supplier
 npm install
-npm run dev     # → http://localhost:5077
+npm run dev     # → http://localhost:5177
 npm run build   # produces dist/
 npm run preview
 ```
@@ -62,10 +62,10 @@ Uses `@smartretail/auth` (shared package at `mfe/shared/auth/`). In AWS mode the
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react` | 18.3.1 | UI framework |
-| `react-router-dom` | 6.x | Client-side routing |
-| `@smartretail/auth` | local | Auth + API client |
-| `vitest` | 2.x | Test runner |
-| `@testing-library/react` | 16.x | Component testing |
+| Package                  | Version | Purpose             |
+| ------------------------ | ------- | ------------------- |
+| `react`                  | 18.3.1  | UI framework        |
+| `react-router-dom`       | 6.x     | Client-side routing |
+| `@smartretail/auth`      | local   | Auth + API client   |
+| `vitest`                 | 2.x     | Test runner         |
+| `@testing-library/react` | 16.x    | Component testing   |

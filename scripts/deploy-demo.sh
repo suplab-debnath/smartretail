@@ -15,6 +15,12 @@ PROFILE="${AWS_PROFILE:-smartretail-dev}"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 ALERT_EMAIL="${CDK_CONTEXT_alertEmail:-}"
 DEMO_SERVICES=(ims re ars dfs sup)
+SKIP_INFRA=false
+
+# --skip-infra  skips CDK + image build/push (steps 1–2c); runs migrations + MFE only
+for arg in "$@"; do
+  [[ "$arg" == "--skip-infra" ]] && SKIP_INFRA=true
+done
 
 CDK_DIR="$(cd "$(dirname "$0")/../infra/cdk-demo" && pwd)"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,62 +31,95 @@ hr "SmartRetail SC Planner Demo — Deploy"
 echo "  Environment : $DEMO_ENV"
 echo "  AWS Profile : $PROFILE"
 echo "  Region      : $REGION"
+echo "  Skip infra  : $SKIP_INFRA"
 echo "  Alert email : ${ALERT_EMAIL:-'(not set — add CDK_CONTEXT_alertEmail to enable)'}"
 
-# ── 1. CDK bootstrap (idempotent) ─────────────────────────────────────────────
-hr "Step 1 / 5 — CDK bootstrap"
-cd "$CDK_DIR"
-npm install --silent
 ACCOUNT=$(AWS_PROFILE="$PROFILE" aws sts get-caller-identity --query Account --output text)
-AWS_PROFILE="$PROFILE" npx cdk bootstrap "aws://${ACCOUNT}/${REGION}"
 
-# ── 2. CDK deploy all Min-* stacks ────────────────────────────────────────────
-hr "Step 2 / 5 — CDK deploy (Min-* stacks)"
-ALERT_CTX=""
-if [[ -n "$ALERT_EMAIL" ]]; then
-  ALERT_CTX="-c alertEmail=${ALERT_EMAIL}"
+if [[ "$SKIP_INFRA" == false ]]; then
+  # ── 1. CDK bootstrap (idempotent) ───────────────────────────────────────────
+  hr "Step 1 / 5 — CDK bootstrap"
+  cd "$CDK_DIR"
+  npm install --silent
+  AWS_PROFILE="$PROFILE" npx cdk bootstrap "aws://${ACCOUNT}/${REGION}"
+
+  # ── 2a. CDK deploy pre-compute stacks (creates ECR repos + VPC) ─────────────
+  hr "Step 2a / 5 — CDK deploy pre-compute stacks"
+  ALERT_CTX=""
+  if [[ -n "$ALERT_EMAIL" ]]; then
+    ALERT_CTX="-c alertEmail=${ALERT_EMAIL}"
+  fi
+  AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
+    npx cdk deploy \
+      Min-NetworkStack Min-DataStack Min-MessagingStack Min-IdentityStack \
+      --require-approval never $ALERT_CTX
+
+  # ── 2b. Build and push service images (ECR repos now exist) ─────────────────
+  hr "Step 2b / 5 — Build & push service images (${DEMO_SERVICES[*]})"
+  cd "$ROOT_DIR"
+  ECR_PREFIX="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+
+  AWS_PROFILE="$PROFILE" aws ecr get-login-password --region "$REGION" \
+    | docker login --username AWS --password-stdin "$ECR_PREFIX"
+
+  mvn clean package -DskipTests \
+    -pl services/ims,services/re,services/ars,services/dfs,services/sup \
+    -am --no-transfer-progress
+
+  for svc in "${DEMO_SERVICES[@]}"; do
+    echo "Building ${svc}…"
+    docker buildx build --platform linux/arm64 \
+      -t "smartretail-${svc}:local" "services/${svc}/"
+    docker tag "smartretail-${svc}:local" \
+      "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"
+    docker push "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"
+  done
+
+  # ── 2c. CDK deploy remaining stacks ─────────────────────────────────────────
+  hr "Step 2c / 5 — CDK deploy compute + api + hosting + monitoring"
+  cd "$CDK_DIR"
+  AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
+    npx cdk deploy \
+      Min-ComputeStack Min-ApiStack Min-HostingStack Min-MonitoringStack \
+      --require-approval never $ALERT_CTX
+  cd "$ROOT_DIR"
+else
+  hr "Skipping infra (--skip-infra) — running migrations + MFE only"
 fi
-AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
-  npx cdk deploy --all --require-approval never $ALERT_CTX
-
-# ── 3. Build and push service images ──────────────────────────────────────────
-hr "Step 3 / 5 — Build & push service images (${DEMO_SERVICES[*]})"
-cd "$ROOT_DIR"
-ECR_PREFIX="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
-
-AWS_PROFILE="$PROFILE" aws ecr get-login-password --region "$REGION" \
-  | docker login --username AWS --password-stdin "$ECR_PREFIX"
-
-for svc in "${DEMO_SERVICES[@]}"; do
-  echo "  → Building $svc…"
-  docker buildx build --platform linux/arm64 \
-    -t "smartretail-${svc}:local" "services/${svc}/"
-  docker tag "smartretail-${svc}:local" \
-    "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"
-  docker push "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"
-done
-
-# Force ECS redeployment so tasks pick up the new images
-for svc in "${DEMO_SERVICES[@]}"; do
-  echo "  → Redeploying ECS service: smartretail-${svc}-${DEMO_ENV}"
-  AWS_PROFILE="$PROFILE" aws ecs update-service \
-    --cluster "smartretail-${DEMO_ENV}" \
-    --service "smartretail-${svc}-${DEMO_ENV}" \
-    --force-new-deployment \
-    --region "$REGION" \
-    --output none
-done
 
 # ── 4. DB migrations (includes seed data via V7) ───────────────────────────────
 hr "Step 4 / 5 — DB migrations + seed data"
 AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
-  "$ROOT_DIR/scripts/run-flyway-aws.sh" "$DEMO_ENV"
+  "$ROOT_DIR/scripts/run-flyway-aws-demo.sh" "$DEMO_ENV"
 
 # ── 5. SC Planner MFE ─────────────────────────────────────────────────────────
 hr "Step 5 / 5 — Build & deploy SC Planner MFE"
 cd "$ROOT_DIR/mfe/sc-planner"
 npm install --silent
 npm run build
+
+# Generate runtime config.js with live SSM values — overwrites empty placeholder
+ALB_URL=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
+  --name "/smartretail/${DEMO_ENV}/api/endpoint" \
+  --query Parameter.Value --output text 2>/dev/null || true)
+COGNITO_POOL_ID=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
+  --name "/smartretail/${DEMO_ENV}/cognito/internal-pool-id" \
+  --query Parameter.Value --output text 2>/dev/null || true)
+COGNITO_CLIENT_ID=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
+  --name "/smartretail/${DEMO_ENV}/cognito/internal-client-id" \
+  --query Parameter.Value --output text 2>/dev/null || true)
+
+cat > dist/config.js <<CONFIGEOF
+window.SMARTRETAIL_CONFIG = {
+  apiGatewayEndpoint: '${ALB_URL}',
+  cognitoPoolId:      '${COGNITO_POOL_ID}',
+  cognitoClientId:    '${COGNITO_CLIENT_ID}',
+  cognitoDomain:      '',
+  env:                '${DEMO_ENV}',
+};
+CONFIGEOF
+echo "  apiGatewayEndpoint: ${ALB_URL}"
+
 BUCKET_NAME=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
   --name "/smartretail/${DEMO_ENV}/hosting/sc-planner-bucket-name" \
   --query Parameter.Value --output text)

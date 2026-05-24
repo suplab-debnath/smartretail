@@ -57,6 +57,12 @@
             <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.smartretail</groupId>
+            <artifactId>smartretail-pps</artifactId>
+            <version>${project.version}</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -73,6 +79,11 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.reporting.outputDirectory}/jacoco-aggregate</outputDirectory>
+                            <excludes>
+                                <exclude>com/smartretail/*/adapter/in/web/generated/**</exclude>
+                                <exclude>com/smartretail/**/*Application.class</exclude>
+                                <exclude>com/smartretail/*/config/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { InventoryPosition, InventoryPositionListResponse, PurchaseOrder, PurchaseOrderListResponse } from '../types'
+import { useSuppliers } from '../hooks/useSuppliers'
 
 interface FormValues {
   storeId: string
@@ -13,18 +14,18 @@ type DemoPhase = 'idle' | 'injecting' | 'polling' | 'found' | 'approving' | 'don
 
 // Human-readable names for demo SKUs
 const SKU_NAMES: Record<string, string> = {
-  'SKU-SNK-002': 'White Trainers',
+  'SKU-SNK-002': 'Pringles',
 }
 
 const PIPELINE_STEPS = [
-  { label: 'Checkout confirmed',      hint: 'Store till transaction received and validated' },
+  { label: 'Checkout confirmed', hint: 'Store till transaction received and validated' },
   { label: 'Warehouse stock updated', hint: 'DC inventory level automatically decremented' },
-  { label: 'Low-stock alert sent',    hint: 'Stock fell below reorder threshold — alert published to event bus' },
-  { label: 'Reorder created',         hint: 'Replenishment Engine raised a Purchase Order for your approval' },
+  { label: 'Low-stock alert sent', hint: 'Stock fell below reorder threshold — alert published to event bus' },
+  { label: 'Reorder created', hint: 'Replenishment Engine raised a Purchase Order for your approval' },
 ]
 
 const DC_OPTIONS = [
-  { value: 'DC-LONDON',     label: 'London DC'     },
+  { value: 'DC-LONDON', label: 'London DC' },
   { value: 'DC-MANCHESTER', label: 'Manchester DC' },
   { value: 'DC-BIRMINGHAM', label: 'Birmingham DC' },
 ]
@@ -32,10 +33,10 @@ const DC_OPTIONS = [
 // SKU-SNK-002 at DC-LONDON: auto_approve_threshold = £0 → every PO lands in PENDING_APPROVAL
 // on_hand (35) is already below reorder_point (80), so any sale triggers the full pipeline
 const DEFAULT_FORM: FormValues = {
-  storeId:   'STORE-001',
-  skuId:     'SKU-SNK-002',
-  dcId:      'DC-LONDON',
-  quantity:  '1',
+  storeId: 'STORE-001',
+  skuId: 'SKU-SNK-002',
+  dcId: 'DC-LONDON',
+  quantity: '1',
   unitPrice: '9.75',
 }
 
@@ -47,16 +48,17 @@ interface Props {
 }
 
 export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
-  const [form, setForm]              = useState<FormValues>(DEFAULT_FORM)
-  const [phase, setPhase]            = useState<DemoPhase>('idle')
+  const [form, setForm] = useState<FormValues>(DEFAULT_FORM)
+  const [phase, setPhase] = useState<DemoPhase>('idle')
   const [completedSteps, setCompleted] = useState(0)
-  const [foundPO, setFoundPO]        = useState<PurchaseOrder | null>(null)
-  const [error, setError]            = useState<string | null>(null)
-  const [position, setPosition]      = useState<InventoryPosition | null>(null)
+  const [foundPO, setFoundPO] = useState<PurchaseOrder | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [position, setPosition] = useState<InventoryPosition | null>(null)
+  const supplierMap = useSuppliers()
 
-  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const snapshotRef = useRef<Set<string>>(new Set())
-  const attemptRef  = useRef(0)
+  const attemptRef = useRef(0)
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
@@ -133,13 +135,13 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Dev-Role': 'SC_PLANNER' },
         body: JSON.stringify({
-          transactionId:  crypto.randomUUID(),
-          storeId:        form.storeId,
-          skuId:          form.skuId,
-          dcId:           form.dcId,
-          quantity:       parseInt(form.quantity, 10),
-          unitPrice:      parseFloat(form.unitPrice),
-          channel:        'POS',
+          transactionId: crypto.randomUUID(),
+          storeId: form.storeId,
+          skuId: form.skuId,
+          dcId: form.dcId,
+          quantity: parseInt(form.quantity, 10),
+          unitPrice: parseFloat(form.unitPrice),
+          channel: 'POS',
           eventTimestamp: new Date().toISOString(),
         }),
       })
@@ -179,6 +181,18 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
         body: JSON.stringify({ version: foundPO.version }),
       })
       if (res.ok) {
+        // Notify the SUP service so the order appears in the Supplier Orders tab
+        await fetch('/v1/supplier/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Dev-Role': 'SC_PLANNER' },
+          body: JSON.stringify({
+            poId: foundPO.poId,
+            supplierId: foundPO.supplierId,
+            skuId: foundPO.skuId,
+            dcId: foundPO.dcId,
+            quantity: foundPO.quantity,
+          }),
+        }).catch(() => { /* non-fatal — order still approved */ })
         setPhase('done')
         onDataChanged()   // approvals + supplier orders are now stale
       } else if (res.status === 409) {
@@ -195,8 +209,8 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
   }
 
   const productName = SKU_NAMES[form.skuId] ?? form.skuId
-  const isLowStock  = position ? position.onHand <= position.reorderPoint : null
-  const dcLabel     = DC_OPTIONS.find(o => o.value === form.dcId)?.label ?? form.dcId
+  const isLowStock = position ? position.onHand <= position.reorderPoint : null
+  const dcLabel = DC_OPTIONS.find(o => o.value === form.dcId)?.label ?? form.dcId
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -207,8 +221,8 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
           Your bestseller just ran out at the warehouse — and nobody noticed
         </h2>
         <p className="text-sm text-blue-800 leading-relaxed">
-          It's a busy Friday afternoon. A customer at your London flagship just bought the last pair
-          of White Trainers in the DC-London warehouse. Without an automated system, that gap sits
+          It's a busy Friday afternoon. A customer at your London flagship just bought the last pack
+          of Pringles in the DC-London warehouse. Without an automated system, that gap sits
           undetected until Monday — by then, weekend shoppers walk in, find empty shelves, and head
           straight to a competitor.
         </p>
@@ -218,7 +232,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
           all before a single customer is turned away.
         </p>
         <p className="mt-2 text-xs text-blue-700">
-          <span className="font-semibold">How it works:</span> The White Trainers SKU is already
+          <span className="font-semibold">How it works:</span> The Pringles SKU is already
           running low in the DC. Even one more sale crosses the reorder threshold and triggers the
           full automated chain. After the system creates a Purchase Order, you'll approve it to
           send the restocking order to the supplier.
@@ -341,16 +355,16 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
           </p>
           <div className="flex flex-wrap items-start gap-2">
             {PIPELINE_STEPS.map(({ label, hint }, i) => {
-              const done   = completedSteps > i
+              const done = completedSteps > i
               const active = completedSteps === i && phase === 'polling'
               return (
                 <div key={label} className="flex items-center gap-2">
                   <div className="flex flex-col items-start gap-0.5">
                     <span className={[
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
-                      done   ? 'bg-green-100 text-green-700' :
-                      active ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                               'bg-gray-100 text-gray-400',
+                      done ? 'bg-green-100 text-green-700' :
+                        active ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                          'bg-gray-100 text-gray-400',
                     ].join(' ')}>
                       <span>{done ? '✓' : active ? '⟳' : '○'}</span>
                       {label}
@@ -428,7 +442,9 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
             </div>
             <div>
               <dt className="text-xs text-gray-500">Supplier</dt>
-              <dd className="text-gray-800">{foundPO.supplierId}</dd>
+              <dd className="text-gray-800">
+                {supplierMap[foundPO.supplierId] ?? foundPO.supplierId}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-gray-500">Raised at</dt>

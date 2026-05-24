@@ -89,6 +89,15 @@ export interface PurchaseOrderListResponse {
   dataFreshness: string
 }
 
+// SUP — Suppliers
+export interface Supplier {
+  supplierId: string
+  supplierName: string
+}
+export interface SupplierListResponse {
+  suppliers: Supplier[]
+}
+
 // SUP — Supplier Orders
 export interface SupplierOrder {
   supplierPoId: string
