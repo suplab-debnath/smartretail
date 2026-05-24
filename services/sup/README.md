@@ -4,7 +4,7 @@ Query service for supplier order tracking and shipment metrics. Feeds the SC Pla
 
 **Port (local):** `8085`  
 **Schema owned:** `supplier`  
-**OpenAPI spec:** `openapi/sup-api.yaml`
+**OpenAPI spec:** `src/main/resources/sup-api.yaml`
 
 ## Responsibilities
 
@@ -39,6 +39,19 @@ com.smartretail.sup/
     ├── inbound/SupplierOrderQueryPort.java
     └── outbound/SupplierOrderReadPort.java
 ```
+
+## Spring Profiles
+
+| `SPRING_PROFILES_ACTIVE` | Config loaded | Security | Use case |
+|---|---|---|---|
+| `local` | `application-local.yml` | Permit-all, no CORS | Local dev — Docker Compose + LocalStack `:4566` |
+| `demo` | `application-aws.yml` + `application-demo.yml` | Permit-all + CORS; OAuth2 auto-config disabled | cdk-demo on AWS — role set via `X-Dev-Role` header, no Cognito JWT |
+| `dev` | `application-aws.yml` | CORS + Cognito JWT required | cdk-dev / cdk-prod on AWS |
+
+Profile group resolution (`application.yml`): `dev → [aws]`, `demo → [aws]`.  
+The `demo` overlay (`application-demo.yml`) excludes `OAuth2ResourceServerAutoConfiguration` so Spring does not contact the Cognito OIDC endpoint at startup.
+
+**AWS CLI profile:** default `smartretail-dev` (`~/.aws/config`). Override: `AWS_PROFILE=my-profile`.
 
 ## Build and run
 

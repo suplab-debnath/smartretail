@@ -4,7 +4,7 @@ Receives POS transaction events, writes them to the `sales` schema, and publishe
 
 **Port (local):** `8080`  
 **Schema owned:** `sales`  
-**OpenAPI spec:** `openapi/sis-api.yaml`
+**OpenAPI spec:** `src/main/resources/sis-api.yaml`
 
 ## Responsibilities
 
@@ -77,6 +77,20 @@ com.smartretail.sis/
         ├── RawArchivePort.java
         └── EventStorePort.java
 ```
+
+## Spring Profiles
+
+> **cdk-demo note:** SIS is **not deployed** in cdk-demo. All demo sales data is pre-seeded via
+> `V7__seed_data.sql` — no live POS ingestion occurs and no SIS container is started.
+
+| `SPRING_PROFILES_ACTIVE` | Config loaded | Security | Use case |
+|---|---|---|---|
+| `local` | `application-local.yml` | Permit-all, no CORS | Local dev — Docker Compose + LocalStack `:4566` |
+| `dev` | `application-aws.yml` | Cognito JWT required | cdk-dev / cdk-prod — Lambda kinesis-consumer calls SIS via `POST /v1/ingest/events` |
+
+Profile group resolution (`application.yml`): `dev → [aws]`.
+
+**AWS CLI profile:** default `smartretail-dev` (`~/.aws/config`). Override: `AWS_PROFILE=my-profile`.
 
 ## Build and run
 

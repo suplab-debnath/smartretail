@@ -3,8 +3,7 @@ spring:
     name: sis
   profiles:
     group:
-      dev:       [aws]
-      local-sqs: [local]
+      dev: [aws]
   datasource:
     url: jdbc:postgresql://${RDS_PROXY_ENDPOINT:localhost}:5432/smartretail?currentSchema=${DB_SCHEMA:sales}
     username: ${DB_USERNAME:smartretail_admin}

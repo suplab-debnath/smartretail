@@ -13,9 +13,10 @@ const mockResponse: StockAlertListResponse = {
 afterEach(() => vi.restoreAllMocks())
 
 describe('useExceptionQueue', () => {
-  it('starts with loading=false and no data', () => {
+  it('starts with loading=true before fetch resolves', () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {}))) // never resolves
     const { result } = renderHook(() => useExceptionQueue())
-    expect(result.current.loading).toBe(false)
+    expect(result.current.loading).toBe(true)
     expect(result.current.data).toBeNull()
   })
 

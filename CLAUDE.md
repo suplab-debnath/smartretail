@@ -13,7 +13,7 @@ Implement specifications faithfully. Architecture decisions live in `docs/`. Bui
 
 1. Load the relevant agent from `.claude/settings.json` for the area you are working in
 2. Read the relevant spec in `docs/`
-3. Read the OpenAPI YAML in `openapi/` for the service you are touching
+3. Read the OpenAPI YAML in `services/{service}/src/main/resources/` for the service you are touching
 4. State what you are about to build and which mode (`LOCAL` / `AWS`)
 5. Then code
 
@@ -91,6 +91,7 @@ smartretail/
 │  └── cdk-dev/            ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront) — same services as prod, smaller sizing
 ├── services/
 │   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
+│   │   └── src/main/resources/{svc}-api.yaml  ← OpenAPI spec (self-contained, components inlined)
 ├── lambdas/kinesis-consumer/
 ├── migrations
 │  └── flyway/
@@ -158,7 +159,7 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run
 Every REST API starts with an OpenAPI YAML. Always. No exceptions.
 
 ```
-Step 1  Write / update openapi/{service}-api.yaml
+Step 1  Write / update services/{service}/src/main/resources/{service}-api.yaml
 Step 2  mvn generate-sources  → Java server stubs generated
 Step 3  npm run generate-api  → TypeScript client generated
 Step 4  Implement the generated interfaces in service code

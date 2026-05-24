@@ -76,7 +76,7 @@ describe('SupplierOrderTrackingTab', () => {
     mockedHook.mockReturnValue({ data: mockData, loading: false, error: null, refetch: vi.fn() })
     render(<SupplierOrderTrackingTab />)
     await userEvent.selectOptions(screen.getByRole('combobox'), 'EXCEPTION')
-    expect(mockedHook).toHaveBeenCalledWith('EXCEPTION')
+    expect(mockedHook).toHaveBeenCalledWith('EXCEPTION', 0)
   })
 
   it('calls hook with undefined when ALL selected', async () => {
@@ -84,6 +84,6 @@ describe('SupplierOrderTrackingTab', () => {
     render(<SupplierOrderTrackingTab />)
     await userEvent.selectOptions(screen.getByRole('combobox'), 'EXCEPTION')
     await userEvent.selectOptions(screen.getByRole('combobox'), 'ALL')
-    expect(mockedHook).toHaveBeenCalledWith(undefined)
+    expect(mockedHook).toHaveBeenCalledWith(undefined, 0)
   })
 })

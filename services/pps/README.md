@@ -4,7 +4,7 @@ Read-only query service that exposes active promotion schedules from the `promot
 
 **Port (local):** `8086`  
 **Schema owned:** `promotions`  
-**OpenAPI spec:** `openapi/pps-api.yaml`
+**OpenAPI spec:** `src/main/resources/pps-api.yaml`
 
 ## Responsibilities
 
@@ -38,6 +38,17 @@ com.smartretail.pps/
     ├── inbound/PromotionQueryPort.java
     └── outbound/PromotionReadPort.java
 ```
+
+## Spring Profiles
+
+| `SPRING_PROFILES_ACTIVE` | Config loaded | Security | Use case |
+|---|---|---|---|
+| `local` | `application-local.yml` | Permit-all, no CORS | Local dev — Docker Compose + LocalStack `:4566` |
+| `dev` | `application-aws.yml` | Cognito JWT required | cdk-dev / cdk-prod on AWS |
+
+Profile group resolution (`application.yml`): `dev → [aws]`.
+
+**AWS CLI profile:** default `smartretail-dev` (`~/.aws/config`). Override: `AWS_PROFILE=my-profile`.
 
 ## Build and run
 

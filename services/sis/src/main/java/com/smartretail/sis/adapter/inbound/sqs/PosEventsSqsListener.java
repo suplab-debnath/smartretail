@@ -17,7 +17,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Component
-@Profile({"dev", "local-sqs"})
+@Profile("dev")
 public class PosEventsSqsListener {
 
     private static final Logger log = LoggerFactory.getLogger(PosEventsSqsListener.class);

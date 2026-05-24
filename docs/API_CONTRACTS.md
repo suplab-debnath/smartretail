@@ -544,7 +544,7 @@ These are the ECS health check targets.
 ## DFS — Demand Forecasting Service
 
 Base URL (local): `http://localhost:8084`
-OpenAPI spec: `openapi/dfs-api.yaml`
+OpenAPI spec: `services/dfs/src/main/resources/dfs-api.yaml`
 Roles allowed: `SC_PLANNER`, `ADMIN`
 
 ### GET /v1/forecast/{skuId}/{dcId}
@@ -577,7 +577,7 @@ Returns P10/P50/P90 demand forecast bands from the latest COMPLETED forecast run
 ## SUP — Supplier Service
 
 Base URL (local): `http://localhost:8085`
-OpenAPI spec: `openapi/sup-api.yaml`
+OpenAPI spec: `services/sup/src/main/resources/sup-api.yaml`
 Roles allowed: `SC_PLANNER`, `ADMIN`
 
 ### GET /v1/supplier/orders

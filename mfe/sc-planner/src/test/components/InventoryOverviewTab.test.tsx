@@ -78,6 +78,6 @@ describe('InventoryOverviewTab', () => {
     render(<InventoryOverviewTab />)
     const select = screen.getByRole('combobox')
     await userEvent.selectOptions(select, 'DC-MANCHESTER')
-    expect(mockedHook).toHaveBeenCalledWith('DC-MANCHESTER')
+    expect(mockedHook).toHaveBeenCalledWith('DC-MANCHESTER', 0)
   })
 })

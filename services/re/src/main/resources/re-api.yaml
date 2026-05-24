@@ -291,27 +291,104 @@ components:
           example: "Pre-emptive restock ahead of promotion"
 
     ErrorResponse:
-      $ref: './components/schemas.yaml#/ErrorResponse'
+      type: object
+      required:
+        - errorCode
+        - message
+        - timestamp
+      additionalProperties: false
+      properties:
+        errorCode:
+          type: string
+          description: Machine-readable error classification
+          enum:
+            - VALIDATION_ERROR
+            - DUPLICATE_EVENT
+            - INVALID_STATUS_TRANSITION
+            - CONCURRENT_MODIFICATION
+            - UNAUTHORIZED
+            - NOT_FOUND
+            - INTERNAL_ERROR
+          example: DUPLICATE_EVENT
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Event with transactionId already processed"
+        traceId:
+          type: string
+          description: AWS X-Ray trace ID for log correlation
+          example: "1-5759e988-bd862e3fe1be46a994272793"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+        details:
+          type: object
+          description: Optional additional context (e.g. currentStatus on transition errors)
+          additionalProperties: true
 
   parameters:
     Page:
-      $ref: './components/parameters.yaml#/Page'
+      name: page
+      in: query
+      description: Zero-based page number
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+        example: 0
     Size:
-      $ref: './components/parameters.yaml#/Size'
+      name: size
+      in: query
+      description: Number of results per page (max 100)
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
 
   responses:
     BadRequest:
-      $ref: './components/responses.yaml#/BadRequest'
+      description: Validation error — one or more fields failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     Unauthorized:
-      $ref: './components/responses.yaml#/Unauthorized'
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     Forbidden:
-      $ref: './components/responses.yaml#/Forbidden'
+      description: Authenticated but insufficient role for this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     NotFound:
-      $ref: './components/responses.yaml#/NotFound'
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     Conflict:
-      $ref: './components/responses.yaml#/Conflict'
+      description: State conflict (duplicate event, invalid state transition, or optimistic lock failure)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     InternalServerError:
-      $ref: './components/responses.yaml#/InternalServerError'
+      description: Unexpected internal error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
 paths:
   /v1/replenishment/orders:

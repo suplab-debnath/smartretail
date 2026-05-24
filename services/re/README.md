@@ -4,7 +4,7 @@ Processes inventory alerts to create purchase orders and manages the PO lifecycl
 
 **Port (local):** `8082`  
 **Schema owned:** `replenishment`  
-**OpenAPI spec:** `openapi/re-api.yaml`
+**OpenAPI spec:** `src/main/resources/re-api.yaml`
 
 ## Responsibilities
 
@@ -90,6 +90,19 @@ com.smartretail.re/
         ├── ReplenishmentRepositoryPort.java
         └── PurchaseOrderEventPublisherPort.java
 ```
+
+## Spring Profiles
+
+| `SPRING_PROFILES_ACTIVE` | Config loaded | Security | Use case |
+|---|---|---|---|
+| `local` | `application-local.yml` | Permit-all, no CORS | Local dev — Docker Compose + LocalStack `:4566` |
+| `demo` | `application-aws.yml` + `application-demo.yml` | Permit-all + CORS; OAuth2 auto-config disabled | cdk-demo on AWS — role set via `X-Dev-Role` header, no Cognito JWT |
+| `dev` | `application-aws.yml` | CORS + Cognito JWT required; approve/reject also require `SC_PLANNER` or `ADMIN` role | cdk-dev / cdk-prod on AWS |
+
+Profile group resolution (`application.yml`): `dev → [aws]`, `demo → [aws]`.  
+The `demo` overlay (`application-demo.yml`) excludes `OAuth2ResourceServerAutoConfiguration` so Spring does not contact the Cognito OIDC endpoint at startup.
+
+**AWS CLI profile:** default `smartretail-dev` (`~/.aws/config`). Override: `AWS_PROFILE=my-profile`.
 
 ## Build and run
 

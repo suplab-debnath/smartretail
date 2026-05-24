@@ -6,11 +6,15 @@ import { usePendingApprovals } from '../../hooks/usePendingApprovals'
 import type { PurchaseOrder } from '../../types'
 import type { FetchError } from '@smartretail/auth'
 
-vi.mock('@smartretail/auth', () => ({
-  ErrorBanner: ({ error }: { error: FetchError | null }) =>
-    error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
+vi.mock('@smartretail/auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@smartretail/auth')>()
+  return {
+    ...actual,
+    ErrorBanner: ({ error }: { error: FetchError | null }) =>
+      error ? <div data-testid="error-banner">Error: {error.message}</div> : null,
+    Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  }
+})
 
 vi.mock('../../hooks/usePendingApprovals')
 const mockedHook = vi.mocked(usePendingApprovals)
