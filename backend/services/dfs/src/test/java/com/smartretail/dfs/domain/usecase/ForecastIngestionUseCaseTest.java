@@ -59,7 +59,8 @@ class ForecastIngestionUseCaseTest {
 
         assertThatThrownBy(() -> useCase.ingest(runId, List.of()))
                 .isInstanceOf(ForecastRunNotFoundException.class)
-                .hasMessageContaining(runId.toString());
+                .hasMessageContaining(runId.toString())
+                .satisfies(e -> assertThat(((ForecastRunNotFoundException) e).getRunId()).isEqualTo(runId));
 
         verify(persistencePort, never()).batchInsertForecastRows(any(), any());
         verify(persistencePort, never()).markRunCompleted(any(), any());
