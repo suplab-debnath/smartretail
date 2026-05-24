@@ -69,7 +69,15 @@ jobs:
       # Optional: Force install rollup linux binary (extra safety)
       - name: Ensure Rollup Linux binary
         run: npm install --no-save @rollup/rollup-linux-x64-gnu
-        working-directory: mfe/store-manager   # apply to the one that failed
+        working-directory: mfe/store-manager 
+
+      - name: Ensure Rollup Linux binary — sc-planner
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+        working-directory: mfe/sc-planner
+
+      - name: Ensure Rollup Linux binary — executive
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+        working-directory: mfe/executive
 
       - name: Run coverage — store-manager
         run: npm run test:coverage
