@@ -1,0 +1,388 @@
+openapi: "3.1.0"
+
+info:
+  title: SmartRetail Demand Forecasting Service API
+  version: "1.0.0"
+  description: |
+    Read-only service that exposes demand forecast probability bands (P10/P50/P90)
+    per SKU × DC from the forecasting schema.
+    JWT role-based access enforced at the service layer.
+  contact:
+    name: SmartRetail Platform Team
+
+servers:
+  - url: http://localhost:8084
+    description: Local development
+  - url: https://{api-id}.execute-api.us-east-1.amazonaws.com/internal
+    description: AWS internal stage
+
+tags:
+  - name: forecast
+    description: Demand forecast bands per SKU × DC
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - errorCode
+        - message
+        - timestamp
+      additionalProperties: false
+      properties:
+        errorCode:
+          type: string
+          description: Machine-readable error classification
+          enum:
+            - VALIDATION_ERROR
+            - DUPLICATE_EVENT
+            - INVALID_STATUS_TRANSITION
+            - CONCURRENT_MODIFICATION
+            - UNAUTHORIZED
+            - NOT_FOUND
+            - INTERNAL_ERROR
+          example: DUPLICATE_EVENT
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Event with transactionId already processed"
+        traceId:
+          type: string
+          description: AWS X-Ray trace ID for log correlation
+          example: "1-5759e988-bd862e3fe1be46a994272793"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+        details:
+          type: object
+          description: Optional additional context (e.g. currentStatus on transition errors)
+          additionalProperties: true
+
+    ForecastBand:
+      type: object
+      description: P10/P50/P90 forecast values for a single forecast date
+      required:
+        - forecastDate
+        - p10
+        - p50
+        - p90
+      additionalProperties: false
+      properties:
+        forecastDate:
+          type: string
+          format: date
+          description: Calendar date this band applies to
+          example: "2026-05-22"
+        p10:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 10th-percentile demand forecast (units)
+          example: 85
+        p50:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Median (50th-percentile) demand forecast (units)
+          example: 110
+        p90:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 90th-percentile demand forecast (units)
+          example: 140
+        actualUnits:
+          type: integer
+          format: int32
+          nullable: true
+          description: Actual units sold on this date; null for future dates
+          example: null
+
+    ForecastDataResponse:
+      type: object
+      description: |
+        Demand forecast probability bands for a single SKU × DC combination.
+        Bands are sourced from the latest COMPLETED forecast run.
+      required:
+        - skuId
+        - dcId
+        - horizonDays
+        - latestMape
+        - bands
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        skuId:
+          type: string
+          description: Stock-keeping unit identifier
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          description: Distribution centre identifier
+          example: "DC-LONDON"
+        horizonDays:
+          type: integer
+          format: int32
+          description: Forecast horizon in days
+          enum:
+            - 7
+            - 14
+            - 30
+          example: 30
+        latestMape:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: MAPE of the latest COMPLETED forecast run (0.0–1.0)
+          example: 0.0823
+        bands:
+          type: array
+          description: Forecast bands sorted by forecastDate ascending
+          items:
+            $ref: '#/components/schemas/ForecastBand'
+        dataFreshness:
+          type: string
+          format: date-time
+          description: completed_at timestamp of the forecast run that produced these bands
+          example: "2026-05-15T02:00:00Z"
+
+    ForecastRowInput:
+      type: object
+      description: A single parsed row from the SageMaker transform output CSV
+      required:
+        - skuId
+        - dcId
+        - forecastDate
+        - horizonDays
+        - p10
+        - p50
+        - p90
+      additionalProperties: false
+      properties:
+        skuId:
+          type: string
+          maxLength: 50
+          description: Stock-keeping unit identifier
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          maxLength: 50
+          description: Distribution centre identifier
+          example: "DC-LONDON"
+        forecastDate:
+          type: string
+          format: date
+          description: Calendar date this forecast row applies to
+          example: "2026-06-01"
+        horizonDays:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Forecast horizon in days
+          example: 30
+        p10:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 10th-percentile demand forecast (units)
+          example: 80
+        p50:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Median demand forecast (units)
+          example: 105
+        p90:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 90th-percentile demand forecast (units)
+          example: 135
+
+    IngestForecastResultsRequest:
+      type: object
+      description: Batch of parsed SageMaker transform rows for a single forecast run
+      required:
+        - rows
+      additionalProperties: false
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          description: Parsed forecast rows from the transform output CSV
+          items:
+            $ref: '#/components/schemas/ForecastRowInput'
+
+    IngestForecastResultsResponse:
+      type: object
+      required:
+        - runId
+        - rowsInserted
+        - ingestedAt
+      additionalProperties: false
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: Forecast run identifier that was updated
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        rowsInserted:
+          type: integer
+          format: int32
+          description: Number of demand_forecasts rows written
+          example: 420
+        ingestedAt:
+          type: string
+          format: date-time
+          description: Timestamp when ingestion completed
+          example: "2026-05-24T02:15:00Z"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but insufficient role for this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected internal error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request body failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+paths:
+  /v1/forecast/{skuId}/{dcId}:
+    get:
+      tags:
+        - forecast
+      operationId: getForecastBands
+      summary: Demand forecast P10/P50/P90 bands for a SKU × DC
+      description: |
+        Returns demand forecast probability bands from the latest COMPLETED run
+        for the requested SKU, DC, and horizon. actualUnits is null for future dates.
+        Allowed roles: SC_PLANNER, ADMIN.
+      parameters:
+        - name: skuId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+          description: Stock-keeping unit identifier
+          example: "SKU-BEV-001"
+        - name: dcId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+          description: Distribution centre identifier
+          example: "DC-LONDON"
+        - name: horizonDays
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum:
+              - 7
+              - 14
+              - 30
+            default: 30
+          description: Forecast horizon in days (default 30)
+          example: 30
+      responses:
+        '200':
+          description: Forecast bands for the requested SKU × DC × horizon
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastDataResponse'
+              example:
+                skuId: "SKU-BEV-001"
+                dcId: "DC-LONDON"
+                horizonDays: 30
+                latestMape: 0.0823
+                bands:
+                  - forecastDate: "2026-05-22"
+                    p10: 85
+                    p50: 110
+                    p90: 140
+                    actualUnits: null
+                dataFreshness: "2026-05-15T02:00:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/forecast/runs/{runId}/results:
+    post:
+      tags:
+        - forecast
+      operationId: ingestForecastResults
+      summary: Ingest SageMaker batch transform results for a forecast run
+      description: |
+        Called exclusively by the Batch Post-Processor Lambda after a SageMaker batch
+        transform job completes. Writes demand forecast rows into forecasting.demand_forecasts
+        and transitions the run status to COMPLETED. Internal-only — not exposed to MFE clients.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Forecast run identifier extracted from the S3 key convention
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestForecastResultsRequest'
+      responses:
+        '201':
+          description: Forecast results ingested and run marked COMPLETED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestForecastResultsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

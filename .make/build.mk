@@ -1,10 +1,10 @@
 build-services:
 	mvn clean package -DskipTests \
-	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps \
+	    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/services/pps \
 	    -am --no-transfer-progress
 
 build-lambda:
-	mvn clean package -DskipTests -pl lambdas/kinesis-consumer --no-transfer-progress
+	mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer --no-transfer-progress
 
 build-mfes:
 	cd mfe/shared/auth   && npm run build
@@ -17,12 +17,12 @@ build-mfes:
 build-all: build-services build-lambda build-mfes
 
 docker-build-sis:
-	docker buildx build --platform linux/arm64 -t smartretail-sis:local services/sis/
+	docker buildx build --platform linux/arm64 -t smartretail-sis:local backend/services/sis/
 
 docker-build-all:
 	for svc in sis ims re ars dfs sup; do \
-	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/; \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
 	done
 
 docker-build-lambda:
-	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
+	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/lambdas/kinesis-consumer/

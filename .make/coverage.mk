@@ -1,6 +1,6 @@
-coverage-backend: ## Run tests + generate JaCoCo aggregate report for all services
+coverage-backend: ## Run tests + generate JaCoCo aggregate report for all backend (services + lambda)
 	mvn verify \
-	    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,services/pps,services/coverage \
+	    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/services/pps,backend/coverage \
 	    --also-make \
 	    --no-transfer-progress
 
@@ -16,7 +16,7 @@ coverage-all: coverage-backend coverage-frontend ## Run backend + frontend cover
 
 coverage-artifacts: coverage-all ## Bundle both reports into dist/coverage/ and coverage-artifacts.tar.gz
 	mkdir -p dist/coverage/backend
-	cp -r services/coverage/target/site/jacoco-aggregate/. dist/coverage/backend/
+	cp -r backend/coverage/target/site/jacoco-aggregate/. dist/coverage/backend/
 	tar -czf coverage-artifacts.tar.gz -C dist coverage
 	@echo ""
 	@echo "Coverage artifacts:"

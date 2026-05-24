@@ -63,13 +63,13 @@ if [[ "$SKIP_INFRA" == false ]]; then
     | docker login --username AWS --password-stdin "$ECR_PREFIX"
 
   mvn clean package -DskipTests \
-    -pl services/ims,services/re,services/ars,services/dfs,services/sup \
+    -pl backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
 
   for svc in "${DEMO_SERVICES[@]}"; do
     echo "Building ${svc}…"
     docker buildx build --platform linux/arm64 \
-      -t "smartretail-${svc}:local" "services/${svc}/"
+      -t "smartretail-${svc}:local" "backend/services/${svc}/"
     docker tag "smartretail-${svc}:local" \
       "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"
     docker push "${ECR_PREFIX}/smartretail-${svc}-${DEMO_ENV}:latest"

@@ -12,10 +12,10 @@ Production-grade SmartRetail infrastructure. Full footprint with Multi-AZ RDS, R
 | Layer | Resource |
 |-------|----------|
 | Network | New VPC (3 AZs, public + private-app + isolated subnets, 3 NAT Gateways, 6 interface VPC endpoints) |
-| Data | RDS PostgreSQL r6g.large Multi-AZ (via RDS Proxy), DynamoDB idempotency table, versioned S3 events bucket, 5 private MFE S3 buckets |
+| Data | RDS PostgreSQL r6g.large Multi-AZ (via RDS Proxy), DynamoDB idempotency table, versioned S3 events bucket, versioned S3 SageMaker bucket, 5 private MFE S3 buckets |
 | Messaging | Kinesis stream (POS ingestion) + EventBridge bus + IMS/RE/ARS SQS queues |
 | Identity | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier Cognito pool (SUPPLIER\_ADMIN) |
-| Compute | 7 ECS Fargate services (X86\_64, 0.5 vCPU / 1 GB, FARGATE\_SPOT 80/20, desiredCount 2) + Kinesis consumer Lambda (X86\_64) + Container Insights |
+| Compute | 7 ECS Fargate services (X86\_64, 0.5 vCPU / 1 GB, FARGATE\_SPOT 80/20, desiredCount 2) + Kinesis consumer Lambda (X86\_64) + Batch Post-Processor Lambda (X86\_64) + Container Insights |
 | API | ALB with path-based routing to all 7 services |
 | Hosting | CloudFront distributions (×5 MFEs) with private S3 origin using OAC (SIGV4) |
 
@@ -107,9 +107,28 @@ ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-$SERVICE-prod
 
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
-docker build --platform linux/amd64 -t $REPO:latest services/$SERVICE
+docker build --platform linux/amd64 -t $REPO:latest backend/services/$SERVICE
 docker push $REPO:latest
 aws ecs update-service --cluster smartretail-prod --service smartretail-$SERVICE-prod --force-new-deployment
+```
+
+## Push a Lambda image
+
+```bash
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+
+# Kinesis Consumer Lambda
+mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod
+docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/kinesis-consumer
+docker push $REPO:latest
+
+# Batch Post-Processor Lambda
+mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-prod
+docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/batch-post-processor
+docker push $REPO:latest
 ```
 
 ## Teardown

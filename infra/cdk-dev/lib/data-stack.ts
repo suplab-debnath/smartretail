@@ -18,6 +18,7 @@ export class DataStack extends cdk.Stack {
   public readonly rdsInstance: rds.DatabaseInstance;
   public readonly idempotencyTable: dynamodb.Table;
   public readonly eventsBucketName: string;
+  public readonly sagemakerBucket: s3.Bucket;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
@@ -85,6 +86,18 @@ export class DataStack extends cdk.Stack {
     });
     this.eventsBucketName = eventsBucket.bucketName;
 
+    // SageMaker S3 bucket — training data, model artefacts, transform output
+    // Key prefix convention: sagemaker/output/{run_id}/part-*.csv  (read by Batch Post-Processor Lambda)
+    this.sagemakerBucket = new s3.Bucket(this, 'SageMakerBucket', {
+      bucketName: `smartretail-sagemaker-${srEnv}-${account}`,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      versioned: false,
+      lifecycleRules: [{ expiration: cdk.Duration.days(365) }],
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
     // MFE S3 buckets — private, served via CloudFront (same pattern as prod)
     ['store-manager', 'sc-planner', 'executive', 'supplier'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
@@ -106,5 +119,6 @@ export class DataStack extends cdk.Stack {
     put('rds/secret-arn',                  this.rdsInstance.secret!.secretArn);
     put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
     put('s3/events-bucket-name',           eventsBucket.bucketName);
+    put('s3/sagemaker-bucket-name',        this.sagemakerBucket.bucketName);
   }
 }

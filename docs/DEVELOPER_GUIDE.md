@@ -73,10 +73,10 @@ make local-mfe-scp
  
 ```bash
 # 1. Run unit tests
-mvn test -pl services/{your-service}
+mvn test -pl backend/services/{your-service}
  
 # 2. Check for architecture violations
-mvn verify -pl services/{your-service}
+mvn verify -pl backend/services/{your-service}
 # The ArchUnit tests enforce hexagonal boundaries (see below)
  
 # 3. Run relevant flow smoke test
@@ -393,15 +393,15 @@ Each service has unit tests covering:
 mvn test
  
 # Run a specific service
-mvn test -pl services/re
+mvn test -pl backend/services/re
  
 # Run a specific test class
-mvn test -pl services/re \
+mvn test -pl backend/services/re \
     -Dtest=ApprovalWorkflowUseCaseTest
  
 # Run with coverage report
-mvn test jacoco:report -pl services/re
-open services/re/target/site/jacoco/index.html
+mvn test jacoco:report -pl backend/services/re
+open backend/services/re/target/site/jacoco/index.html
 ```
  
 Test naming convention:

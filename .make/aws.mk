@@ -14,7 +14,7 @@ aws-push-%: docker-build-%
 aws-push-all: aws-ecr-login
 	@for svc in sis ims re ars dfs sup; do \
 	    echo "Pushing $$svc…"; \
-	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/ && \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/ && \
 	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest && \
 	    docker push $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest; \
 	done

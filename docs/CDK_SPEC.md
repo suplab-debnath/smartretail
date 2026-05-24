@@ -225,6 +225,17 @@ new s3.Bucket(this, 'EventsBucket', {
   removalPolicy: cdk.RemovalPolicy.RETAIN,
 });
  
+// SageMaker output bucket — transform output CSV triggers Batch Post-Processor Lambda
+// Key prefix convention: sagemaker/output/{run_id}/part-*.csv
+new s3.Bucket(this, 'SageMakerBucket', {
+  bucketName: `smartretail-sagemaker-${env}-${account}`,
+  encryption: s3.BucketEncryption.S3_MANAGED,
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  versioned: true,
+  lifecycleRules: [{ expiration: cdk.Duration.days(365 * 3) }],
+  removalPolicy: cdk.RemovalPolicy.RETAIN,
+});
+ 
 // MFE static assets (4 buckets)
 ['store-manager', 'sc-planner', 'executive', 'supplier-portal'].forEach(mfe => {
   new s3.Bucket(this, `MfeBucket${mfe}`, {
@@ -244,6 +255,7 @@ new s3.Bucket(this, 'EventsBucket', {
 /smartretail/{env}/rds/secret-arn
 /smartretail/{env}/dynamodb/idempotency-table-name
 /smartretail/{env}/s3/events-bucket-name
+/smartretail/{env}/s3/sagemaker-bucket-name
 /smartretail/{env}/s3/mfe-store-manager-bucket
 /smartretail/{env}/s3/mfe-sc-planner-bucket
 /smartretail/{env}/s3/mfe-executive-bucket
@@ -536,6 +548,47 @@ kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(kines
   batchSize: 100,
   bisectBatchOnError: true,
   retryAttempts: 3,
+}));
+```
+ 
+### Batch Post-Processor Lambda
+ 
+```typescript
+const batchPostProcessorRepo = new ecr.Repository(this, 'BatchPostProcessorRepo', {
+  repositoryName: `smartretail-batch-post-processor-${env}`,
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
+  emptyOnDelete: true,
+});
+ 
+const batchPostProcessorRole = new iam.Role(this, 'BatchPostProcessorRole', {
+  assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+  managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole')],
+});
+batchPostProcessorRole.addToPolicy(new iam.PolicyStatement({
+  actions: ['s3:GetObject'],
+  resources: [sagemakerBucket.bucketArn + '/sagemaker/output/*'],
+}));
+ 
+const batchPostProcessorFn = new lambda.DockerImageFunction(this, 'BatchPostProcessor', {
+  functionName: `smartretail-batch-post-processor-${env}`,
+  code: lambda.DockerImageCode.fromEcr(batchPostProcessorRepo),
+  architecture: lambda.Architecture.X86_64,
+  vpc,
+  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+  securityGroups: [sgEcsTasks],
+  timeout: cdk.Duration.seconds(180),
+  memorySize: 512,
+  role: batchPostProcessorRole,
+  environment: {
+    DFS_ENDPOINT: `http://smartretail-dfs-${env}.smartretail.local:8084`,
+    ENV: env,
+  },
+});
+ 
+// S3 event source — fires on SageMaker output CSVs
+batchPostProcessorFn.addEventSource(new lambdaEventSources.S3EventSource(sagemakerBucket, {
+  events: [s3.EventType.OBJECT_CREATED],
+  filters: [{ prefix: 'sagemaker/output/', suffix: '.csv' }],
 }));
 ```
  

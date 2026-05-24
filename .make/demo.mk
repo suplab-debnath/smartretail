@@ -21,7 +21,7 @@ demo-cdk-deploy: ## Deploy all Min-* CDK stacks (trimmed SC Planner demo)
 demo-build-services: ## Build Docker images for the 5 SC Planner backend services
 	@for svc in $(DEMO_SERVICES); do \
 	    echo "Building $$svc…"; \
-	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/; \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
 	done
 
 demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service images to ECR (demo env)
@@ -93,7 +93,7 @@ dev-deploy-all:
 dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
 	@for svc in sis ims re ars dfs sup; do \
 	    echo "Pushing $$svc (dev)…"; \
-	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/ && \
+	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/ && \
 	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-dev:latest && \
 	    docker push $(ECR_PREFIX)/smartretail-$$svc-dev:latest; \
 	done

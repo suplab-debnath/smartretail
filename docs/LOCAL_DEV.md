@@ -80,22 +80,22 @@ mvn flyway:migrate \
     -Dflyway.defaultSchema=public
  
 # 4. Start services (each in a separate terminal or use Makefile)
-cd services/sis
+cd backend/services/sis
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
  
-cd services/ims
+cd backend/services/ims
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
  
-cd services/re
+cd backend/services/re
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
  
-cd services/ars
+cd backend/services/ars
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 
-cd services/dfs
+cd backend/services/dfs
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # port 8084
 
-cd services/sup
+cd backend/services/sup
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run   # port 8085
 ```
  
@@ -505,7 +505,7 @@ export DB_SCHEMA=sales
 export DB_USERNAME=sis_user
 export SMARTRETAIL_ENV=dev
  
-cd services/sis
+cd backend/services/sis
 mvn spring-boot:run
 ```
  
@@ -544,16 +544,16 @@ local-seed: local-migrate
     -f migrations/flyway/V7__seed_data.sql
  
 local-sis:
-  cd services/sis && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8080"
+  cd backend/services/sis && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8080"
  
 local-ims:
-  cd services/ims && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8081"
+  cd backend/services/ims && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8081"
  
 local-re:
-  cd services/re  && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8082"
+  cd backend/services/re  && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8082"
  
 local-ars:
-  cd services/ars && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
+  cd backend/services/ars && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
  
 local-mfe-sm:
   cd mfe/store-manager && npm run dev
@@ -572,7 +572,7 @@ local-clean:
  
 # ─── Test ─────────────────────────────────────────────────────────────
 test-unit:
-  mvn test -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup
+  mvn test -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup
  
 test-flow1:
   SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow1
@@ -623,11 +623,11 @@ aws-smoke-test:
  
 # ─── Build ────────────────────────────────────────────────────────────
 build-services:
-  mvn clean package -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
+  mvn clean package -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
  
 build-lambda:
-  mvn clean package -pl lambdas/kinesis-consumer --no-transfer-progress
+  mvn clean package -pl backend/lambdas/kinesis-consumer,backend/lambdas/batch-post-processor --no-transfer-progress
  
 build-mfes:
   cd mfe/store-manager && npm run build
@@ -638,11 +638,11 @@ build-all: build-services build-lambda build-mfes
  
 # ─── Docker ───────────────────────────────────────────────────────────
 docker-build-sis:
-  docker buildx build --platform linux/arm64 -t smartretail-sis:local services/sis/
+  docker buildx build --platform linux/arm64 -t smartretail-sis:local backend/services/sis/
  
 docker-build-all:
   for svc in sis ims re ars dfs sup; do \
-    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local services/$$svc/; \
+    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
   done
 ```
  
