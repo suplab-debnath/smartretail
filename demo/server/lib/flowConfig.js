@@ -22,7 +22,7 @@ function resolve(flowId, stepId, body = {}) {
                 ? 'python'
                 : 'python3'),
           args: [
-            'scripts/publish-pos-event.py',
+            'scripts/shared/publish-pos-event.py',
             '--transaction-id', body.transactionId || randomUuid(),
             '--sku-id', body.skuId || 'SKU-BEV-001',
             '--dc-id', body.dcId || 'DC-LONDON',
@@ -41,7 +41,7 @@ function resolve(flowId, stepId, body = {}) {
                 ? 'python'
                 : 'python3'),
           args: [
-            'scripts/publish-pos-event.py',
+            'scripts/shared/publish-pos-event.py',
             '--transaction-id', body.transactionId || randomUuid(),
             '--sku-id', body.skuId || 'SKU-BEV-001',
             '--dc-id', body.dcId || 'DC-LONDON',
@@ -54,7 +54,7 @@ function resolve(flowId, stepId, body = {}) {
 
     case 'flow1.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow1'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow1'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 
@@ -68,7 +68,7 @@ function resolve(flowId, stepId, body = {}) {
               ? 'python'
               : 'python3'),
         args: [
-          'scripts/publish-pos-event.py',
+          'scripts/shared/publish-pos-event.py',
           '--flow2-direct',
           '--sku-id', body.skuId || 'SKU-BEV-003',
           '--dc-id', body.dcId || 'DC-LONDON',
@@ -78,7 +78,7 @@ function resolve(flowId, stepId, body = {}) {
 
     case 'flow2.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow2'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow2'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 
@@ -94,7 +94,7 @@ function resolve(flowId, stepId, body = {}) {
               ? 'python'
               : 'python3'),
         args: [
-          'scripts/publish-pos-event.py',
+          'scripts/shared/publish-pos-event.py',
           '--flow2-direct',
           '--sku-id', 'SKU-BEV-003',
           '--dc-id', 'DC-LONDON',
@@ -104,28 +104,28 @@ function resolve(flowId, stepId, body = {}) {
 
     case 'flow3.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow3'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow3'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 
     // ── Flow 4 ─────────────────────────────────────────────────────────────
     case 'flow4.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow4'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow4'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 
     // ── Flow 8 ─────────────────────────────────────────────────────────────
     case 'flow8.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow8'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow8'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 
     // ── Flow 9 ─────────────────────────────────────────────────────────────
     case 'flow9.smoke':
       return {
-        cmd: 'bash', args: ['scripts/smoke-test.sh', 'flow9'],
+        cmd: 'bash', args: ['scripts/shared/smoke-test.sh', 'flow9'],
         env: { SMARTRETAIL_ENV: ENV }
       };
 

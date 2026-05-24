@@ -105,7 +105,7 @@ jobs:
         working-directory: mfe/supplier
 
       - name: Merge LCOV reports
-        run: bash scripts/merge-mfe-coverage.sh
+        run: bash scripts/ci/merge-mfe-coverage.sh
 
       - name: Upload merged frontend report
         uses: actions/upload-artifact@v4

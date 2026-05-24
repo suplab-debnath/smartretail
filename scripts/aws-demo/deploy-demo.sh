@@ -90,7 +90,7 @@ fi
 # ── 4. DB migrations (includes seed data via V7) ───────────────────────────────
 hr "Step 4 / 5 — DB migrations + seed data"
 AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
-  "$ROOT_DIR/scripts/run-flyway-aws-demo.sh" "$DEMO_ENV"
+  "$ROOT_DIR/scripts/aws-demo/run-flyway-aws-demo.sh" "$DEMO_ENV"
 
 # ── 5. SC Planner MFE ─────────────────────────────────────────────────────────
 hr "Step 5 / 5 — Build & deploy SC Planner MFE"
@@ -140,6 +140,6 @@ echo "  ✅  API Endpoint: $ALB_URL"
 echo "  ✅  CW Dashboard: $CW_URL"
 echo ""
 echo "  Cognito users not yet created."
-echo "  Run: AWS_PROFILE=${PROFILE} SMARTRETAIL_ENV=${DEMO_ENV} ./scripts/create-cognito-users.sh ${DEMO_ENV}"
+echo "  Run: AWS_PROFILE=${PROFILE} SMARTRETAIL_ENV=${DEMO_ENV} ./scripts/shared/create-cognito-users.sh ${DEMO_ENV}"
 echo ""
 echo "  To tear down: SMARTRETAIL_ENV=${DEMO_ENV} AWS_PROFILE=${PROFILE} make demo-destroy"

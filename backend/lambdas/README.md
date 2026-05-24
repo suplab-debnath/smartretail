@@ -30,7 +30,7 @@ JAVA_HOME=<java-21-home> mvn clean package -pl backend/lambdas/batch-post-proces
 
 ## Deploy
 
-The JAR is packaged and deployed by the CDK `ComputeStack`. In local mode, a LocalStack Lambda function is created by `scripts/localstack-init.sh`.
+The JAR is packaged and deployed by the CDK `ComputeStack`. In local mode, a LocalStack Lambda function is created by `scripts/local/localstack-init.sh`.
 
 ```bash
 make local-up        # starts LocalStack

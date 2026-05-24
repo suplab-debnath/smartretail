@@ -61,7 +61,7 @@ Requires the six backend services to be running (ports 8080–8085) and Postgres
 
 When the Demo MFE clicks a trigger button, it calls `POST /api/trigger/flow1/pos-event`. The server:
 
-1. Looks up the script definition in `lib/flowConfig.js` (environment-aware — uses `scripts/publish-pos-event.py` locally, direct HTTP calls on AWS).
+1. Looks up the script definition in `lib/flowConfig.js` (environment-aware — uses `scripts/shared/publish-pos-event.py` locally, direct HTTP calls on AWS).
 2. Spawns the script as a child process via `lib/scriptRunner.js`.
 3. Streams each line of stdout through `lib/sseBroadcaster.js` to all SSE clients as structured `EventLogEntry` JSON.
 4. Returns `{ ok: true }` immediately — the response does not wait for the script to finish.
