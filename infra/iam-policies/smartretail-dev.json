@@ -185,7 +185,10 @@
         "secretsmanager:UntagResource",
         "secretsmanager:ListSecretVersionIds"
       ],
-      "Resource": "arn:aws:secretsmanager:us-east-1:491085389857:secret:*smartretail*"
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:491085389857:secret:*smartretail*",
+        "arn:aws:secretsmanager:us-east-1:491085389857:secret:MinDataStack*"
+      ]
     },
     {
       "Sid": "CognitoAdminUsers",

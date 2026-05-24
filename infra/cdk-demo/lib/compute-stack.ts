@@ -257,7 +257,7 @@ export class ComputeStack extends cdk.Stack {
         retries: 3,
         startPeriod: cdk.Duration.seconds(60),
       },
-      environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'dev' },
+      environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'demo' },
       secrets: config.secrets,
     });
 

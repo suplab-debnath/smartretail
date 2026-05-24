@@ -4,6 +4,7 @@ spring:
   profiles:
     group:
       dev:       [aws]
+      demo:      [aws]
       local-sqs: [local]
   datasource:
     url: jdbc:postgresql://${RDS_PROXY_ENDPOINT:localhost}:5432/smartretail?currentSchema=${DB_SCHEMA:replenishment}

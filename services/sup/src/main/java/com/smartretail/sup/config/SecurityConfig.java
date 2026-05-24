@@ -24,8 +24,18 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Demo mode: CORS enabled, all requests permitted — no JWT required. */
     @Bean
-    @Profile("!local")
+    @Profile("demo")
+    public SecurityFilterChain demoSecurity(HttpSecurity http) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Profile("!local & !demo")
     public SecurityFilterChain awsSecurity(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))

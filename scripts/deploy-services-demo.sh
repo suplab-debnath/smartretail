@@ -13,10 +13,12 @@
 #                                   (default: all five: ims,re,ars,dfs,sup)
 #   --skip-build                    Skip Maven build (use existing JARs in target/)
 #   --skip-push                     Build Docker images locally but skip ECR push + ECS update
+#   --deploy-cdk                    Also redeploy Min-ComputeStack via CDK to update the ECS
+#                                   task definition (required when env vars / profile changes)
 #   --wait                          Wait for every ECS service to reach steady state
 #
 # Examples:
-#   ./scripts/deploy-services-demo.sh --env dev --wait
+#   ./scripts/deploy-services-demo.sh --env dev --deploy-cdk --wait
 #   ./scripts/deploy-services-demo.sh --env dev --services re,ars --skip-build
 
 set -euo pipefail
@@ -28,6 +30,7 @@ REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 SERVICES="ims re ars dfs sup"
 SKIP_BUILD=false
 SKIP_PUSH=false
+DEPLOY_CDK=false
 WAIT=false
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -39,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --services)   SERVICES="${2//,/ }";        shift 2 ;;
     --skip-build) SKIP_BUILD=true;             shift   ;;
     --skip-push)  SKIP_PUSH=true;              shift   ;;
+    --deploy-cdk) DEPLOY_CDK=true;             shift   ;;
     --wait)       WAIT=true;                   shift   ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -58,6 +62,19 @@ echo " env:      ${ENV}"
 echo " cluster:  ${CLUSTER}"
 echo " services: ${SERVICES}"
 echo "=================================================="
+
+# ── 0. CDK: update Min-ComputeStack task definition (optional) ───────────────
+if [[ "$DEPLOY_CDK" == true ]]; then
+  echo ""
+  echo "▶  Deploying Min-ComputeStack via CDK (updates ECS task definitions)…"
+  CDK_DIR="${REPO_ROOT}/infra/cdk-demo"
+  (cd "$CDK_DIR" && \
+    SMARTRETAIL_ENV="$ENV" npx cdk deploy Min-ComputeStack \
+      --require-approval never \
+      --profile "$PROFILE" \
+      --no-rollback)
+  echo "   ✅ Min-ComputeStack deployed"
+fi
 
 # ── 1. Maven build ────────────────────────────────────────────────────────────
 if [[ "$SKIP_BUILD" == false ]]; then

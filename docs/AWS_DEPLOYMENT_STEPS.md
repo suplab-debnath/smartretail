@@ -165,12 +165,12 @@ aws ssm get-parameter \
 
 ## Iterative redeployment (after code changes)
 
-| Changed              | Command                                                                     |
-| -------------------- | --------------------------------------------------------------------------- |
-| Single Java service  | `./scripts/deploy-services-demo.sh --env dev --services re --wait`          |
-| All 5 services       | `./scripts/deploy-services-demo.sh --env dev --wait`                        |
-| CDK infra only       | `cd infra/cdk-demo && npx cdk deploy Min-ComputeStack --require-approval never` |
-| SC Planner MFE only  | `./scripts/deploy-mfes-demo.sh --env dev --profile smartretail-dev`         |
+| Changed             | Command                                                                         |
+| ------------------- | ------------------------------------------------------------------------------- |
+| Single Java service | `./scripts/deploy-services-demo.sh --env dev --services re --wait`              |
+| All 5 services      | `./scripts/deploy-services-demo.sh --env dev --wait`                            |
+| CDK infra only      | `cd infra/cdk-demo && npx cdk deploy Min-ComputeStack --require-approval never` |
+| SC Planner MFE only | `./scripts/deploy-mfes-demo.sh --env dev --profile smartretail-dev`             |
 
 ---
 
@@ -202,7 +202,7 @@ aws cloudformation delete-stack --stack-name CDKToolkit
 >
 > # Empty then delete
 > aws s3 rm s3://cdk-hnb659fds-assets-<account>-us-east-1 --recursive
-> aws s3 rb s3://cdk-hnb659fds-assets-<account>-us-east-1
+> aws s3 rb s3://cdk-hnb659fds-assets-<account>-us-east-1 --force
 > ```
 > `destroy-infra.sh` handles this automatically.
 

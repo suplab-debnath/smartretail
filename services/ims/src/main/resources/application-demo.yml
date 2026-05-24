@@ -1,0 +1,7 @@
+# Demo profile: auth is bypassed via X-Dev-Role header (see SecurityConfig#demoSecurity).
+# Exclude the OAuth2 resource-server auto-configuration so Spring does not attempt
+# an eager OIDC discovery call against the Cognito issuer URI at startup.
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
