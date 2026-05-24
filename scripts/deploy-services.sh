@@ -68,13 +68,13 @@ if [[ "$SKIP_BUILD" == false ]]; then
   echo ""
   echo "▶  Building service JARs (Maven)…"
   mvn clean package -DskipTests \
-    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
+    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
 
   if [[ "$DEPLOY_LAMBDA" == true ]]; then
     echo "▶  Building Lambda JAR (Maven)…"
     mvn clean package -DskipTests \
-      -pl lambdas/kinesis-consumer \
+      -pl backend/lambdas/kinesis-consumer \
       --no-transfer-progress
   fi
 else
@@ -94,8 +94,8 @@ for SVC in $SERVICES; do
   echo ""
   echo "── ${SVC} ──────────────────────────────────────────"
 
-  echo "▶  docker build services/${SVC}/ (linux/arm64)"
-  docker buildx build --platform linux/arm64 -t "smartretail-${SVC}:local" "services/${SVC}/"
+  echo "▶  docker build backend/services/${SVC}/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t "smartretail-${SVC}:local" "backend/services/${SVC}/"
 
   if [[ "$SKIP_PUSH" == false ]]; then
     REPO_URI="${ECR_PREFIX}/smartretail-${SVC}-${ENV}:latest"
@@ -119,8 +119,8 @@ if [[ "$DEPLOY_LAMBDA" == true && "$SKIP_PUSH" == false ]]; then
   echo ""
   echo "── kinesis-consumer Lambda ─────────────────────────"
 
-  echo "▶  docker build lambdas/kinesis-consumer/ (linux/arm64)"
-  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local lambdas/kinesis-consumer/
+  echo "▶  docker build backend/lambdas/kinesis-consumer/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/lambdas/kinesis-consumer/
 
   LAMBDA_URI="${ECR_PREFIX}/smartretail-kinesis-consumer-${ENV}:latest"
   echo "▶  Pushing → ${LAMBDA_URI}"

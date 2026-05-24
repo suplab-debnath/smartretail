@@ -12,11 +12,13 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>smartretail-lambdas-parent</artifactId>
+    <artifactId>smartretail-backend-parent</artifactId>
     <packaging>pom</packaging>
-    <name>SmartRetail Prototype - Lambda Aggregator</name>
+    <name>SmartRetail Prototype - Backend Aggregator</name>
 
     <modules>
-        <module>kinesis-consumer</module>
+        <module>services</module>
+        <module>lambdas</module>
+        <module>coverage</module>
     </modules>
 </project>

@@ -1,5 +1,5 @@
 test-unit:
-	mvn test -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup --no-transfer-progress
+	mvn test -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup --no-transfer-progress
 
 test-flow1:
 	SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow1

@@ -107,7 +107,7 @@ ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-$SERVICE-prod
 
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
-docker build --platform linux/amd64 -t $REPO:latest services/$SERVICE
+docker build --platform linux/amd64 -t $REPO:latest backend/services/$SERVICE
 docker push $REPO:latest
 aws ecs update-service --cluster smartretail-prod --service smartretail-$SERVICE-prod --force-new-deployment
 ```

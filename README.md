@@ -605,15 +605,17 @@ smartretail/
 ├── infra/cdk-demo/             ← demo CDK stack (ARM64, SQS, default VPC) — lowest cost
 ├── infra/cdk-dev/              ← dev CDK stack (X86_64, same services as prod, dev sizing)
 ├── infra/cdk-prod/             ← production CDK stack (X86_64, Multi-AZ, RDS Proxy, CloudFront)
-├── services/
-│   ├── sis/                    ← Sales Ingestion Service
-│   ├── ims/                    ← Inventory Management Service
-│   ├── re/                     ← Replenishment Engine
-│   ├── ars/                    ← Analytics & Reporting Service
-│   ├── dfs/                    ← Demand Forecasting Service
-│   ├── sup/                    ← Supplier Service
-│   └── pps/                    ← Pricing & Promotions Service (stub)
-├── lambdas/kinesis-consumer/   ← Kinesis → SIS adapter Lambda
+├── backend/
+│   ├── services/
+│   │   ├── sis/                ← Sales Ingestion Service
+│   │   ├── ims/                ← Inventory Management Service
+│   │   ├── re/                 ← Replenishment Engine
+│   │   ├── ars/                ← Analytics & Reporting Service
+│   │   ├── dfs/                ← Demand Forecasting Service
+│   │   ├── sup/                ← Supplier Service
+│   │   └── pps/                ← Pricing & Promotions Service (stub)
+│   ├── lambdas/kinesis-consumer/ ← Kinesis → SIS adapter Lambda
+│   └── coverage/               ← JaCoCo aggregate report (services + lambda)
 ├── migrations/flyway/          ← Flyway SQL migrations (V1–V7)
 ├── mfe/
 │   ├── shared/auth/            ← shared Cognito auth library

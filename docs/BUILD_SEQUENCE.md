@@ -27,7 +27,7 @@ npm run build --prefix mfe/shared/auth
  
 # 3. Build Java services (creates JAR files)
 mvn clean package -DskipTests \
-    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup \
+    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
  
 # 4. Start Docker Compose (Postgres + LocalStack)
@@ -80,31 +80,31 @@ aws --endpoint-url=http://localhost:4566 events list-rules \
  
 # 10. Start services (open 4 terminals or use tmux)
 # Terminal 1:
-cd services/sis && SPRING_PROFILES_ACTIVE=local \
+cd backend/services/sis && SPRING_PROFILES_ACTIVE=local \
     DB_SCHEMA=sales DB_USERNAME=sis_user \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8080"
  
 # Terminal 2:
-cd services/ims && SPRING_PROFILES_ACTIVE=local \
+cd backend/services/ims && SPRING_PROFILES_ACTIVE=local \
     DB_SCHEMA=inventory DB_USERNAME=ims_user \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8081"
  
 # Terminal 3:
-cd services/re && SPRING_PROFILES_ACTIVE=local \
+cd backend/services/re && SPRING_PROFILES_ACTIVE=local \
     DB_SCHEMA=replenishment DB_USERNAME=re_user \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8082"
  
 # Terminal 4:
-cd services/ars && SPRING_PROFILES_ACTIVE=local \
+cd backend/services/ars && SPRING_PROFILES_ACTIVE=local \
     DB_SCHEMA=ars_readonly DB_USERNAME=ars_readonly \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8083"
  
 # Terminal 5:
-cd services/dfs && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+cd backend/services/dfs && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8084"
 
 # Terminal 6:
-cd services/sup && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
+cd backend/services/sup && SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
     mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8085"
 
 # 11. Verify all services healthy
@@ -177,15 +177,15 @@ cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)
 ```bash
 # Build Java JARs (needed for CDK to package Lambda and seed task)
 mvn clean package -DskipTests \
-    -pl services/sis,services/ims,services/re,services/ars,services/dfs,services/sup,lambdas/kinesis-consumer \
+    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/lambdas/kinesis-consumer \
     -am --no-transfer-progress
  
 # Verify JARs created
-ls -la services/sis/target/*.jar
-ls -la services/ims/target/*.jar
-ls -la services/re/target/*.jar
-ls -la services/ars/target/*.jar
-ls -la lambdas/kinesis-consumer/target/*.jar
+ls -la backend/services/sis/target/*.jar
+ls -la backend/services/ims/target/*.jar
+ls -la backend/services/re/target/*.jar
+ls -la backend/services/ars/target/*.jar
+ls -la backend/lambdas/kinesis-consumer/target/*.jar
  
 # Build MFEs
 cd mfe/shared/auth && npm run build && cd ../../..
@@ -453,12 +453,12 @@ After the initial full deploy, use targeted redeployment:
  
 ```bash
 # Redeploy a single service (after code change)
-mvn clean package -DskipTests -pl services/re -am
+mvn clean package -DskipTests -pl backend/services/re -am
 cdk deploy ComputeStack --require-approval never
  
 # Or redeploy just the ECS service (faster — skips CDK diff)
 # Build and push Docker image, then force new ECS deployment
-docker buildx build --platform linux/arm64 -t smartretail-re:latest services/re/
+docker buildx build --platform linux/arm64 -t smartretail-re:latest backend/services/re/
 docker tag smartretail-re:latest {account}.dkr.ecr.us-east-1.amazonaws.com/smartretail-re-dev:latest
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
 docker push {account}.dkr.ecr.us-east-1.amazonaws.com/smartretail-re-dev:latest

@@ -81,7 +81,7 @@ if [[ "$SKIP_BUILD" == false ]]; then
   echo ""
   echo "▶  Building service JARs (Maven)…"
   mvn clean package -DskipTests \
-    -pl services/ims,services/re,services/ars,services/dfs,services/sup \
+    -pl backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
 else
   echo "▶  Skipping Maven build (--skip-build)"
@@ -100,8 +100,8 @@ for SVC in $SERVICES; do
   echo ""
   echo "── ${SVC} ──────────────────────────────────────────"
 
-  echo "▶  docker build services/${SVC}/ (linux/arm64)"
-  docker buildx build --platform linux/arm64 -t "smartretail-${SVC}:local" "services/${SVC}/"
+  echo "▶  docker build backend/services/${SVC}/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t "smartretail-${SVC}:local" "backend/services/${SVC}/"
 
   if [[ "$SKIP_PUSH" == false ]]; then
     REPO_URI="${ECR_PREFIX}/smartretail-${SVC}-${ENV}:latest"

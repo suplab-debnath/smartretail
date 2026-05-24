@@ -13,7 +13,7 @@ All services share this Maven parent POM structure:
  
 ## Kinesis Consumer Lambda (SIS Inbound Adapter)
  
-Location: `lambdas/kinesis-consumer/`
+Location: `backend/lambdas/kinesis-consumer/`
 Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
  
 ### Responsibilities
@@ -56,7 +56,7 @@ Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
  
 ## SIS — Sales Ingestion Service
  
-Location: `services/sis/`
+Location: `backend/services/sis/`
 Main class: `com.smartretail.sis.SisApplication`
  
 ### Package Structure
@@ -219,7 +219,7 @@ public class SalesEventRepository implements EventStorePort {
  
 ## IMS — Inventory Management Service
  
-Location: `services/ims/`
+Location: `backend/services/ims/`
  
 ### Package Structure
  
@@ -373,7 +373,7 @@ public class SalesSqsListener {
  
 ## RE — Replenishment Engine
  
-Location: `services/re/`
+Location: `backend/services/re/`
  
 ### Package Structure
  
@@ -586,7 +586,7 @@ public class ReplenishmentController {
  
 ## ARS — Analytics & Reporting Service
  
-Location: `services/ars/`
+Location: `backend/services/ars/`
  
 ### Package Structure
  
@@ -710,7 +710,7 @@ public List<SupplierPerformance> buildScorecard() {
 
 ## DFS — Demand Forecasting Service
 
-Location: `services/dfs/`
+Location: `backend/services/dfs/`
 Main class: `com.smartretail.dfs.DfsApplication`
 Port: 8084
 Schema: `forecasting` (read-only)
@@ -757,7 +757,7 @@ The `ForecastRepository` queries `forecasting.demand_forecasts` joined with
 
 ## SUP — Supplier Service
 
-Location: `services/sup/`
+Location: `backend/services/sup/`
 Main class: `com.smartretail.sup.SupApplication`
 Port: 8085
 Schema: `supplier` (read-only)
@@ -807,7 +807,7 @@ Allowed roles: `SC_PLANNER`, `ADMIN`, `SUPPLIER_ADMIN`.
 
 ## PPS — Pricing & Promotions Service
 
-Location: `services/pps/`
+Location: `backend/services/pps/`
 Main class: `com.smartretail.pps.PpsApplication`
 Port: 8086
 Schema: `promotions`

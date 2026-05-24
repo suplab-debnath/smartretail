@@ -19,37 +19,37 @@ local-seed:
 
 local-sis:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
-	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
 	    --server.port=8080
 
 local-sqs-sis: ## Run SIS with local-sqs profile (SQS POS ingestion via LocalStack, no Kinesis Lambda)
 	SPRING_PROFILES_ACTIVE=local-sqs DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
-	    java -jar services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/sis/target/smartretail-sis-1.0.0-SNAPSHOT.jar \
 	    --server.port=8080
 
 local-ims:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=inventory DB_USERNAME=smartretail_admin \
-	    java -jar services/ims/target/smartretail-ims-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/ims/target/smartretail-ims-1.0.0-SNAPSHOT.jar \
 	    --server.port=8081
 
 local-re:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=replenishment DB_USERNAME=smartretail_admin \
-	    java -jar services/re/target/smartretail-re-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/re/target/smartretail-re-1.0.0-SNAPSHOT.jar \
 	    --server.port=8082
 
 local-ars:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=ars_readonly DB_USERNAME=smartretail_admin \
-	    java -jar services/ars/target/smartretail-ars-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/ars/target/smartretail-ars-1.0.0-SNAPSHOT.jar \
 	    --server.port=8083
 
 local-dfs:
 	SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
-	    java -jar services/dfs/target/smartretail-dfs-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/dfs/target/smartretail-dfs-1.0.0-SNAPSHOT.jar \
 	    --server.port=8084
 
 local-sup:
 	SPRING_PROFILES_ACTIVE=local DB_USERNAME=smartretail_admin \
-	    java -jar services/sup/target/smartretail-sup-1.0.0-SNAPSHOT.jar \
+	    java -jar backend/services/sup/target/smartretail-sup-1.0.0-SNAPSHOT.jar \
 	    --server.port=8085
 
 local-mfe-sm:
