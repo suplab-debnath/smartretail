@@ -93,8 +93,10 @@ smartretail/
 │   ├── services/
 │   │   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
 │   │   │   └── src/main/resources/{svc}-api.yaml  ← OpenAPI spec (self-contained, components inlined)
-│   ├── lambdas/kinesis-consumer/
-│   └── coverage/               ← JaCoCo aggregate report (services + lambda)
+│   ├── lambdas/
+│   │   ├── kinesis-consumer/   ← Kinesis → SIS inbound adapter
+│   │   └── batch-post-processor/ ← SageMaker S3 output → DFS inbound adapter
+│   └── coverage/               ← JaCoCo aggregate report (services + lambdas)
 ├── migrations
 │  └── flyway/
 │    └── src/main/resources/db/migration/

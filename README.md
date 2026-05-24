@@ -614,8 +614,10 @@ smartretail/
 │   │   ├── dfs/                ← Demand Forecasting Service
 │   │   ├── sup/                ← Supplier Service
 │   │   └── pps/                ← Pricing & Promotions Service (stub)
-│   ├── lambdas/kinesis-consumer/ ← Kinesis → SIS adapter Lambda
-│   └── coverage/               ← JaCoCo aggregate report (services + lambda)
+│   ├── lambdas/
+│   │   ├── kinesis-consumer/   ← Kinesis → SIS inbound adapter Lambda
+│   │   └── batch-post-processor/ ← SageMaker S3 output → DFS inbound adapter Lambda
+│   └── coverage/               ← JaCoCo aggregate report (services + lambdas)
 ├── migrations/flyway/          ← Flyway SQL migrations (V1–V7)
 ├── mfe/
 │   ├── shared/auth/            ← shared Cognito auth library
@@ -666,7 +668,7 @@ The demo/dev stack is in `infra/cdk-demo/` (SQS-only, reuses existing default VP
 | `DataStack`      | RDS PostgreSQL (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 MFE buckets (×5)  |
 | `MessagingStack` | Kinesis stream, EventBridge bus + rules, SQS queues + DLQs                                         |
 | `IdentityStack`  | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier pool (SUPPLIER\_ADMIN) |
-| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup/pps), ECR repos, Kinesis consumer Lambda     |
+| `ComputeStack`   | ECS cluster, Fargate services (sis/ims/re/ars/dfs/sup/pps), ECR repos, Kinesis consumer Lambda, Batch Post-Processor Lambda |
 | `ApiStack`       | ALB with path-based routing to all 7 services                                                      |
 | `HostingStack`   | CloudFront distributions (×5 MFEs) with private S3 OAC, SSM outputs for distribution IDs and URLs  |
 
@@ -877,12 +879,12 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | Target                | Description                                                                           |
 | --------------------- | ------------------------------------------------------------------------------------- |
 | `build-services`      | `mvn clean package -DskipTests` for all 7 services                                    |
-| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer Lambda                           |
+| `build-lambda`        | `mvn clean package -DskipTests` for kinesis-consumer and batch-post-processor Lambdas |
 | `build-mfes`          | `npm run build` for all 5 MFEs (store-manager, sc-planner, executive, demo, supplier) |
 | `build-all`           | All of the above                                                                      |
 | `docker-build-sis`    | Build SIS Docker image locally                                                        |
 | `docker-build-all`    | Build Docker images for all 7 services locally                                        |
-| `docker-build-lambda` | Build Kinesis consumer Lambda Docker image locally                                    |
+| `docker-build-lambda` | Build Lambda Docker images locally (kinesis-consumer, batch-post-processor)           |
 
 ### AWS infrastructure
 
@@ -905,7 +907,7 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | `aws-ecr-login`            | Authenticate Docker to ECR                                                |
 | `aws-push-<svc>`           | Build + push a single service image (e.g. `aws-push-sis`, `aws-push-pps`) |
 | `aws-push-all`             | Build + push all 7 service images                                         |
-| `aws-push-lambda`          | Build + push Lambda container image                                       |
+| `aws-push-lambda`          | Build + push both Lambda container images (kinesis-consumer, batch-post-processor) |
 | `aws-deploy-mfe-<name>`    | Build + deploy a single MFE (e.g. `aws-deploy-mfe-supplier`)              |
 | `aws-deploy-mfes`          | Build + deploy all 5 MFEs                                                 |
 | `aws-deploy-services`      | Full service pipeline: Maven → Docker → ECR → ECS force-deploy            |
