@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$SCRIPT_DIR/.."
+ROOT="$SCRIPT_DIR/../.."
 OUT_DIR="$ROOT/dist/coverage/frontend"
 HTML_DIR="$OUT_DIR/html"
 
