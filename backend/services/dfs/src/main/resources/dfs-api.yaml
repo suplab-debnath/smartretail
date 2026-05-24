@@ -157,6 +157,97 @@ components:
           description: completed_at timestamp of the forecast run that produced these bands
           example: "2026-05-15T02:00:00Z"
 
+    ForecastRowInput:
+      type: object
+      description: A single parsed row from the SageMaker transform output CSV
+      required:
+        - skuId
+        - dcId
+        - forecastDate
+        - horizonDays
+        - p10
+        - p50
+        - p90
+      additionalProperties: false
+      properties:
+        skuId:
+          type: string
+          maxLength: 50
+          description: Stock-keeping unit identifier
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          maxLength: 50
+          description: Distribution centre identifier
+          example: "DC-LONDON"
+        forecastDate:
+          type: string
+          format: date
+          description: Calendar date this forecast row applies to
+          example: "2026-06-01"
+        horizonDays:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Forecast horizon in days
+          example: 30
+        p10:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 10th-percentile demand forecast (units)
+          example: 80
+        p50:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Median demand forecast (units)
+          example: 105
+        p90:
+          type: integer
+          format: int32
+          minimum: 0
+          description: 90th-percentile demand forecast (units)
+          example: 135
+
+    IngestForecastResultsRequest:
+      type: object
+      description: Batch of parsed SageMaker transform rows for a single forecast run
+      required:
+        - rows
+      additionalProperties: false
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          description: Parsed forecast rows from the transform output CSV
+          items:
+            $ref: '#/components/schemas/ForecastRowInput'
+
+    IngestForecastResultsResponse:
+      type: object
+      required:
+        - runId
+        - rowsInserted
+        - ingestedAt
+      additionalProperties: false
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: Forecast run identifier that was updated
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        rowsInserted:
+          type: integer
+          format: int32
+          description: Number of demand_forecasts rows written
+          example: 420
+        ingestedAt:
+          type: string
+          format: date-time
+          description: Timestamp when ingestion completed
+          example: "2026-05-24T02:15:00Z"
+
   responses:
     Unauthorized:
       description: Missing or invalid authentication token
@@ -178,6 +269,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     InternalServerError:
       description: Unexpected internal error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request body failed validation
       content:
         application/json:
           schema:
@@ -246,6 +343,45 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/forecast/runs/{runId}/results:
+    post:
+      tags:
+        - forecast
+      operationId: ingestForecastResults
+      summary: Ingest SageMaker batch transform results for a forecast run
+      description: |
+        Called exclusively by the Batch Post-Processor Lambda after a SageMaker batch
+        transform job completes. Writes demand forecast rows into forecasting.demand_forecasts
+        and transitions the run status to COMPLETED. Internal-only — not exposed to MFE clients.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Forecast run identifier extracted from the S3 key convention
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestForecastResultsRequest'
+      responses:
+        '201':
+          description: Forecast results ingested and run marked COMPLETED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestForecastResultsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

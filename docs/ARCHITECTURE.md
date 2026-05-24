@@ -33,12 +33,19 @@ All follow Hexagonal Architecture (Ports & Adapters).
  
 ---
  
-## Lambda ML Adapters (not in prototype scope)
+## Lambda Functions
  
-Three Lambda functions exist in production but are NOT part of this prototype:
-- Kinesis Consumer Lambda (SIS inbound adapter) — IS in prototype scope
-- SageMaker Trigger Lambda — not in prototype scope
-- Batch Post-Processor Lambda — not in prototype scope
+Three Lambda functions exist in the full production architecture. Two have source code in `backend/lambdas/`.
+ 
+| Lambda | Directory | Trigger | Status |
+|--------|-----------|---------|--------|
+| Kinesis Consumer Lambda | `backend/lambdas/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
+| Batch Post-Processor Lambda | `backend/lambdas/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Code present — no CDK deployment in prototype |
+| SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
+ 
+**Kinesis Consumer Lambda** is a SIS inbound adapter: deduplicates POS events via DynamoDB and forwards to SIS via HTTP.
+ 
+**Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, and POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
  
 ---
  
@@ -101,6 +108,7 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
 ### S3
  
 - `smartretail-events-{env}`: raw POS JSON archive (SIS writes)
+- `smartretail-sagemaker-{env}`: SageMaker training data, model artefacts, and transform output (key prefix: `sagemaker/output/{run_id}/part-*.csv`)
 - `smartretail-mfe-{env}-{mfe-name}`: MFE static assets (4 buckets)
  
 ---

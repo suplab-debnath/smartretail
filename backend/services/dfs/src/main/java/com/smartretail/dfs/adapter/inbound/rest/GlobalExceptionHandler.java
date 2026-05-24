@@ -1,6 +1,7 @@
 package com.smartretail.dfs.adapter.inbound.rest;
 
 import com.smartretail.dfs.adapter.in.web.generated.model.ErrorResponse;
+import com.smartretail.dfs.domain.model.exception.ForecastRunNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,16 @@ import java.time.ZoneOffset;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ForecastRunNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleRunNotFound(ForecastRunNotFoundException ex) {
+        ErrorResponse response = new ErrorResponse(
+                ErrorResponse.ErrorCodeEnum.NOT_FOUND,
+                ex.getMessage(),
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+        return ResponseEntity.status(404).body(response);
+    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest req) {

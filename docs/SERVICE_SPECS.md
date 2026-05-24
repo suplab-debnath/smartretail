@@ -54,6 +54,46 @@ Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
  
 ---
  
+## Batch Post-Processor Lambda (DFS Inbound Adapter)
+ 
+Location: `backend/lambdas/batch-post-processor/`
+Handler: `com.smartretail.lambda.batchpostprocessor.BatchPostProcessorHandler`
+ 
+### Responsibilities
+ 
+1. Receive an S3 ObjectCreated event triggered when SageMaker writes a transform output file
+2. Extract the `run_id` UUID from the S3 key convention `sagemaker/output/{run_id}/part-*.csv`
+3. Download the CSV from S3 using AWS SDK v2 S3Client
+4. Parse each data row into a `ForecastRowPayload`. Malformed rows are logged and skipped.
+5. POST all parsed rows to `DFS_ENDPOINT/v1/forecast/runs/{runId}/results`
+6. On HTTP 201: log success and return
+7. On any other status or network error: throw RuntimeException — Lambda retries the S3 event
+ 
+### Key implementation notes
+ 
+- S3 key must match `^sagemaker/output/([0-9a-fA-F-]{36})/.*$`; non-matching keys are skipped
+- Idempotency provided by DFS `ON CONFLICT DO NOTHING` INSERT — Lambda retries are safe
+- No domain logic — pure infrastructure adapter
+- Known prototype limitation: run marked COMPLETED after first successful part-file ingestion
+ 
+### CSV format (SageMaker transform output)
+ 
+No header. Seven comma-separated columns:
+ 
+```
+sku_id,dc_id,forecast_date,horizon_days,p10,p50,p90
+SKU-BEV-001,DC-LONDON,2026-06-01,30,80,105,135
+```
+ 
+### Environment variables
+ 
+| Variable | Description |
+|----------|-------------|
+| `DFS_ENDPOINT` | Base URL of the DFS service (e.g. `http://dfs.internal:8084`) |
+| `AWS_REGION` | AWS region (injected automatically by the Lambda runtime) |
+ 
+---
+ 
 ## SIS — Sales Ingestion Service
  
 Location: `backend/services/sis/`
