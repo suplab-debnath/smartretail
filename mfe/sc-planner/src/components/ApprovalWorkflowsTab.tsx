@@ -10,8 +10,12 @@ interface Toast {
 
 let toastId = 0
 
-export function ApprovalWorkflowsTab() {
-  const { orders, loading, error, removeOrder, refetch } = usePendingApprovals()
+interface Props {
+  refreshKey?: number
+}
+
+export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
+  const { orders, loading, error, removeOrder, refetch } = usePendingApprovals(refreshKey)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set())
   const [rejectingId, setRejectingId] = useState<string | null>(null)

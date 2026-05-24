@@ -47,9 +47,13 @@ function PositionCard({ pos }: PositionCardProps) {
   )
 }
 
-export function InventoryOverviewTab() {
+interface Props {
+  refreshKey?: number
+}
+
+export function InventoryOverviewTab({ refreshKey = 0 }: Props) {
   const [selectedDc, setSelectedDc] = useState<DcId>('DC-LONDON')
-  const { data, loading, error, refetch } = useInventoryPositions(selectedDc)
+  const { data, loading, error, refetch } = useInventoryPositions(selectedDc, refreshKey)
 
   return (
     <div>

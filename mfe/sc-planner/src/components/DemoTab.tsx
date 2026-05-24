@@ -11,11 +11,16 @@ interface FormValues {
 
 type DemoPhase = 'idle' | 'injecting' | 'polling' | 'found' | 'approving' | 'done' | 'timeout'
 
+// Human-readable names for demo SKUs
+const SKU_NAMES: Record<string, string> = {
+  'SKU-SNK-002': 'White Trainers',
+}
+
 const PIPELINE_STEPS = [
-  { label: 'Sale accepted',     hint: 'SIS records the POS transaction' },
-  { label: 'Inventory updated', hint: 'IMS decrements DC stock' },
-  { label: 'Stock alert raised',hint: 'IMS detects low stock → publishes alert via EventBridge' },
-  { label: 'PO created',        hint: 'RE processes the alert → raises a Purchase Order' },
+  { label: 'Checkout confirmed',      hint: 'Store till transaction received and validated' },
+  { label: 'Warehouse stock updated', hint: 'DC inventory level automatically decremented' },
+  { label: 'Low-stock alert sent',    hint: 'Stock fell below reorder threshold — alert published to event bus' },
+  { label: 'Reorder created',         hint: 'Replenishment Engine raised a Purchase Order for your approval' },
 ]
 
 const DC_OPTIONS = [
@@ -27,10 +32,10 @@ const DC_OPTIONS = [
 // SKU-SNK-002 at DC-LONDON: auto_approve_threshold = £0 → every PO lands in PENDING_APPROVAL
 // on_hand (35) is already below reorder_point (80), so any sale triggers the full pipeline
 const DEFAULT_FORM: FormValues = {
-  storeId:  'STORE-001',
-  skuId:    'SKU-SNK-002',
-  dcId:     'DC-LONDON',
-  quantity: '1',
+  storeId:   'STORE-001',
+  skuId:     'SKU-SNK-002',
+  dcId:      'DC-LONDON',
+  quantity:  '1',
   unitPrice: '9.75',
 }
 
@@ -38,15 +43,16 @@ const MAX_POLL_ATTEMPTS = 12   // 24 s at 2 s intervals
 
 interface Props {
   onSwitchToApprovals: () => void
+  onDataChanged: () => void
 }
 
-export function DemoTab({ onSwitchToApprovals }: Props) {
-  const [form, setForm] = useState<FormValues>(DEFAULT_FORM)
-  const [phase, setPhase]               = useState<DemoPhase>('idle')
-  const [completedSteps, setCompleted]  = useState(0)
-  const [foundPO, setFoundPO]           = useState<PurchaseOrder | null>(null)
-  const [error, setError]               = useState<string | null>(null)
-  const [position, setPosition]         = useState<InventoryPosition | null>(null)
+export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
+  const [form, setForm]              = useState<FormValues>(DEFAULT_FORM)
+  const [phase, setPhase]            = useState<DemoPhase>('idle')
+  const [completedSteps, setCompleted] = useState(0)
+  const [foundPO, setFoundPO]        = useState<PurchaseOrder | null>(null)
+  const [error, setError]            = useState<string | null>(null)
+  const [position, setPosition]      = useState<InventoryPosition | null>(null)
 
   const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const snapshotRef = useRef<Set<string>>(new Set())
@@ -62,9 +68,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       headers: { 'X-Dev-Role': 'SC_PLANNER' },
     })
       .then(r => r.ok ? r.json() as Promise<InventoryPositionListResponse> : null)
-      .then(data => {
-        if (!cancelled) setPosition(data?.positions[0] ?? null)
-      })
+      .then(data => { if (!cancelled) setPosition(data?.positions[0] ?? null) })
       .catch(() => { if (!cancelled) setPosition(null) })
     return () => { cancelled = true }
   }, [form.skuId, form.dcId, phase])
@@ -102,11 +106,12 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
         setCompleted(4)
         setFoundPO(newPO)
         setPhase('found')
+        onDataChanged()   // exception queue + inventory are now stale
       }
     } catch {
       // keep polling
     }
-  }, [])
+  }, [onDataChanged])
 
   async function handleInject() {
     setError(null)
@@ -140,7 +145,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       })
       if (!res.ok) {
         const text = await res.text()
-        setError(`SIS rejected event: HTTP ${res.status} — ${text}`)
+        setError(`Sale rejected: HTTP ${res.status} — ${text}`)
         setPhase('idle')
         return
       }
@@ -175,6 +180,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       })
       if (res.ok) {
         setPhase('done')
+        onDataChanged()   // approvals + supplier orders are now stale
       } else if (res.status === 409) {
         setError('PO status changed concurrently — it may already be approved.')
         setPhase('found')
@@ -188,50 +194,62 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
     }
   }
 
-  const isLowStock = position ? position.onHand <= position.reorderPoint : null
+  const productName = SKU_NAMES[form.skuId] ?? form.skuId
+  const isLowStock  = position ? position.onHand <= position.reorderPoint : null
+  const dcLabel     = DC_OPTIONS.find(o => o.value === form.dcId)?.label ?? form.dcId
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
 
       {/* Scenario card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
-        <h2 className="text-base font-semibold text-blue-900 mb-1">Flow 1 + 2 — End-to-End Replenishment Demo</h2>
+        <h2 className="text-base font-semibold text-blue-900 mb-2">
+          Your bestseller just ran out at the warehouse — and nobody noticed
+        </h2>
         <p className="text-sm text-blue-800 leading-relaxed">
-          You are an SC Planner. A store just sold an item that is running low at its Distribution Centre.
-          Submit the POS transaction below to watch the pipeline run automatically: the sale is recorded,
-          DC stock is decremented, a LOW_STOCK alert fires on EventBridge, and the Replenishment Engine
-          raises a Purchase Order for your approval.
+          It's a busy Friday afternoon. A customer at your London flagship just bought the last pair
+          of White Trainers in the DC-London warehouse. Without an automated system, that gap sits
+          undetected until Monday — by then, weekend shoppers walk in, find empty shelves, and head
+          straight to a competitor.
+        </p>
+        <p className="mt-2 text-sm text-blue-800 leading-relaxed">
+          This demo shows how your platform closes that loop in seconds. One checkout fires an
+          automatic stock check, raises a low-inventory alert, and creates a supplier reorder —
+          all before a single customer is turned away.
         </p>
         <p className="mt-2 text-xs text-blue-700">
-          <span className="font-semibold">Before you submit:</span> The pre-filled SKU is already below
-          its reorder point at DC-LONDON — even 1 unit sold is enough to trigger the full chain.{' '}
-          <span className="font-semibold">After the PO appears:</span> click{' '}
-          <span className="italic">Approve this PO</span> to complete the flow and send the order to the supplier.
+          <span className="font-semibold">How it works:</span> The White Trainers SKU is already
+          running low in the DC. Even one more sale crosses the reorder threshold and triggers the
+          full automated chain. After the system creates a Purchase Order, you'll approve it to
+          send the restocking order to the supplier.
         </p>
       </div>
 
       {/* Step 1 — trigger */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 1 — Simulate POS Sale</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 1 — Simulate a store checkout</h3>
         <p className="text-xs text-gray-500 mb-4">
-          Represents a unit sold at the store whose stock is replenished from the selected DC.
+          A customer just bought an item at the store till. The SKU below is already running low
+          in the warehouse — even this single sale is enough to trigger the automated response.
         </p>
 
         {/* Inventory context */}
         {position && phase === 'idle' && (
           <div className={[
-            'flex items-center gap-2 mb-4 px-3 py-2 rounded text-xs font-medium border',
+            'flex items-start gap-2 mb-4 px-3 py-2 rounded text-xs font-medium border',
             isLowStock
               ? 'bg-red-50 border-red-200 text-red-700'
               : 'bg-green-50 border-green-200 text-green-700',
           ].join(' ')}>
-            <span>{isLowStock ? 'LOW STOCK' : 'OK'}</span>
-            <span className="text-gray-400">|</span>
+            <span className="mt-0.5 shrink-0">{isLowStock ? '⚠' : '✓'}</span>
             <span>
-              DC-{form.dcId.replace('DC-', '')} stock for {form.skuId}:{' '}
-              <span className="font-semibold">{position.onHand} units</span> on hand,{' '}
-              reorder point <span className="font-semibold">{position.reorderPoint}</span>
-              {isLowStock ? ' — any sale triggers an alert' : ''}
+              <span className="font-semibold">{productName}</span> at {dcLabel}:{' '}
+              only <span className="font-semibold">{position.onHand} units</span> in the warehouse
+              (reorder threshold: <span className="font-semibold">{position.reorderPoint}</span>
+              {isLowStock
+                ? ') — this SKU is already in the danger zone. Any sale fires the alert.'
+                : ') — stock looks healthy.'
+              }
             </span>
           </div>
         )}
@@ -247,16 +265,19 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">SKU sold</span>
+            <span className="text-xs text-gray-500">Item sold</span>
             <input
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
               value={form.skuId}
               onChange={e => setForm(f => ({ ...f, skuId: e.target.value }))}
               disabled={phase !== 'idle'}
             />
+            {SKU_NAMES[form.skuId] && (
+              <span className="text-xs text-gray-400 mt-0.5 block">{SKU_NAMES[form.skuId]}</span>
+            )}
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">Replenishing DC</span>
+            <span className="text-xs text-gray-500">Replenishing warehouse</span>
             <select
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
               value={form.dcId}
@@ -267,7 +288,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs text-gray-500">Units sold at store</span>
+            <span className="text-xs text-gray-500">Units sold</span>
             <input
               type="number" min="1"
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
@@ -294,7 +315,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
             disabled={phase !== 'idle'}
             className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {phase === 'injecting' ? 'Sending…' : 'Simulate POS Sale'}
+            {phase === 'injecting' ? 'Recording sale…' : 'Simulate store checkout'}
           </button>
           {phase !== 'idle' && (
             <button
@@ -314,7 +335,10 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       {/* Step 2 — pipeline */}
       {phase !== 'idle' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Step 2 — Replenishment Pipeline</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 2 — Automated replenishment pipeline</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            No one pressed a button for this. Each step below happened automatically in response to the checkout.
+          </p>
           <div className="flex flex-wrap items-start gap-2">
             {PIPELINE_STEPS.map(({ label, hint }, i) => {
               const done   = completedSteps > i
@@ -343,12 +367,12 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
 
           {phase === 'polling' && (
             <p className="mt-4 text-xs text-gray-400">
-              Waiting for Replenishment Engine to create PO… (checking every 2 s)
+              Waiting for Replenishment Engine to create a Purchase Order… (checking every 2 s)
             </p>
           )}
           {phase === 'timeout' && (
             <p className="mt-4 text-sm text-amber-600">
-              PO not detected after 24 s — the system may still be processing.{' '}
+              Purchase Order not detected after 24 s — the system may still be processing.{' '}
               <button onClick={onSwitchToApprovals} className="underline hover:text-amber-700">
                 Check Approvals tab
               </button>
@@ -360,17 +384,18 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
       {/* Step 3 — PO approval */}
       {(phase === 'found' || phase === 'approving' || phase === 'done') && foundPO && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 3 — Approve Purchase Order</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Step 3 — Review and approve the reorder</h3>
           {phase !== 'done' && (
             <p className="text-xs text-gray-500 mb-4">
-              The Replenishment Engine created this PO and flagged it for manual approval — its value
-              exceeds the auto-approve threshold. Review the details and approve to complete the flow.
+              The system flagged this order for manual sign-off because it exceeds the auto-approve
+              limit. In practice, routine small orders go straight through — you only see the
+              high-value ones. Review the details below, then approve to send directly to the supplier.
             </p>
           )}
 
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm mb-5">
             <div>
-              <dt className="text-xs text-gray-500">PO ID</dt>
+              <dt className="text-xs text-gray-500">Order ID</dt>
               <dd className="font-mono text-gray-800 text-xs truncate">{foundPO.poId}</dd>
             </div>
             <div>
@@ -378,24 +403,27 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
               <dd>
                 {phase === 'done'
                   ? <span className="inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">APPROVED</span>
-                  : <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">PENDING APPROVAL</span>
+                  : <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">AWAITING APPROVAL</span>
                 }
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">SKU</dt>
-              <dd className="text-gray-800">{foundPO.skuId}</dd>
+              <dt className="text-xs text-gray-500">Item</dt>
+              <dd className="text-gray-800">
+                {SKU_NAMES[foundPO.skuId] ?? foundPO.skuId}
+                <span className="text-gray-400 ml-1 text-xs">({foundPO.skuId})</span>
+              </dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">DC</dt>
+              <dt className="text-xs text-gray-500">Warehouse</dt>
               <dd className="text-gray-800">{foundPO.dcId}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Quantity ordered</dt>
+              <dt className="text-xs text-gray-500">Units ordered</dt>
               <dd className="text-gray-800">{foundPO.quantity.toLocaleString()} units</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Total value</dt>
+              <dt className="text-xs text-gray-500">Order value</dt>
               <dd className="text-gray-800">£{foundPO.totalValue.toFixed(2)}</dd>
             </div>
             <div>
@@ -403,17 +431,28 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
               <dd className="text-gray-800">{foundPO.supplierId}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Created</dt>
+              <dt className="text-xs text-gray-500">Raised at</dt>
               <dd className="text-gray-800">{new Date(foundPO.createdAt).toLocaleString()}</dd>
             </div>
           </dl>
 
           {phase === 'done' ? (
-            <div className="bg-green-50 border border-green-200 rounded p-3">
-              <p className="text-sm text-green-700 font-medium">Flow complete — order sent to supplier.</p>
-              <p className="text-xs text-green-600 mt-1">
-                The approved PO is now visible in the <strong>Supplier Orders</strong> tab. You can run
-                the demo again by clicking Reset above.
+            <div className="bg-green-50 border border-green-200 rounded p-4">
+              <p className="text-sm text-green-800 font-semibold mb-1">Order confirmed — supplier has been notified</p>
+              <p className="text-sm text-green-700">
+                {foundPO.quantity.toLocaleString()} units of {SKU_NAMES[foundPO.skuId] ?? foundPO.skuId} are
+                now on order. Estimated arrival: 3–5 business days. Your store will have stock back on
+                the shelves before this weekend's gap turns into lost sales.
+              </p>
+              <p className="text-xs text-green-600 mt-2">
+                The order is now visible in the{' '}
+                <button
+                  onClick={onSwitchToApprovals}
+                  className="underline font-medium hover:text-green-800"
+                >
+                  Supplier Orders tab
+                </button>
+                . Run the demo again by clicking Reset above.
               </p>
             </div>
           ) : (
@@ -422,7 +461,7 @@ export function DemoTab({ onSwitchToApprovals }: Props) {
               disabled={phase === 'approving'}
               className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {phase === 'approving' ? 'Approving…' : 'Approve this PO'}
+              {phase === 'approving' ? 'Sending to supplier…' : 'Approve — send to supplier'}
             </button>
           )}
         </div>

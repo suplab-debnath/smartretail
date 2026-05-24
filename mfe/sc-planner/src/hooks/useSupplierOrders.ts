@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchJson, isFetchError, type FetchError } from '@smartretail/auth'
 import type { SupplierOrderListResponse } from '../types'
 
-export function useSupplierOrders(status?: string) {
+export function useSupplierOrders(status?: string, refreshKey = 0) {
   const [data, setData] = useState<SupplierOrderListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<FetchError | null>(null)
@@ -39,7 +39,7 @@ export function useSupplierOrders(status?: string) {
     return () => {
       cancelled = true
     }
-  }, [status, retryKey])
+  }, [status, retryKey, refreshKey])
 
   return { data, loading, error, refetch }
 }
