@@ -1,0 +1,108 @@
+asyncapi: 2.6.0
+info:
+  title: Sales Ingestion Service — Async API
+  version: 1.0.0
+  description: |
+    SIS publishes a SalesTransactionEvent to the EventBridge bus after every
+    successfully ingested and deduplicated POS or e-commerce transaction.
+
+    EventBridge routing:
+      - smartretail-ims-sales-{env}   (Standard SQS)  → IMS
+      - smartretail-ars-updates-{env} (Standard SQS)  → ARS
+
+defaultContentType: application/json
+
+servers:
+  eventbridge-local:
+    url: http://localhost:4566
+    protocol: eventbridge
+    description: LocalStack EventBridge (bus = smartretail-events-local)
+  eventbridge-aws:
+    url: arn:aws:events:{region}:{account}:event-bus/smartretail-events-{env}
+    protocol: eventbridge
+    description: AWS EventBridge custom bus
+    variables:
+      region:
+        default: eu-west-2
+      account:
+        description: AWS account ID
+      env:
+        enum: [dev, demo, prod]
+
+channels:
+  smartretail/sis/SalesTransactionEvent:
+    description: |
+      Published to EventBridge bus `smartretail-events-{env}` with
+      source "smartretail.sis" and detail-type "SalesTransactionEvent".
+      Triggered once per accepted, non-duplicate transaction.
+    publish:
+      operationId: publishSalesTransactionEvent
+      summary: A POS or e-commerce sale has been ingested.
+      message:
+        $ref: '#/components/messages/SalesTransactionEvent'
+
+components:
+  messages:
+    SalesTransactionEvent:
+      name: SalesTransactionEvent
+      title: Sales Transaction Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          source:
+            type: string
+            const: smartretail.sis
+            description: EventBridge envelope — source field.
+          detail-type:
+            type: string
+            const: SalesTransactionEvent
+            description: EventBridge envelope — detail-type field.
+      payload:
+        $ref: '#/components/schemas/SalesTransactionEventPayload'
+
+  schemas:
+    SalesTransactionEventPayload:
+      type: object
+      required:
+        - transactionId
+        - skuId
+        - dcId
+        - storeId
+        - quantity
+        - unitPrice
+        - channel
+        - eventTimestamp
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+          description: Unique sale identifier.
+        skuId:
+          type: string
+          maxLength: 50
+          example: SKU-4423
+        dcId:
+          type: string
+          maxLength: 50
+          example: DC-LONDON
+        storeId:
+          type: string
+          maxLength: 50
+          example: STORE-001
+        quantity:
+          type: integer
+          minimum: 1
+          example: 5
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+          example: 12.99
+        channel:
+          type: string
+          enum: [POS, ECOMMERCE]
+        eventTimestamp:
+          type: string
+          format: date-time
+          example: "2026-05-15T14:23:00Z"

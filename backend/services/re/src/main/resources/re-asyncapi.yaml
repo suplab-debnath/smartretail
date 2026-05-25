@@ -1,0 +1,189 @@
+asyncapi: 2.6.0
+info:
+  title: Replenishment Engine — Async API
+  version: 1.0.0
+  description: |
+    RE consumes InventoryAlertEvents from a FIFO SQS queue, looks up
+    replenishment rules for (skuId, dcId), creates a purchase order, and
+    publishes a PurchaseOrderEvent to EventBridge on APPROVED or REJECTED.
+
+    Incoming routing:
+      EventBridge rule "alert-to-re"
+        → smartretail-re-alert-{env} (FIFO SQS)
+          Message group ID = {dcId}#{skuId} — guarantees per-DC+SKU ordering.
+
+    PO status after creation:
+      - APPROVED         if totalValue <= autoApproveThreshold
+      - PENDING_APPROVAL if totalValue >  autoApproveThreshold (planner action required)
+
+    Outgoing routing:
+      - smartretail-ars-updates-{env} (Standard SQS) → ARS
+
+defaultContentType: application/json
+
+servers:
+  sqs-inbound-local:
+    url: http://localhost:4566/000000000000/smartretail-re-alert-local.fifo
+    protocol: sqs
+    description: LocalStack FIFO SQS queue delivering InventoryAlertEvents
+  sqs-inbound-aws:
+    url: https://sqs.{region}.amazonaws.com/{account}/smartretail-re-alert-{env}.fifo
+    protocol: sqs
+    description: |
+      FIFO SQS queue delivering InventoryAlertEvents from EventBridge.
+      Message group ID = {dcId}#{skuId}.
+    variables:
+      region:
+        default: eu-west-2
+      account:
+        description: AWS account ID
+      env:
+        enum: [dev, demo, prod]
+  eventbridge-outbound-local:
+    url: http://localhost:4566
+    protocol: eventbridge
+    description: LocalStack EventBridge (bus = smartretail-events-local)
+  eventbridge-outbound-aws:
+    url: arn:aws:events:{region}:{account}:event-bus/smartretail-events-{env}
+    protocol: eventbridge
+    description: AWS EventBridge custom bus
+    variables:
+      region:
+        default: eu-west-2
+      account:
+        description: AWS account ID
+      env:
+        enum: [dev, demo, prod]
+
+channels:
+  smartretail-re-alert/InventoryAlertEvent:
+    servers: [sqs-inbound-local, sqs-inbound-aws]
+    description: |
+      RE polls this FIFO SQS queue for InventoryAlertEvents.
+      Processing per message:
+        1. Look up replenishment_rules by (skuId, dcId); skip if none found.
+        2. Compute quantity = max(reorderPoint - onHand, moq).
+        3. Compute totalValue = quantity * costPerUnit.
+        4. Insert purchase_orders + po_line_items.
+        5. Publish PurchaseOrderEvent.
+    subscribe:
+      operationId: consumeInventoryAlertEvent
+      summary: Evaluate alert, generate purchase order, publish PurchaseOrderEvent.
+      message:
+        $ref: '#/components/messages/InventoryAlertEvent'
+      bindings:
+        sqs:
+          visibilityTimeout: 60
+          receiveMessageWaitTime: 20
+
+  smartretail/re/PurchaseOrderEvent:
+    servers: [eventbridge-outbound-local, eventbridge-outbound-aws]
+    description: |
+      Published to EventBridge when a purchase order transitions to APPROVED or REJECTED.
+      source = "smartretail.re", detail-type = "PurchaseOrderEvent".
+      Emitted on:
+        - Auto-approval (totalValue <= autoApproveThreshold)
+        - Planner approval or rejection of a PENDING_APPROVAL order
+    publish:
+      operationId: publishPurchaseOrderEvent
+      summary: A purchase order has been approved or rejected.
+      message:
+        $ref: '#/components/messages/PurchaseOrderEvent'
+
+components:
+  messages:
+    InventoryAlertEvent:
+      name: InventoryAlertEvent
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/InventoryAlertEventPayload'
+
+    PurchaseOrderEvent:
+      name: PurchaseOrderEvent
+      title: Purchase Order Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          source:
+            type: string
+            const: smartretail.re
+            description: EventBridge envelope — source field.
+          detail-type:
+            type: string
+            const: PurchaseOrderEvent
+            description: EventBridge envelope — detail-type field.
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderEventPayload'
+
+  schemas:
+    InventoryAlertEventPayload:
+      type: object
+      required:
+        - alertId
+        - positionId
+        - skuId
+        - dcId
+        - alertType
+        - severity
+        - atp
+        - reorderPoint
+      properties:
+        alertId:
+          type: string
+          format: uuid
+        positionId:
+          type: string
+          format: uuid
+        skuId:
+          type: string
+        dcId:
+          type: string
+        alertType:
+          type: string
+          enum: [LOW_STOCK]
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        atp:
+          type: integer
+          minimum: 0
+        reorderPoint:
+          type: integer
+          minimum: 0
+
+    PurchaseOrderEventPayload:
+      type: object
+      required:
+        - poId
+        - supplierId
+        - skuId
+        - dcId
+        - workflowStatus
+        - quantity
+        - totalValue
+      properties:
+        poId:
+          type: string
+          format: uuid
+        supplierId:
+          type: string
+          format: uuid
+        skuId:
+          type: string
+          example: SKU-4423
+        dcId:
+          type: string
+          example: DC-LONDON
+        workflowStatus:
+          type: string
+          enum: [APPROVED, REJECTED]
+          description: Only APPROVED and REJECTED transitions emit an event.
+        quantity:
+          type: integer
+          minimum: 1
+        totalValue:
+          type: number
+          format: double
+          minimum: 0
+          example: 6495.00

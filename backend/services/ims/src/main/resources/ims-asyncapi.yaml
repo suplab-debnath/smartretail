@@ -1,0 +1,185 @@
+asyncapi: 2.6.0
+info:
+  title: Inventory Management Service — Async API
+  version: 1.0.0
+  description: |
+    IMS consumes SalesTransactionEvents from a Standard SQS queue, decrements
+    inventory positions, and publishes InventoryAlertEvents to EventBridge
+    whenever available-to-promise drops below the reorder point.
+
+    Incoming routing:
+      EventBridge rule "sales-to-ims"
+        → smartretail-ims-sales-{env} (Standard SQS)
+
+    Outgoing routing:
+      - smartretail-re-alert-{env}    (FIFO SQS, group {dcId}#{skuId}) → RE
+      - smartretail-ars-updates-{env} (Standard SQS)                   → ARS
+
+defaultContentType: application/json
+
+servers:
+  sqs-inbound-local:
+    url: http://localhost:4566/000000000000/smartretail-ims-sales-local
+    protocol: sqs
+    description: LocalStack SQS queue delivering SalesTransactionEvents
+  sqs-inbound-aws:
+    url: https://sqs.{region}.amazonaws.com/{account}/smartretail-ims-sales-{env}
+    protocol: sqs
+    description: Standard SQS queue delivering SalesTransactionEvents from EventBridge
+    variables:
+      region:
+        default: eu-west-2
+      account:
+        description: AWS account ID
+      env:
+        enum: [dev, demo, prod]
+  eventbridge-outbound-local:
+    url: http://localhost:4566
+    protocol: eventbridge
+    description: LocalStack EventBridge (bus = smartretail-events-local)
+  eventbridge-outbound-aws:
+    url: arn:aws:events:{region}:{account}:event-bus/smartretail-events-{env}
+    protocol: eventbridge
+    description: AWS EventBridge custom bus
+    variables:
+      region:
+        default: eu-west-2
+      account:
+        description: AWS account ID
+      env:
+        enum: [dev, demo, prod]
+
+channels:
+  smartretail-ims-sales/SalesTransactionEvent:
+    servers: [sqs-inbound-local, sqs-inbound-aws]
+    description: |
+      IMS polls this Standard SQS queue for SalesTransactionEvents.
+      On each message: decrements inventory.inventory_positions.on_hand,
+      creates a stock_alert record if ATP < reorder_point, then acknowledges.
+    subscribe:
+      operationId: consumeSalesTransactionEvent
+      summary: Decrement on_hand; raise InventoryAlertEvent if ATP < reorder_point.
+      message:
+        $ref: '#/components/messages/SalesTransactionEvent'
+      bindings:
+        sqs:
+          visibilityTimeout: 30
+          receiveMessageWaitTime: 20
+
+  smartretail/ims/InventoryAlertEvent:
+    servers: [eventbridge-outbound-local, eventbridge-outbound-aws]
+    description: |
+      Published to EventBridge when ATP falls below reorder_point.
+      source = "smartretail.ims", detail-type = "InventoryAlertEvent".
+      Only LOW_STOCK alertType is emitted in the current prototype scope.
+    publish:
+      operationId: publishInventoryAlertEvent
+      summary: Available-to-promise has dropped below the reorder point.
+      message:
+        $ref: '#/components/messages/InventoryAlertEvent'
+
+components:
+  messages:
+    SalesTransactionEvent:
+      name: SalesTransactionEvent
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SalesTransactionEventPayload'
+
+    InventoryAlertEvent:
+      name: InventoryAlertEvent
+      title: Inventory Alert Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          source:
+            type: string
+            const: smartretail.ims
+            description: EventBridge envelope — source field.
+          detail-type:
+            type: string
+            const: InventoryAlertEvent
+            description: EventBridge envelope — detail-type field.
+      payload:
+        $ref: '#/components/schemas/InventoryAlertEventPayload'
+
+  schemas:
+    SalesTransactionEventPayload:
+      type: object
+      required:
+        - transactionId
+        - skuId
+        - dcId
+        - storeId
+        - quantity
+        - unitPrice
+        - channel
+        - eventTimestamp
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        skuId:
+          type: string
+          maxLength: 50
+        dcId:
+          type: string
+          maxLength: 50
+        storeId:
+          type: string
+          maxLength: 50
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+        channel:
+          type: string
+          enum: [POS, ECOMMERCE]
+        eventTimestamp:
+          type: string
+          format: date-time
+
+    InventoryAlertEventPayload:
+      type: object
+      required:
+        - alertId
+        - positionId
+        - skuId
+        - dcId
+        - alertType
+        - severity
+        - atp
+        - reorderPoint
+      properties:
+        alertId:
+          type: string
+          format: uuid
+        positionId:
+          type: string
+          format: uuid
+          description: FK to inventory.inventory_positions.id
+        skuId:
+          type: string
+          example: SKU-4423
+        dcId:
+          type: string
+          example: DC-LONDON
+        alertType:
+          type: string
+          enum: [LOW_STOCK]
+          description: Only LOW_STOCK is emitted in the current prototype scope.
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        atp:
+          type: integer
+          minimum: 0
+          description: Available-to-promise quantity at the time of the alert.
+        reorderPoint:
+          type: integer
+          minimum: 0
+          description: Threshold that triggered the alert.
