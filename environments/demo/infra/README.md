@@ -59,7 +59,7 @@ S3 static website (HTTP)  ──► SC Planner MFE
 ### One-command full deployment
 
 ```bash
-SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./scripts/aws-demo/deploy-demo.sh
+SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./environments/demo/scripts/deploy-demo.sh
 ```
 
 With alarm email notifications:
@@ -67,7 +67,7 @@ With alarm email notifications:
 ```bash
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev \
   CDK_CONTEXT_alertEmail=you@example.com \
-  ./scripts/aws-demo/deploy-demo.sh
+  ./environments/demo/scripts/deploy-demo.sh
 ```
 
 ### Makefile targets (granular control)
@@ -101,7 +101,7 @@ On your first `cdk synth`, CDK contacts AWS to find the default VPC and caches t
 `cdk.context.json`. Commit that file after the first synth.
 
 ```bash
-cd infra/cdk-demo
+cd environments/demo/infra
 npm install
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev npx cdk context
 ```
@@ -129,12 +129,12 @@ The dashboard shows:
 Pass `alertEmail` as CDK context to subscribe to alarm notifications:
 
 ```bash
-cd infra/cdk-demo
+cd environments/demo/infra
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev \
   npx cdk deploy --all -c alertEmail=you@example.com
 ```
 
-Or use `CDK_CONTEXT_alertEmail=you@example.com` with `./scripts/aws-demo/deploy-demo.sh`.
+Or use `CDK_CONTEXT_alertEmail=you@example.com` with `./environments/demo/scripts/deploy-demo.sh`.
 
 ### Alarms (6 total)
 
@@ -168,6 +168,6 @@ To find all demo resources in AWS console: filter by `Lifecycle = ephemeral`.
 make demo-destroy DEMO_PROFILE=smartretail-dev
 
 # Or directly:
-cd infra/cdk-demo
+cd environments/demo/infra
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev npx cdk destroy --all --force
 ```

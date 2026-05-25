@@ -91,7 +91,7 @@ CloudFront (HTTPS, OAC/SigV4) ──► private S3 buckets
 ## Deploy
 
 ```bash
-cd infra/cdk-dev
+cd environments/dev/infra
 npm install
 
 export SMARTRETAIL_ENV=dev
@@ -147,15 +147,15 @@ ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
 
 # Kinesis Consumer Lambda
-mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer
+mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev
-docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/kinesis-consumer
+docker build --platform linux/amd64 -t $REPO:latest backend/adapters/kinesis-consumer
 docker push $REPO:latest
 
 # Batch Post-Processor Lambda
-mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor
+mvn clean package -DskipTests -pl backend/adapters/batch-post-processor
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev
-docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/batch-post-processor
+docker build --platform linux/amd64 -t $REPO:latest backend/adapters/batch-post-processor
 docker push $REPO:latest
 ```
 

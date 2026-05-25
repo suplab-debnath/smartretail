@@ -2,9 +2,9 @@
 
 Deploys the **SC Planner demo** on real AWS infrastructure. Intended lifespan: 1–2 days. All resources are tagged `Lifecycle=ephemeral` for easy cost tracking and cleanup.
 
-**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, SQS messaging (no Kinesis), single-AZ RDS, S3 static website hosting (no CloudFront). Uses `infra/cdk-demo/` (Min-* stack names).
+**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, SQS messaging (no Kinesis), single-AZ RDS, S3 static website hosting (no CloudFront). Uses `environments/demo/infra/` (Min-* stack names).
 
-> For the full CDK stack spec and resource table see `infra/cdk-demo/README.md`.
+> For the full CDK stack spec and resource table see `environments/demo/infra/README.md`.
 
 ---
 
@@ -30,12 +30,12 @@ export SMARTRETAIL_ENV=demo
 ## One-shot full deployment
 
 ```bash
-./scripts/aws-demo/deploy-demo.sh
+./environments/demo/scripts/deploy-demo.sh
 ```
 
 With CloudWatch alarm email notifications:
 ```bash
-CDK_CONTEXT_alertEmail=you@example.com ./scripts/aws-demo/deploy-demo.sh
+CDK_CONTEXT_alertEmail=you@example.com ./environments/demo/scripts/deploy-demo.sh
 ```
 
 ---
@@ -121,5 +121,5 @@ S3 buckets and ECR repos have `RemovalPolicy.DESTROY` — they are emptied and d
 
 ## See also
 
-- `infra/cdk-demo/README.md` — CDK stack architecture, stack names, sizing
+- `environments/demo/infra/README.md` — CDK stack architecture, stack names, sizing
 - `docs/CDK_SPEC.md` — full CDK TypeScript specifications

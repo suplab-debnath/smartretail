@@ -64,7 +64,7 @@ VPC: 3 AZs · public subnets (ALB) · private-app subnets (ECS + Lambda) · isol
 This CDK project is **not wired into the Makefile** — production deployments are intentional manual operations. Deploy from the directory directly:
 
 ```bash
-cd infra/cdk-prod
+cd environments/prod/infra
 npm install
 
 export SMARTRETAIL_ENV=prod
@@ -119,15 +119,15 @@ ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
 
 # Kinesis Consumer Lambda
-mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer
+mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod
-docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/kinesis-consumer
+docker build --platform linux/amd64 -t $REPO:latest backend/adapters/kinesis-consumer
 docker push $REPO:latest
 
 # Batch Post-Processor Lambda
-mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor
+mvn clean package -DskipTests -pl backend/adapters/batch-post-processor
 REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-prod
-docker build --platform linux/amd64 -t $REPO:latest backend/lambdas/batch-post-processor
+docker build --platform linux/amd64 -t $REPO:latest backend/adapters/batch-post-processor
 docker push $REPO:latest
 ```
 

@@ -2,9 +2,9 @@
 
 Deploys the full SmartRetail stack to a dedicated dev-tier AWS account. Mirrors production in all service and CDK patterns — same VPC topology, RDS Proxy, CloudFront, Kinesis, and supplier Cognito pool. Differs only in sizing and compute targets.
 
-**What's deployed:** 7 backend services + 2 Lambda functions (Kinesis consumer, Batch Post-Processor), 2-AZ VPC with dedicated private subnets, RDS Proxy → RDS t4g.small single-AZ, 5 private MFE S3 buckets with CloudFront OAC, SQS + Kinesis + EventBridge. Uses `infra/cdk-dev/` (Dev-* stack names).
+**What's deployed:** 7 backend services + 2 Lambda functions (Kinesis consumer, Batch Post-Processor), 2-AZ VPC with dedicated private subnets, RDS Proxy → RDS t4g.small single-AZ, 5 private MFE S3 buckets with CloudFront OAC, SQS + Kinesis + EventBridge. Uses `environments/dev/infra/` (Dev-* stack names).
 
-> For the full CDK stack spec and resource table see `infra/cdk-dev/README.md`.
+> For the full CDK stack spec and resource table see `environments/dev/infra/README.md`.
 
 ---
 
@@ -52,13 +52,13 @@ make dev-push-all
 # Both Lambda images
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 # Kinesis Consumer
-mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev:latest backend/lambdas/kinesis-consumer
+mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev:latest backend/adapters/kinesis-consumer
 docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev:latest
 
 # Batch Post-Processor
-mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev:latest backend/lambdas/batch-post-processor
+mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev:latest backend/adapters/batch-post-processor
 docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev:latest
 ```
 
@@ -119,5 +119,5 @@ All resources have `RemovalPolicy.DESTROY` — RDS, S3, and ECR are deleted auto
 
 ## See also
 
-- `infra/cdk-dev/README.md` — CDK stack architecture, sizing vs prod
+- `environments/dev/infra/README.md` — CDK stack architecture, sizing vs prod
 - `docs/CDK_SPEC.md` — full CDK TypeScript specifications

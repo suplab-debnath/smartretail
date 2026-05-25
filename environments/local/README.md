@@ -28,7 +28,7 @@ Runs the full SmartRetail stack on your machine using Docker Compose (PostgreSQL
 make local-up
 ```
 
-LocalStack automatically provisions all required AWS resources on startup via `scripts/local/localstack-init.sh`:
+LocalStack automatically provisions all required AWS resources on startup via `environments/local/scripts/localstack-init.sh`:
 
 | Resource | Name |
 |----------|------|

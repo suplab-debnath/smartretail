@@ -2,9 +2,9 @@
 
 > **Production deployments are intentional manual operations.** This environment is deliberately NOT wired into the Makefile. Every command below must be run explicitly.
 
-Deploys the full SmartRetail stack to production-grade AWS infrastructure: 3-AZ VPC, Multi-AZ RDS (r6g.large), 3 NAT Gateways, Container Insights, `RemovalPolicy.RETAIN` on all stateful resources. Uses `infra/cdk-prod/` (Prod-* stack names).
+Deploys the full SmartRetail stack to production-grade AWS infrastructure: 3-AZ VPC, Multi-AZ RDS (r6g.large), 3 NAT Gateways, Container Insights, `RemovalPolicy.RETAIN` on all stateful resources. Uses `environments/prod/infra/` (Prod-* stack names).
 
-> For the full CDK stack spec and resource table see `infra/cdk-prod/README.md`.
+> For the full CDK stack spec and resource table see `environments/prod/infra/README.md`.
 
 ---
 
@@ -32,7 +32,7 @@ export CDK_DEFAULT_REGION=us-east-1
 ## First-time CDK deployment
 
 ```bash
-cd infra/cdk-prod
+cd environments/prod/infra
 npm install
 
 npx cdk bootstrap
@@ -57,13 +57,13 @@ for svc in sis ims re ars dfs sup pps; do
 done
 
 # Kinesis Consumer Lambda
-mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod:latest backend/lambdas/kinesis-consumer
+mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod:latest backend/adapters/kinesis-consumer
 docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod:latest
 
 # Batch Post-Processor Lambda
-mvn clean package -DskipTests -pl backend/lambdas/batch-post-processor --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-prod:latest backend/lambdas/batch-post-processor
+mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-prod:latest backend/adapters/batch-post-processor
 docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-prod:latest
 ```
 
@@ -125,7 +125,7 @@ AWS_PROFILE=smartretail-prod SMARTRETAIL_ENV=prod \
   ./scripts/shared/deploy-mfes.sh --env prod --profile smartretail-prod
 
 # CDK stack change (e.g. ComputeStack only)
-cd infra/cdk-prod && npx cdk deploy Prod-ComputeStack --require-approval never
+cd environments/prod/infra && npx cdk deploy Prod-ComputeStack --require-approval never
 ```
 
 ---
@@ -135,7 +135,7 @@ cd infra/cdk-prod && npx cdk deploy Prod-ComputeStack --require-approval never
 > **Warning:** RDS, S3, and CloudFront have `RemovalPolicy.RETAIN`. CDK destroy will NOT delete them. Manual cleanup required after stack removal.
 
 ```bash
-cd infra/cdk-prod
+cd environments/prod/infra
 npx cdk destroy --all
 ```
 
@@ -148,5 +148,5 @@ After CDK destroy:
 
 ## See also
 
-- `infra/cdk-prod/README.md` — CDK stack architecture, sizing vs dev
+- `environments/prod/infra/README.md` — CDK stack architecture, sizing vs dev
 - `docs/CDK_SPEC.md` — full CDK TypeScript specifications
