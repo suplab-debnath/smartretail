@@ -1,14 +1,15 @@
 package com.smartretail.ars.adapter.inbound.rest;
 
 import com.smartretail.ars.adapter.in.web.generated.api.DashboardApi;
-import com.smartretail.ars.adapter.in.web.generated.api.DashboardApi;
 import com.smartretail.ars.adapter.in.web.generated.model.ExecutiveDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.StoreManagerDashboardResponse;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierOrdersDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceDashboardResponse;
 import com.smartretail.ars.port.inbound.ExecutiveDashboardPort;
 import com.smartretail.ars.port.inbound.ScPlannerDashboardPort;
 import com.smartretail.ars.port.inbound.StoreManagerDashboardPort;
+import com.smartretail.ars.port.inbound.SupplierOrdersDashboardPort;
 import com.smartretail.ars.port.inbound.SupplierPerformancePort;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,7 @@ public class DashboardController implements DashboardApi {
     private final ExecutiveDashboardPort executiveDashboardPort;
     private final ScPlannerDashboardPort scPlannerDashboardPort;
     private final SupplierPerformancePort supplierPerformancePort;
+    private final SupplierOrdersDashboardPort supplierOrdersDashboardPort;
     private final StoreManagerDashboardPort storeManagerDashboardPort;
     private final DashboardResponseMapper dashboardResponseMapper;
     private final StoreManagerResponseMapper storeManagerResponseMapper;
@@ -44,15 +46,17 @@ public class DashboardController implements DashboardApi {
             ExecutiveDashboardPort executiveDashboardPort,
             ScPlannerDashboardPort scPlannerDashboardPort,
             SupplierPerformancePort supplierPerformancePort,
+            SupplierOrdersDashboardPort supplierOrdersDashboardPort,
             StoreManagerDashboardPort storeManagerDashboardPort,
             DashboardResponseMapper dashboardResponseMapper,
             StoreManagerResponseMapper storeManagerResponseMapper) {
-        this.executiveDashboardPort    = executiveDashboardPort;
-        this.scPlannerDashboardPort    = scPlannerDashboardPort;
-        this.supplierPerformancePort   = supplierPerformancePort;
-        this.storeManagerDashboardPort = storeManagerDashboardPort;
-        this.dashboardResponseMapper   = dashboardResponseMapper;
-        this.storeManagerResponseMapper = storeManagerResponseMapper;
+        this.executiveDashboardPort       = executiveDashboardPort;
+        this.scPlannerDashboardPort       = scPlannerDashboardPort;
+        this.supplierPerformancePort      = supplierPerformancePort;
+        this.supplierOrdersDashboardPort  = supplierOrdersDashboardPort;
+        this.storeManagerDashboardPort    = storeManagerDashboardPort;
+        this.dashboardResponseMapper      = dashboardResponseMapper;
+        this.storeManagerResponseMapper   = storeManagerResponseMapper;
     }
 
     // ── Executive Dashboard (Flow 8) ─────────────────────────────────────────
@@ -82,6 +86,15 @@ public class DashboardController implements DashboardApi {
     public ResponseEntity<ScPlannerDashboardResponse> getScPlannerDashboard() {
         if (!hasAnyRole(PLANNER_ROLES)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(dashboardResponseMapper.toScPlannerResponse(scPlannerDashboardPort.assemble()));
+    }
+
+    // ── Supplier Order Tracking (Flow 9) ────────────────────────────────────
+
+    @Override
+    public ResponseEntity<SupplierOrdersDashboardResponse> getSupplierOrdersDashboard(String status) {
+        if (!hasAnyRole(PLANNER_ROLES)) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(
+                dashboardResponseMapper.toSupplierOrdersResponse(supplierOrdersDashboardPort.assemble(status)));
     }
 
     // ── Supplier Performance Scorecard (Flow 9) ──────────────────────────────

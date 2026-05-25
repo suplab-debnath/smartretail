@@ -221,8 +221,8 @@ Seed-data driven for read surfaces. Surface 9.7 (manual replenishment trigger) i
     ├═════► GET /v1/inventory/alerts                ──► IMS (exception queue)
     ├═════► GET /v1/forecast/demand                 ──► DFS (P10/P50/P90 bands)
     ├═════► GET /v1/replenishment/orders            ──► RE  (approval queue)
-    ├═════► GET /v1/supplier/orders                 ──► SUP (order tracking)
-    └═════► GET /v1/supplier/suppliers              ──► SUP (name resolution)
+    ├═════► GET /v1/dashboard/supplier-orders        ──► ARS (order tracking — supplier schema only)
+    └═════► GET /v1/dashboard/supplier-performance  ──► ARS (supplier name resolution)
 ```
 
 ---
