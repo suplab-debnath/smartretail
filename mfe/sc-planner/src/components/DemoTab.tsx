@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { InventoryPosition, InventoryPositionListResponse, PurchaseOrder, PurchaseOrderListResponse } from '../types'
 import { useSuppliers } from '../hooks/useSuppliers'
+import { ReplenishmentFlowDiagram } from './ReplenishmentFlowDiagram'
 
 interface FormValues {
   storeId: string
@@ -353,26 +354,26 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
           <p className="text-xs text-gray-500 mb-4">
             No one pressed a button for this. Each step below happened automatically in response to the checkout.
           </p>
-          <div className="flex flex-wrap items-start gap-2">
+
+          <ReplenishmentFlowDiagram completedSteps={completedSteps} phase={phase} />
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4">
             {PIPELINE_STEPS.map(({ label, hint }, i) => {
               const done = completedSteps > i
               const active = completedSteps === i && phase === 'polling'
               return (
-                <div key={label} className="flex items-center gap-2">
-                  <div className="flex flex-col items-start gap-0.5">
-                    <span className={[
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
-                      done ? 'bg-green-100 text-green-700' :
-                        active ? 'bg-blue-100 text-blue-700 animate-pulse' :
-                          'bg-gray-100 text-gray-400',
-                    ].join(' ')}>
-                      <span>{done ? '✓' : active ? '⟳' : '○'}</span>
-                      {label}
-                    </span>
-                    <span className="text-xs text-gray-400 px-3">{hint}</span>
-                  </div>
+                <div key={label} className="flex items-center gap-1.5" title={hint}>
+                  <span className={[
+                    'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium',
+                    done ? 'bg-green-100 text-green-700' :
+                      active ? 'bg-blue-100 text-blue-700 animate-pulse' :
+                        'bg-gray-100 text-gray-400',
+                  ].join(' ')}>
+                    <span>{done ? '✓' : active ? '⟳' : '○'}</span>
+                    {label}
+                  </span>
                   {i < PIPELINE_STEPS.length - 1 && (
-                    <span className="text-gray-300 text-xs mb-4">→</span>
+                    <span className="text-gray-300 text-xs">→</span>
                   )}
                 </div>
               )
@@ -380,12 +381,12 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
           </div>
 
           {phase === 'polling' && (
-            <p className="mt-4 text-xs text-gray-400">
+            <p className="mt-3 text-xs text-gray-400">
               Waiting for Replenishment Engine to create a Purchase Order… (checking every 2 s)
             </p>
           )}
           {phase === 'timeout' && (
-            <p className="mt-4 text-sm text-amber-600">
+            <p className="mt-3 text-sm text-amber-600">
               Purchase Order not detected after 24 s — the system may still be processing.{' '}
               <button onClick={onSwitchToApprovals} className="underline hover:text-amber-700">
                 Check Approvals tab
