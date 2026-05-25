@@ -3,7 +3,7 @@
 # cdk-demo target: sc-planner only, served as an S3 static website (HTTP, no CloudFront).
 #
 # Usage:
-#   ./scripts/deploy-mfes-demo.sh [OPTIONS]
+#   ./environments/demo/scripts/deploy-mfes-demo.sh [OPTIONS]
 #
 # Options:
 #   --env       <dev|prod>      Environment name (default: $SMARTRETAIL_ENV or dev)
@@ -12,8 +12,8 @@
 #   --skip-build                Skip npm build (use existing dist/)
 #
 # Examples:
-#   ./scripts/deploy-mfes-demo.sh --env dev
-#   ./scripts/deploy-mfes-demo.sh --env dev --skip-build
+#   ./environments/demo/scripts/deploy-mfes-demo.sh --env dev
+#   ./environments/demo/scripts/deploy-mfes-demo.sh --env dev --skip-build
 
 set -euo pipefail
 
@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 ACCOUNT=$(aws sts get-caller-identity \

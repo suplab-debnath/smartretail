@@ -8,12 +8,12 @@ DEMO_PROFILE ?= $(PROFILE)
 DEMO_SERVICES = ims re ars dfs sup
 
 demo-bootstrap: ## Bootstrap CDK for demo environment (run once per account/region)
-	cd infra/cdk-demo && npm install --silent && \
+	cd environments/demo/infra && npm install --silent && \
 	AWS_PROFILE=$(DEMO_PROFILE) npx cdk bootstrap \
 	    aws://$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text)/$(REGION)
 
 demo-cdk-deploy: ## Deploy all Min-* CDK stacks (trimmed SC Planner demo)
-	cd infra/cdk-demo && \
+	cd environments/demo/infra && \
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
 	    npx cdk deploy --all --require-approval never \
 	    $(if $(ALERT_EMAIL),-c alertEmail=$(ALERT_EMAIL),)
@@ -68,27 +68,27 @@ demo-full-deploy: ## Full demo deployment: CDK → images → migrate → MFE �
 	@echo "    Dashboard: https://$(REGION).console.aws.amazon.com/cloudwatch/home?region=$(REGION)#dashboards:name=SmartRetail-$(DEMO_ENV)-Ops"
 
 demo-destroy: ## Destroy all Min-* CDK stacks for the demo environment
-	cd infra/cdk-demo && \
+	cd environments/demo/infra && \
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
 	    npx cdk destroy --all --force
 
 # ── Dev / Demo (SQS-only, existing default VPC) ───────────────────────────────
-# Uses infra/cdk-demo — Kinesis replaced by SQS, reuses account default VPC.
-# Run `cdk context` in infra/cdk-demo once to populate VPC lookup cache.
+# Uses environments/demo/infra — Kinesis replaced by SQS, reuses account default VPC.
+# Run `cdk context` in environments/demo/infra once to populate VPC lookup cache.
 # Spring profile: dev (inherits aws, adds POS_EVENTS_QUEUE_URL)
 
 dev-bootstrap:
-	cd infra/cdk-demo && npm install --silent && AWS_PROFILE=$(PROFILE) npx cdk bootstrap \
+	cd environments/demo/infra && npm install --silent && AWS_PROFILE=$(PROFILE) npx cdk bootstrap \
 	    aws://$(shell AWS_PROFILE=$(PROFILE) aws sts get-caller-identity --query Account --output text)/$(REGION)
 
 dev-deploy-messaging:
-	cd infra/cdk-demo && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-MessagingStack --require-approval never
+	cd environments/demo/infra && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-MessagingStack --require-approval never
 
 dev-deploy-compute:
-	cd infra/cdk-demo && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-ComputeStack --require-approval never
+	cd environments/demo/infra && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy Min-ComputeStack --require-approval never
 
 dev-deploy-all:
-	cd infra/cdk-demo && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy --all --require-approval never
+	cd environments/demo/infra && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk deploy --all --require-approval never
 
 dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
 	@for svc in sis ims re ars dfs sup; do \
@@ -109,4 +109,4 @@ dev-create-users:
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/shared/create-cognito-users.sh dev
 
 dev-destroy: ## Destroy all Min-* CDK stacks (dev environment)
-	cd infra/cdk-demo && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk destroy --all --force
+	cd environments/demo/infra && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk destroy --all --force

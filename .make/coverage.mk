@@ -9,7 +9,7 @@ coverage-frontend: ## Run Vitest coverage on all MFEs and merge into a single LC
 	cd mfe/sc-planner    && npm run test:coverage
 	cd mfe/executive     && npm run test:coverage
 	cd mfe/supplier      && npm run test:coverage
-	cd demo/ui           && npm run test:coverage
+	cd tools/demo/ui     && npm run test:coverage
 	bash scripts/ci/merge-mfe-coverage.sh
 
 coverage-all: coverage-backend coverage-frontend ## Run backend + frontend coverage

@@ -35,12 +35,12 @@ All follow Hexagonal Architecture (Ports & Adapters).
  
 ## Lambda Functions
  
-Three Lambda functions exist in the full production architecture. Two have source code in `backend/lambdas/`.
+Three Lambda functions exist in the full production architecture. Two have source code in `backend/adapters/`.
  
 | Lambda | Directory | Trigger | Status |
 |--------|-----------|---------|--------|
-| Kinesis Consumer Lambda | `backend/lambdas/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
-| Batch Post-Processor Lambda | `backend/lambdas/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
+| Kinesis Consumer Lambda | `backend/adapters/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
+| Batch Post-Processor Lambda | `backend/adapters/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
 | SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
  
 **Kinesis Consumer Lambda** is a SIS inbound adapter: deduplicates POS events via DynamoDB and forwards to SIS via HTTP.

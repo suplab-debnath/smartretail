@@ -59,7 +59,7 @@ The fat JAR bundles all dependencies. No Spring context — startup time is unde
 
 ## Local mode
 
-In local mode LocalStack provides both Kinesis and DynamoDB. The `scripts/local/localstack-init.sh` script creates the stream, the DLQ, and the Lambda function pointing at the built JAR. SIS runs on `localhost:8080`.
+In local mode LocalStack provides both Kinesis and DynamoDB. The `environments/local/scripts/localstack-init.sh` script creates the stream, the DLQ, and the Lambda function pointing at the built JAR. SIS runs on `localhost:8080`.
 
 ```bash
 make local-up          # start LocalStack + Postgres

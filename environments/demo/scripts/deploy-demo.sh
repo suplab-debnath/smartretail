@@ -2,11 +2,11 @@
 # deploy-demo.sh — end-to-end SC Planner demo deployment (cdk-demo stack)
 #
 # Usage:
-#   ./scripts/deploy-demo.sh
-#   SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./scripts/deploy-demo.sh
+#   ./environments/demo/scripts/deploy-demo.sh
+#   SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./environments/demo/scripts/deploy-demo.sh
 #
 # Optional context:
-#   CDK_CONTEXT_alertEmail=you@example.com ./scripts/deploy-demo.sh
+#   CDK_CONTEXT_alertEmail=you@example.com ./environments/demo/scripts/deploy-demo.sh
 #     — enables CloudWatch alarm email notifications
 set -euo pipefail
 
@@ -22,8 +22,8 @@ for arg in "$@"; do
   [[ "$arg" == "--skip-infra" ]] && SKIP_INFRA=true
 done
 
-CDK_DIR="$(cd "$(dirname "$0")/../infra/cdk-demo" && pwd)"
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CDK_DIR="$(cd "$(dirname "$0")/../infra" && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 hr() { printf '\n══ %s ══\n\n' "$1"; }
 
@@ -90,7 +90,7 @@ fi
 # ── 4. DB migrations (includes seed data via V7) ───────────────────────────────
 hr "Step 4 / 5 — DB migrations + seed data"
 AWS_PROFILE="$PROFILE" SMARTRETAIL_ENV="$DEMO_ENV" \
-  "$ROOT_DIR/scripts/aws-demo/run-flyway-aws-demo.sh" "$DEMO_ENV"
+  "$ROOT_DIR/environments/demo/scripts/run-flyway-aws-demo.sh" "$DEMO_ENV"
 
 # ── 5. SC Planner MFE ─────────────────────────────────────────────────────────
 hr "Step 5 / 5 — Build & deploy SC Planner MFE"

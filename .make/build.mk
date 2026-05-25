@@ -4,7 +4,7 @@ build-services:
 	    -am --no-transfer-progress
 
 build-lambda:
-	mvn clean package -DskipTests -pl backend/lambdas/kinesis-consumer --no-transfer-progress
+	mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
 
 build-mfes:
 	cd mfe/shared/auth   && npm run build
@@ -12,7 +12,7 @@ build-mfes:
 	cd mfe/sc-planner    && npm run build
 	cd mfe/executive     && npm run build
 	cd mfe/supplier      && npm run build
-	cd demo/ui           && npm run build
+	cd tools/demo/ui     && npm run build
 
 build-all: build-services build-lambda build-mfes
 
@@ -25,4 +25,4 @@ docker-build-all:
 	done
 
 docker-build-lambda:
-	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/lambdas/kinesis-consumer/
+	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/adapters/kinesis-consumer/

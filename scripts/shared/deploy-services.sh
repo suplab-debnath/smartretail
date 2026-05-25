@@ -74,7 +74,7 @@ if [[ "$SKIP_BUILD" == false ]]; then
   if [[ "$DEPLOY_LAMBDA" == true ]]; then
     echo "▶  Building Lambda JAR (Maven)…"
     mvn clean package -DskipTests \
-      -pl backend/lambdas/kinesis-consumer \
+      -pl backend/adapters/kinesis-consumer \
       --no-transfer-progress
   fi
 else
@@ -119,8 +119,8 @@ if [[ "$DEPLOY_LAMBDA" == true && "$SKIP_PUSH" == false ]]; then
   echo ""
   echo "── kinesis-consumer Lambda ─────────────────────────"
 
-  echo "▶  docker build backend/lambdas/kinesis-consumer/ (linux/arm64)"
-  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/lambdas/kinesis-consumer/
+  echo "▶  docker build backend/adapters/kinesis-consumer/ (linux/arm64)"
+  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/adapters/kinesis-consumer/
 
   LAMBDA_URI="${ECR_PREFIX}/smartretail-kinesis-consumer-${ENV}:latest"
   echo "▶  Pushing → ${LAMBDA_URI}"

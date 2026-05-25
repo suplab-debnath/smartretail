@@ -31,7 +31,7 @@ bash scripts/shared/run-flyway-aws.sh
 ## Flyway configuration
 
 ```
-migrations/flyway/
+backend/migrations/
 ├── pom.xml                        Maven Flyway plugin config
 └── src/main/resources/
     ├── application-local.properties   jdbc:postgresql://localhost:5432/smartretail

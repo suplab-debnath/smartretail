@@ -18,7 +18,7 @@ mvn clean package -DskipTests \
 
 # Build the Lambdas
 mvn clean package -DskipTests \
-    -pl backend/lambdas/kinesis-consumer,backend/lambdas/batch-post-processor \
+    -pl backend/adapters/kinesis-consumer,backend/adapters/batch-post-processor \
     --no-transfer-progress
 
 # Run aggregate coverage report (services + lambda)

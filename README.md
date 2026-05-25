@@ -328,7 +328,7 @@ until docker exec smartretail-postgres pg_isready -U smartretail_admin; do sleep
 until curl -s http://localhost:4566/_localstack/health | grep '"kinesis": "running"'; do sleep 3; done
 ```
 
-LocalStack automatically creates all resources on startup via `scripts/local/localstack-init.sh`:
+LocalStack automatically creates all resources on startup via `environments/local/scripts/localstack-init.sh`:
 - Kinesis stream `smartretail-events-local`
 - EventBridge bus `smartretail-events-local` with 3 routing rules
 - SQS queues: `ims-sales-local`, `re-alert-local.fifo`, `ars-updates-local` (each with DLQ)
@@ -598,26 +598,42 @@ smartretail/
 │   └── standards/              ← coding standards (java, openapi, maven, frontend, sql, testing)
 ├── docs/                       ← architecture, API contracts, flow specs, schemas
 ├── .make/                      ← Makefile includes (vars, local, test, build, aws, demo, coverage)
-├── demo/
-│   ├── server/                 ← Demo control server (:3099) — triggers scripts, streams SSE
-│   └── ui/                     ← Demo Control Center MFE (:5176)
-├── infra/cdk-demo/             ← demo CDK stack (ARM64, SQS, default VPC) — lowest cost
-├── infra/cdk-dev/              ← dev CDK stack (X86_64, same services as prod, dev sizing)
-├── infra/cdk-prod/             ← production CDK stack (X86_64, Multi-AZ, RDS Proxy, CloudFront)
+├── tools/
+│   └── demo/
+│       ├── server/             ← Demo control server (:3099) — triggers scripts, streams SSE
+│       └── ui/                 ← Demo Control Center MFE (:5176)
+├── environments/
+│   ├── local/
+│   │   ├── scripts/localstack-init.sh  ← creates all LocalStack resources on startup
+│   │   └── README.md
+│   ├── demo/                   ← demo CDK stack (ARM64, SQS, default VPC) — lowest cost
+│   │   ├── infra/              ← CDK TypeScript (Min-* stacks)
+│   │   ├── scripts/            ← deploy-demo.sh, deploy-services-demo.sh, destroy-infra.sh, …
+│   │   └── README.md           ← SC Planner demo deployment guide
+│   ├── dev/                    ← dev CDK stack (X86_64, same services as prod, dev sizing)
+│   │   ├── infra/              ← CDK TypeScript (Dev-* stacks)
+│   │   ├── scripts/deploy-cdk.sh
+│   │   └── README.md           ← dev-tier deployment guide
+│   ├── prod/                   ← production CDK stack (X86_64, Multi-AZ, RDS Proxy, CloudFront)
+│   │   ├── infra/              ← CDK TypeScript (Prod-* stacks) — manual deploys only
+│   │   └── README.md           ← production deployment guide
+│   └── shared/
+│       └── iam-policies/       ← IAM policy documents
 ├── backend/
 │   ├── services/
-│   │   ├── sis/                ← Sales Ingestion Service (sis-api.yaml · sis-asyncapi.yaml)
-│   │   ├── ims/                ← Inventory Management Service (ims-api.yaml · ims-asyncapi.yaml)
-│   │   ├── re/                 ← Replenishment Engine (re-api.yaml · re-asyncapi.yaml)
+│   │   ├── sis/                ← Sales Ingestion Service (sis-api.yaml)
+│   │   ├── ims/                ← Inventory Management Service (ims-api.yaml)
+│   │   ├── re/                 ← Replenishment Engine (re-api.yaml)
 │   │   ├── ars/                ← Analytics & Reporting Service
 │   │   ├── dfs/                ← Demand Forecasting Service
 │   │   ├── sup/                ← Supplier Service
 │   │   └── pps/                ← Pricing & Promotions Service (stub)
-│   ├── lambdas/
-│   │   ├── kinesis-consumer/   ← Kinesis → SIS inbound adapter Lambda
-│   │   └── batch-post-processor/ ← SageMaker S3 output → DFS inbound adapter Lambda
-│   └── coverage/               ← JaCoCo aggregate report (services + lambdas)
-├── migrations/flyway/          ← Flyway SQL migrations (V1–V7)
+│   ├── adapters/
+│   │   ├── kinesis-consumer/      ← Kinesis → SIS inbound adapter Lambda
+│   │   └── batch-post-processor/  ← SageMaker S3 output → DFS inbound adapter Lambda
+│   ├── migrations/             ← Flyway SQL migrations (V1–V9)
+│   │   └── src/main/resources/db/migration/
+│   └── coverage/               ← JaCoCo aggregate report
 ├── mfe/
 │   ├── shared/auth/            ← shared Cognito auth library
 │   ├── store-manager/          ← Store Manager Dashboard MFE (:5173)
@@ -625,20 +641,10 @@ smartretail/
 │   ├── executive/              ← Executive Insights Dashboard MFE (:5175)
 │   └── supplier/               ← Supplier Portal MFE (:5177, SUPPLIER_ADMIN role)
 └── scripts/
-    ├── local/
-    │   └── localstack-init.sh      ← creates all LocalStack resources on startup
-    ├── aws-demo/
-    │   ├── deploy-demo.sh          ← end-to-end SC Planner demo deployment
-    │   ├── deploy-services-demo.sh ← 5-service image build + ECR push (demo)
-    │   ├── deploy-mfes-demo.sh     ← SC Planner MFE S3 sync (demo)
-    │   ├── run-flyway-aws-demo.sh  ← Flyway against demo RDS (direct)
-    │   └── destroy-infra.sh        ← full AWS resource teardown
-    ├── aws-dev/
-    │   └── deploy-cdk.sh           ← bootstrap + deploy all dev CDK stacks
     ├── shared/
     │   ├── deploy-services.sh      ← Maven → Docker → ECR push → ECS force-deploy
     │   ├── deploy-mfes.sh          ← npm build → S3 sync → CloudFront invalidation
-    │   ├── run-flyway-aws.sh       ← runs Flyway against RDS (dev + prod)
+    │   ├── run-flyway-aws.sh       ← runs Flyway against RDS (all AWS environments)
     │   ├── create-cognito-users.sh ← creates test users in Cognito
     │   ├── smoke-test.sh           ← automated flow verification
     │   └── publish-pos-event.py    ← Flow 1 trigger / test harness
@@ -668,7 +674,7 @@ SPRING_PROFILES_ACTIVE=aws  mvn spring-boot:run    # aws mode
 
 ### CDK stacks
 
-The demo/dev stack is in `infra/cdk-demo/` (SQS-only, reuses existing default VPC, `Min-*` stack names). Stacks must be deployed in dependency order.
+The demo/dev stack is in `environments/demo/infra/` (SQS-only, reuses existing default VPC, `Min-*` stack names). Stacks must be deployed in dependency order.
 
 | Stack            | What it provisions                                                                                 |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
@@ -702,7 +708,7 @@ make aws-full-deploy ENV=dev PROFILE=smartretail-dev
 It performs these five steps in sequence:
 
 ```
-Step 1  scripts/aws-dev/deploy-cdk.sh          → bootstrap + deploy all 7 CDK stacks
+Step 1  environments/dev/scripts/deploy-cdk.sh          → bootstrap + deploy all 7 CDK stacks
 Step 2  scripts/shared/deploy-services.sh     → Maven build → Docker build → ECR push
                                           → force ECS redeployment for all 6 services
                                           → update Lambda function code
@@ -813,12 +819,12 @@ Examples:
 ./scripts/shared/deploy-mfes.sh --env dev --skip-build
 ```
 
-#### `scripts/aws-dev/deploy-cdk.sh`
+#### `environments/dev/scripts/deploy-cdk.sh`
 
 Installs CDK dependencies, synthesises, and deploys all 7 stacks with `--require-approval never`.
 
 ```bash
-SMARTRETAIL_ENV=dev ./scripts/aws-dev/deploy-cdk.sh
+SMARTRETAIL_ENV=dev ./environments/dev/scripts/deploy-cdk.sh
 ```
 
 ### Teardown
@@ -829,7 +835,7 @@ make aws-undeploy ENV=dev PROFILE=smartretail-dev
 
 # Full teardown — CDK stacks + S3 buckets + ECR repos + CloudFront + SSM + CloudWatch logs
 make aws-destroy ENV=dev PROFILE=smartretail-dev
-# Equivalent: SMARTRETAIL_ENV=dev ./scripts/aws-demo/destroy-infra.sh
+# Equivalent: SMARTRETAIL_ENV=dev ./environments/demo/scripts/destroy-infra.sh
 ```
 
 `destroy-infra.sh` destroys stacks in reverse dependency order (HostingStack first, NetworkStack last), then cleans up any orphaned CloudFront distributions, S3 buckets, ECR repos, CloudWatch log groups, SSM parameters, ENIs, security groups, Secrets Manager secrets, and Cognito pools.
@@ -862,9 +868,9 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | `local-mfe-scp`      | Start SC Planner MFE on :5174                                                 |
 | `local-mfe-exec`     | Start Executive MFE on :5175                                                  |
 | `local-mfe-supplier` | Start Supplier Portal MFE on :5177                                            |
-| `local-demo-server`  | Start Demo Control Server (`demo/server/`) on :3099                           |
-| `local-mfe-demo`     | Start Demo Control Center MFE (`demo/ui/`) on :5176                           |
-| `local-demo`         | Start both demo/server and demo/ui in parallel                                |
+| `local-demo-server`  | Start Demo Control Server (`tools/demo/server/`) on :3099                           |
+| `local-mfe-demo`     | Start Demo Control Center MFE (`tools/demo/ui/`) on :5176                           |
+| `local-demo`         | Start both tools/demo/server and tools/demo/ui in parallel                                |
 | `local-free-ports`   | Find and terminate host processes holding ports 8080-8085 and 5173-5176       |
 | `local-down`         | Stop containers, preserve data volumes (calls local-free-ports automatically) |
 | `local-clean`        | Stop containers, destroy volumes (calls local-free-ports automatically)       |
@@ -929,7 +935,7 @@ make <target> ENV=dev PROFILE=smartretail-dev
 | `aws-create-users` | Create test Cognito users via `create-cognito-users.sh`                 |
 | `aws-smoke-test`   | Run all smoke tests against AWS endpoints                               |
 | `aws-full-deploy`  | **First-time end-to-end deploy**: CDK → images → MFEs → migrate → users |
-| `aws-demo`         | Start demo/server in AWS mode + demo/ui                                 |
+| `aws-demo`         | Start tools/demo/server in AWS mode + tools/demo/ui                                 |
 | `aws-undeploy`     | Destroy all CDK stacks (`cdk destroy --all`); S3/ECR untouched          |
 | `aws-destroy`      | Full teardown via `destroy-infra.sh`; wipes all AWS resources           |
 
@@ -990,8 +996,8 @@ Two new processes start alongside the existing services:
 
 | Process                      | Port | Role                                                                                                                                  |
 | ---------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo/server` (Node/Express) | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
-| `demo/ui` (Vite + React)     | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes                              |
+| `tools/demo/server` (Node/Express) | 3099 | Spawns `publish-pos-event.py` / `smoke-test.sh`, streams stdout to browser via SSE, queries Postgres for before/after DB state panels |
+| `tools/demo/ui` (Vite + React)     | 5176 | Mission Control UI — flow rail, animated SVG diagram, narrative heroes, evidence checklists, MFE iframes                              |
 
 The architecture diagram shows every service node (Kinesis → Lambda → SIS → EventBridge → IMS / RE → RDS → ARS → MFEs). Nodes pulse and animated dots travel along edges in real time as SSE log lines arrive. The live evidence checklist auto-checks each item when a matching string appears in the log stream.
 
@@ -1072,7 +1078,7 @@ Open **[http://localhost:5176](http://localhost:5176)** — all health dots shou
 
 ### Running the demo on AWS
 
-The demo control server (`demo/server/`) switches to AWS mode via `SMARTRETAIL_ENV=aws`. In this mode it routes trigger calls to real API Gateway endpoints, reads MFE URLs from environment variables, and falls back to the ARS REST API for before/after DB state (no direct RDS access from a demo laptop).
+The demo control server (`tools/demo/server/`) switches to AWS mode via `SMARTRETAIL_ENV=aws`. In this mode it routes trigger calls to real API Gateway endpoints, reads MFE URLs from environment variables, and falls back to the ARS REST API for before/after DB state (no direct RDS access from a demo laptop).
 
 **Step 1 — deploy the platform to AWS first:**
 
@@ -1122,8 +1128,8 @@ Open **[http://localhost:5176](http://localhost:5176)**. The architecture diagra
 
 | Symptom                                                   | Fix                                                                                                                                 |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| All health dots red                                       | `make local-demo-server` (`demo/server/`) must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health` |
+| All health dots red                                       | `make local-demo-server` (`tools/demo/server/`) must be running; confirm all 6 services are up with `curl localhost:8080/actuator/health` |
 | "Flow X is already running" on trigger                    | A previous smoke test is still running (smoke tests have a `sleep 15`); wait for it to complete or refresh the page                 |
 | Chapter 3 — no PENDING\_APPROVAL PO in the approval queue | Click **Create Test PENDING\_APPROVAL PO** in step 1 of Chapter 3 to inject one                                                     |
 | MFE iframe shows login page instead of dashboard          | Auth mock is active — the MFE should auto-login in LOCAL mode; check that `SPRING_PROFILES_ACTIVE=local` is set for all services    |
-| Event log empty after trigger                             | demo/server SSE connection dropped; reload the page — the `EventSource` auto-reconnects                                             |
+| Event log empty after trigger                             | tools/demo/server SSE connection dropped; reload the page — the `EventSource` auto-reconnects                                             |

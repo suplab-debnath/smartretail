@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: chmod +x scripts/destroy-infra.sh && ./scripts/destroy-infra.sh
+# Usage: chmod +x environments/demo/scripts/destroy-infra.sh && ./environments/demo/scripts/destroy-infra.sh
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ STACKS=(
 )
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CDK_DIR="${SCRIPT_DIR}/../infra/cdk-demo"
+CDK_DIR="${SCRIPT_DIR}/../infra"
 
 # =========================================================
 # Destroy CDK stacks
@@ -35,7 +35,7 @@ do
     --force || true
 
 done
-cd "$SCRIPT_DIR/.."
+cd "$SCRIPT_DIR/../../.."
 
 # =========================================================
 # Disable and delete orphaned CloudFront distributions

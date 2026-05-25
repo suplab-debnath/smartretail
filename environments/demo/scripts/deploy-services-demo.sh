@@ -3,7 +3,7 @@
 # cdk-demo target: IMS, RE, ARS, DFS, SUP only. No SIS. No Lambda (SQS-only).
 #
 # Usage:
-#   ./scripts/deploy-services-demo.sh [OPTIONS]
+#   ./environments/demo/scripts/deploy-services-demo.sh [OPTIONS]
 #
 # Options:
 #   --env       <dev|prod>          Environment name (default: $SMARTRETAIL_ENV or dev)
@@ -18,8 +18,8 @@
 #   --wait                          Wait for every ECS service to reach steady state
 #
 # Examples:
-#   ./scripts/deploy-services-demo.sh --env dev --deploy-cdk --wait
-#   ./scripts/deploy-services-demo.sh --env dev --services re,ars --skip-build
+#   ./environments/demo/scripts/deploy-services-demo.sh --env dev --deploy-cdk --wait
+#   ./environments/demo/scripts/deploy-services-demo.sh --env dev --services re,ars --skip-build
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 ACCOUNT=$(aws sts get-caller-identity \
@@ -67,7 +67,7 @@ echo "=================================================="
 if [[ "$DEPLOY_CDK" == true ]]; then
   echo ""
   echo "▶  Deploying Min-ComputeStack via CDK (updates ECS task definitions)…"
-  CDK_DIR="${REPO_ROOT}/infra/cdk-demo"
+  CDK_DIR="${REPO_ROOT}/environments/demo/infra"
   (cd "$CDK_DIR" && \
     SMARTRETAIL_ENV="$ENV" npx cdk deploy Min-ComputeStack \
       --require-approval never \

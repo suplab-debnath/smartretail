@@ -20,17 +20,17 @@ AWS Lambda functions that act as infrastructure adapters at the edge of the syst
 
 ```bash
 # From repository root
-JAVA_HOME=<java-21-home> mvn clean package -pl backend/lambdas/kinesis-consumer
-JAVA_HOME=<java-21-home> mvn clean package -pl backend/lambdas/batch-post-processor
+JAVA_HOME=<java-21-home> mvn clean package -pl backend/adapters/kinesis-consumer
+JAVA_HOME=<java-21-home> mvn clean package -pl backend/adapters/batch-post-processor
 
 # Fat JARs produced at:
-# backend/lambdas/kinesis-consumer/target/smartretail-kinesis-consumer-1.0.0-SNAPSHOT.jar
-# backend/lambdas/batch-post-processor/target/smartretail-batch-post-processor-1.0.0-SNAPSHOT.jar
+# backend/adapters/kinesis-consumer/target/smartretail-kinesis-consumer-1.0.0-SNAPSHOT.jar
+# backend/adapters/batch-post-processor/target/smartretail-batch-post-processor-1.0.0-SNAPSHOT.jar
 ```
 
 ## Deploy
 
-The JAR is packaged and deployed by the CDK `ComputeStack`. In local mode, a LocalStack Lambda function is created by `scripts/local/localstack-init.sh`.
+The JAR is packaged and deployed by the CDK `ComputeStack`. In local mode, a LocalStack Lambda function is created by `environments/local/scripts/localstack-init.sh`.
 
 ```bash
 make local-up        # starts LocalStack

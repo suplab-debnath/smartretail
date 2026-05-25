@@ -72,7 +72,7 @@ docker-compose up -d
 docker-compose logs -f localstack | grep "Ready."
  
 # 3. Run Flyway migrations against local Postgres
-cd migrations/flyway
+cd backend/migrations
 mvn flyway:migrate \
     -Dflyway.url=jdbc:postgresql://localhost:5432/smartretail \
     -Dflyway.user=smartretail_admin \
@@ -135,7 +135,7 @@ services:
     volumes:
       - localstack-data:/tmp/localstack
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./scripts/local/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+      - ./environments/local/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'"]
       interval: 10s
@@ -147,7 +147,7 @@ volumes:
   localstack-data:
 ```
  
-### scripts/local/localstack-init.sh
+### environments/local/scripts/localstack-init.sh
  
 This script runs automatically when LocalStack is ready:
  
@@ -534,14 +534,14 @@ local-up:
   @echo "✅ Local environment ready"
  
 local-migrate:
-  cd migrations/flyway && mvn flyway:migrate \
+  cd backend/migrations && mvn flyway:migrate \
     -Dflyway.url=jdbc:postgresql://localhost:5432/smartretail \
     -Dflyway.user=smartretail_admin \
     -Dflyway.password=local_dev_password
  
 local-seed: local-migrate
   PGPASSWORD=local_dev_password psql -h localhost -U smartretail_admin -d smartretail \
-    -f migrations/flyway/V7__seed_data.sql
+    -f backend/migrations/src/main/resources/db/migration/V7__seed_data.sql
  
 local-sis:
   cd backend/services/sis && SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=8080"
@@ -627,7 +627,7 @@ build-services:
     -am --no-transfer-progress
  
 build-lambda:
-  mvn clean package -pl backend/lambdas/kinesis-consumer,backend/lambdas/batch-post-processor --no-transfer-progress
+  mvn clean package -pl backend/adapters/kinesis-consumer,backend/adapters/batch-post-processor --no-transfer-progress
  
 build-mfes:
   cd mfe/store-manager && npm run build

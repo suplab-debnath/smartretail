@@ -2,7 +2,7 @@
 # run-flyway-aws-demo.sh — runs Flyway migrations against AWS RDS (cdk-demo target)
 # cdk-demo uses a direct RDS instance connection — no RDS Proxy.
 #
-# Usage: ./scripts/run-flyway-aws-demo.sh [env]
+# Usage: ./environments/demo/scripts/run-flyway-aws-demo.sh [env]
 
 set -e
 
@@ -22,7 +22,7 @@ DB_PASSWORD=$(aws secretsmanager get-secret-value \
     --secret-id "$SECRET_ARN" \
     --query SecretString --output text | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
 
-cd migrations/flyway
+cd backend/migrations
 mvn flyway:migrate \
     -Dflyway.url="jdbc:postgresql://${RDS_ENDPOINT}:5432/smartretail" \
     -Dflyway.user=smartretail_admin \

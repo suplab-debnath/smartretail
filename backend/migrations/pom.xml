@@ -7,9 +7,9 @@
 
     <parent>
         <groupId>com.smartretail</groupId>
-        <artifactId>smartretail-prototype-parent</artifactId>
+        <artifactId>smartretail-backend-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>smartretail-flyway</artifactId>

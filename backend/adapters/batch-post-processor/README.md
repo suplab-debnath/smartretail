@@ -58,10 +58,10 @@ src/main/java/com/smartretail/lambda/batchpostprocessor/
 
 ```bash
 # From repository root
-JAVA_HOME=<java-21-home> mvn clean package -pl backend/lambdas/batch-post-processor
+JAVA_HOME=<java-21-home> mvn clean package -pl backend/adapters/batch-post-processor
 
 # Fat JAR output:
-# backend/lambdas/batch-post-processor/target/smartretail-batch-post-processor-1.0.0-SNAPSHOT.jar
+# backend/adapters/batch-post-processor/target/smartretail-batch-post-processor-1.0.0-SNAPSHOT.jar
 ```
 
 ## Environment variables
