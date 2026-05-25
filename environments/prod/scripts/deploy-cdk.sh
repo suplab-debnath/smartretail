@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Usage: ./environments/dev/scripts/deploy-cdk.sh [--env <env>] [--profile <profile>] [--region <region>]
-# Deploys Dev-* CDK stacks (environments/dev/infra — Kinesis, 2-AZ VPC).
+# Usage: ./environments/prod/scripts/deploy-cdk.sh [--env <env>] [--profile <profile>] [--region <region>]
+# Deploys Prod-* CDK stacks (environments/prod/infra — Kinesis, 3-AZ VPC, RDS Proxy, CloudFront).
+# INTENTIONAL PRODUCTION DEPLOYMENT — run manually, not from CI.
 
 set -euo pipefail
 
@@ -8,8 +9,8 @@ set -euo pipefail
 # Defaults — override via env vars or flags
 # =========================================================
 
-ENV="${SMARTRETAIL_ENV:-dev}"
-PROFILE="${AWS_PROFILE:-smartretail-dev}"
+ENV="${SMARTRETAIL_ENV:-prod}"
+PROFILE="${AWS_PROFILE:-smartretail-prod}"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 
 while [[ $# -gt 0 ]]; do
@@ -57,14 +58,13 @@ AWS_PROFILE="$PROFILE" npx cdk synth
 
 echo "--- Deploying stacks ---"
 AWS_PROFILE="$PROFILE" npx cdk deploy \
-  Dev-NetworkStack \
-  Dev-DataStack \
-  Dev-MessagingStack \
-  Dev-IdentityStack \
-  Dev-ComputeStack \
-  Dev-ApiStack \
-  Dev-HostingStack \
-  Dev-MonitoringStack \
+  Prod-NetworkStack \
+  Prod-DataStack \
+  Prod-MessagingStack \
+  Prod-IdentityStack \
+  Prod-ComputeStack \
+  Prod-ApiStack \
+  Prod-HostingStack \
   --require-approval never
 
 echo "=================================================="
