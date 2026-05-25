@@ -52,6 +52,7 @@ Flows 8 and 9 use pre-populated seed data. Flow 9 also exercises a write path fo
 | 10  | `docs/LOCAL_DEV.md`       | Local development with Docker Compose + LocalStack          |
 | 11  | `docs/BUILD_SEQUENCE.md`  | Exact commands for local and AWS build/deploy               |
 | 12  | `docs/DEVELOPER_GUIDE.md` | Developer onboarding, daily workflow, debugging             |
+| 13  | `docs/EVENT_ASYNC_SPEC.md`| Canonical async contract: event schemas, SQS config, idempotency, ordering, DLQ policy |
 
 ---
 
