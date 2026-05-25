@@ -13,7 +13,7 @@ All services share this Maven parent POM structure:
  
 ## Kinesis Consumer Lambda (SIS Inbound Adapter)
  
-Location: `backend/lambdas/kinesis-consumer/`
+Location: `backend/adapters/kinesis-consumer/`
 Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
  
 ### Responsibilities
@@ -56,7 +56,7 @@ Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
  
 ## Batch Post-Processor Lambda (DFS Inbound Adapter)
  
-Location: `backend/lambdas/batch-post-processor/`
+Location: `backend/adapters/batch-post-processor/`
 Handler: `com.smartretail.lambda.batchpostprocessor.BatchPostProcessorHandler`
  
 ### Responsibilities

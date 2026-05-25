@@ -18,7 +18,8 @@
 
     <modules>
         <module>services</module>
-        <module>lambdas</module>
+        <module>adapters</module>
         <module>coverage</module>
+        <module>migrations</module>
     </modules>
 </project>

@@ -1,6 +1,6 @@
 # Seed Data Specification
  
-File: `migrations/flyway/V7__seed_data.sql`
+File: `backend/migrations/src/main/resources/db/migration/V7__seed_data.sql`
  
 This file populates all schemas with realistic prototype data.
 Run after V1–V6 schema creation scripts.

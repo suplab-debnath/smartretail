@@ -476,6 +476,37 @@ Read-only — no filters required.
 }
 ```
  
+### GET /v1/dashboard/supplier-orders
+
+Supplier order tracking list for SC Planner Console (Flow 9.6).
+Requires SC_PLANNER or ADMIN role.
+Optional query param `?status=DISPATCHED` filters by shipment status.
+
+**Data source:** supplier schema only — intra-schema join between `supplier.supplier_pos` and `supplier.supplier_records`. No cross-schema SQL joins.
+
+**Response 200:**
+```json
+{
+  "orders": [
+    {
+      "supplierPoId": "uuid",
+      "poId": "uuid",
+      "supplierId": "uuid",
+      "supplierName": "Acme Beverages Ltd",
+      "skuId": "SKU-BEV-001",
+      "dcId": "DC-LONDON",
+      "quantity": 500,
+      "shipmentStatus": "DISPATCHED",
+      "confirmedAt": "2026-05-14T09:00:00Z",
+      "dispatchedAt": "2026-05-16T08:00:00Z",
+      "eta": "2026-05-20",
+      "lastUpdateAt": "2026-05-16T08:00:00Z"
+    }
+  ],
+  "dataFreshness": "2026-05-15T14:23:00Z"
+}
+```
+
 ### GET /v1/dashboard/supplier-performance
  
 Supplier performance scorecard for SC Planner.

@@ -13,11 +13,15 @@ import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerForecastAccur
 import com.smartretail.ars.adapter.in.web.generated.model.ScPlannerSupplierEntry;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutAlertDataPoint;
 import com.smartretail.ars.adapter.in.web.generated.model.StockoutFrequencyKpi;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierOrderEntry;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierOrdersDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceDashboardResponse;
 import com.smartretail.ars.adapter.in.web.generated.model.SupplierPerformanceEntry;
+import com.smartretail.ars.adapter.in.web.generated.model.SupplierShipmentStatus;
 import com.smartretail.ars.adapter.in.web.generated.model.Trend;
 import com.smartretail.ars.domain.model.ExecutiveDashboard;
 import com.smartretail.ars.domain.model.ScPlannerDashboard;
+import com.smartretail.ars.domain.model.SupplierOrdersDashboard;
 import com.smartretail.ars.domain.model.SupplierPerformanceDashboard;
 import org.mapstruct.Mapper;
 
@@ -76,6 +80,25 @@ public interface DashboardResponseMapper {
                 acc,
                 d.dataFreshness().atOffset(ZoneOffset.UTC)
         );
+    }
+
+    default SupplierOrdersDashboardResponse toSupplierOrdersResponse(SupplierOrdersDashboard d) {
+        List<SupplierOrderEntry> orders = d.orders().stream()
+                .map(e -> new SupplierOrderEntry(
+                        e.supplierPoId(),
+                        e.poId(),
+                        e.supplierId(),
+                        e.supplierName(),
+                        e.skuId(),
+                        e.dcId(),
+                        e.quantity(),
+                        SupplierShipmentStatus.valueOf(e.shipmentStatus()))
+                        .confirmedAt(e.confirmedAt()  != null ? e.confirmedAt().atOffset(ZoneOffset.UTC)  : null)
+                        .dispatchedAt(e.dispatchedAt() != null ? e.dispatchedAt().atOffset(ZoneOffset.UTC) : null)
+                        .eta(e.eta())
+                        .lastUpdateAt(e.lastUpdateAt() != null ? e.lastUpdateAt().atOffset(ZoneOffset.UTC) : null))
+                .toList();
+        return new SupplierOrdersDashboardResponse(orders, d.dataFreshness().atOffset(ZoneOffset.UTC));
     }
 
     default SupplierPerformanceDashboardResponse toSupplierPerfResponse(SupplierPerformanceDashboard d) {

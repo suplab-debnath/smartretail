@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.smartretail</groupId>
+        <artifactId>smartretail-backend-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>smartretail-flyway</artifactId>
+    <name>SmartRetail - Flyway Migrations</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Skip Spring Boot repackage — this module has no main class -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <configuration>
+                    <!--
+                        Connection details read from environment variables.
+                        Local:  FLYWAY_URL=jdbc:postgresql://localhost:5432/smartretail
+                                FLYWAY_USER=smartretail  FLYWAY_PASSWORD=smartretail
+                        AWS:    FLYWAY_URL=jdbc:postgresql://<rds-proxy-host>:5432/smartretail
+                                FLYWAY_USER / FLYWAY_PASSWORD from Secrets Manager (set before running)
+                    -->
+                    <url>${env.FLYWAY_URL}</url>
+                    <user>${env.FLYWAY_USER}</user>
+                    <password>${env.FLYWAY_PASSWORD}</password>
+                    <locations>
+                        <location>filesystem:src/main/resources/db/migration</location>
+                    </locations>
+                    <defaultSchema>public</defaultSchema>
+                    <schemas>
+                        <schema>sales</schema>
+                        <schema>forecasting</schema>
+                        <schema>inventory</schema>
+                        <schema>replenishment</schema>
+                        <schema>supplier</schema>
+                        <schema>promotions</schema>
+                    </schemas>
+                    <validateMigrationNaming>true</validateMigrationNaming>
+                    <outOfOrder>false</outOfOrder>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <version>${postgresql.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-database-postgresql</artifactId>
+                        <version>${flyway.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+        </plugins>
+    </build>
+</project>

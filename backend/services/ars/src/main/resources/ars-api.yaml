@@ -15,7 +15,7 @@ info:
     Inventory alerts/positions  → IMS  (port 8081, ims-api.yaml)
     Replenishment orders (CRUD) → RE   (port 8082, re-api.yaml)
     Demand forecast bands       → DFS  (port 8084, dfs-api.yaml)
-    Supplier order tracking     → SUP  (port 8085, sup-api.yaml)
+    Supplier order tracking     → ARS  /v1/dashboard/supplier-orders (intra-schema: supplier.supplier_pos + supplier_records)
   contact:
     name: SmartRetail Platform Team
 
@@ -498,6 +498,108 @@ components:
           format: date-time
           example: "2026-05-15T14:23:00Z"
 
+    # ── Supplier Order Tracking schemas (Flow 9) ────────────────────────────────
+
+    SupplierShipmentStatus:
+      type: string
+      description: Lifecycle status of a supplier PO
+      enum:
+        - PENDING
+        - CONFIRMED
+        - DISPATCHED
+        - DELIVERED
+        - COMPLETED
+        - EXCEPTION
+      example: DISPATCHED
+
+    SupplierOrderEntry:
+      type: object
+      description: |
+        Single supplier PO for the SC Planner order tracking tab.
+        Assembled within supplier schema only — no cross-schema SQL joins.
+      required:
+        - supplierPoId
+        - poId
+        - supplierId
+        - supplierName
+        - skuId
+        - dcId
+        - quantity
+        - shipmentStatus
+      additionalProperties: false
+      properties:
+        supplierPoId:
+          type: string
+          format: uuid
+          example: "d1b2c3d4-0000-0000-0000-000000000001"
+        poId:
+          type: string
+          format: uuid
+          example: "c1b2c3d4-0000-0000-0000-000000000001"
+        supplierId:
+          type: string
+          format: uuid
+          example: "11111111-0000-0000-0000-000000000001"
+        supplierName:
+          type: string
+          example: "Acme Beverages Ltd"
+        skuId:
+          type: string
+          example: "SKU-BEV-001"
+        dcId:
+          type: string
+          example: "DC-LONDON"
+        quantity:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 500
+        shipmentStatus:
+          $ref: '#/components/schemas/SupplierShipmentStatus'
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        dispatchedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        eta:
+          type: string
+          format: date
+          nullable: true
+          example: "2026-05-20"
+        lastUpdateAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-05-16T08:00:00Z"
+
+    SupplierOrdersDashboardResponse:
+      type: object
+      description: |
+        Supplier order tracking payload for SC Planner Console.
+        Data assembled within supplier schema only — no cross-schema SQL joins:
+        - supplier.supplier_pos: order status, dates, sku_id, dc_id, quantity
+        - supplier.supplier_records: supplier_name (intra-schema join)
+        - supplier.shipment_updates: last_update_at (MAX per PO)
+      required:
+        - orders
+        - dataFreshness
+      additionalProperties: false
+      properties:
+        orders:
+          type: array
+          description: Supplier POs, EXCEPTION first then ordered by ETA ascending
+          items:
+            $ref: '#/components/schemas/SupplierOrderEntry'
+        dataFreshness:
+          type: string
+          format: date-time
+          example: "2026-05-15T14:23:00Z"
+
     # ── Store Manager Dashboard schemas (Flow 4) ─────────────────────────────────
 
     AlertKpi:
@@ -823,6 +925,63 @@ paths:
                   mapeThreshold: 0.15
                   lastRunAt: "2026-05-15T02:00:00Z"
                   status: WITHIN_THRESHOLD
+                dataFreshness: "2026-05-15T14:23:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Supplier Order Tracking (Flow 9) ────────────────────────────────────────
+
+  /v1/dashboard/supplier-orders:
+    get:
+      tags:
+        - dashboard
+      operationId: getSupplierOrdersDashboard
+      summary: Supplier Order Tracking
+      description: |
+        Returns the supplier PO list for the SC Planner Console order tracking tab (Flow 9).
+        Allowed roles: SC_PLANNER, ADMIN.
+        Query runs within the supplier schema only — no cross-schema SQL joins:
+        - supplier.supplier_pos joined with supplier.supplier_records (intra-schema)
+        - supplier.shipment_updates MAX(created_at) per PO for lastUpdateAt
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by shipment status. Omit to return all statuses.
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - CONFIRMED
+              - DISPATCHED
+              - DELIVERED
+              - COMPLETED
+              - EXCEPTION
+      responses:
+        '200':
+          description: Supplier order tracking payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierOrdersDashboardResponse'
+              example:
+                orders:
+                  - supplierPoId: "d1b2c3d4-0000-0000-0000-000000000001"
+                    poId: "c1b2c3d4-0000-0000-0000-000000000001"
+                    supplierId: "11111111-0000-0000-0000-000000000001"
+                    supplierName: "Acme Beverages Ltd"
+                    skuId: "SKU-BEV-001"
+                    dcId: "DC-LONDON"
+                    quantity: 500
+                    shipmentStatus: DISPATCHED
+                    confirmedAt: "2026-05-14T09:00:00Z"
+                    dispatchedAt: "2026-05-16T08:00:00Z"
+                    eta: "2026-05-20"
+                    lastUpdateAt: "2026-05-16T08:00:00Z"
                 dataFreshness: "2026-05-15T14:23:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'

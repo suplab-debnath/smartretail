@@ -9,12 +9,21 @@ const mockResponse: SupplierOrderListResponse = { orders: [mockOrder], dataFresh
 afterEach(() => vi.restoreAllMocks())
 
 describe('useSupplierOrders', () => {
-  it('fetches orders on mount', async () => {
+  it('fetches orders from ARS on mount', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => mockResponse }))
     const { result } = renderHook(() => useSupplierOrders())
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.data).toEqual(mockResponse)
     expect(result.current.error).toBeNull()
+  })
+
+  it('calls ARS /v1/dashboard/supplier-orders (not SUP)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => mockResponse })
+    vi.stubGlobal('fetch', fetchMock)
+    renderHook(() => useSupplierOrders())
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(fetchMock.mock.calls[0][0]).toContain('/v1/dashboard/supplier-orders')
+    expect(fetchMock.mock.calls[0][0]).not.toContain('/v1/supplier')
   })
 
   it('includes status filter in URL', async () => {
@@ -30,7 +39,7 @@ describe('useSupplierOrders', () => {
     vi.stubGlobal('fetch', fetchMock)
     renderHook(() => useSupplierOrders(undefined))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    expect(fetchMock.mock.calls[0][0]).toBe('/v1/supplier/orders')
+    expect(fetchMock.mock.calls[0][0]).toBe('/v1/dashboard/supplier-orders')
   })
 
   it('sets error on non-ok response', async () => {

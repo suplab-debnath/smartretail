@@ -17,12 +17,11 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5174,
     proxy: {
-      '/v1/ingest':       { target: 'http://localhost:8080', changeOrigin: true },
-      '/v1/dashboard':    { target: 'http://localhost:8083', changeOrigin: true },
-      '/v1/inventory': { target: 'http://localhost:8081', changeOrigin: true },
+      '/v1/ingest':        { target: 'http://localhost:8080', changeOrigin: true },
+      '/v1/dashboard':     { target: 'http://localhost:8083', changeOrigin: true },
+      '/v1/inventory':     { target: 'http://localhost:8081', changeOrigin: true },
       '/v1/replenishment': { target: 'http://localhost:8082', changeOrigin: true },
-      '/v1/forecast': { target: 'http://localhost:8084', changeOrigin: true },
-      '/v1/supplier': { target: 'http://localhost:8085', changeOrigin: true },
+      '/v1/forecast':      { target: 'http://localhost:8084', changeOrigin: true },
     },
   },
   test: {

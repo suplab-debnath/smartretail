@@ -1,7 +1,7 @@
 # ── AWS / Prod CDK Deploy ──────────────────────────────────────────────────────
-# Production CDK (infra/cdk-prod) is NOT wired into the Makefile.
-# Deploy manually from infra/cdk-prod/ when intentional production deployments are needed.
-# See infra/cdk-prod/README.md for instructions.
+# Production CDK (environments/prod/infra) is NOT wired into the Makefile.
+# Deploy manually from environments/prod/infra/ when intentional production deployments are needed.
+# See environments/prod/README.md for instructions.
 
 aws-ecr-login:
 	aws ecr get-login-password --region $(REGION) --profile $(PROFILE) | \
@@ -51,7 +51,7 @@ aws-deploy-services-wait: ## Same as aws-deploy-services but waits for ECS stead
 
 aws-full-deploy: ## End-to-end: CDK infra → push images → deploy MFEs → migrate → create users
 	@echo "=== Step 1/5: Deploy CDK stacks ==="
-	SMARTRETAIL_ENV=$(ENV) ./scripts/aws-dev/deploy-cdk.sh
+	SMARTRETAIL_ENV=$(ENV) ./environments/dev/scripts/deploy-cdk.sh
 	@echo "=== Step 2/5: Push service + Lambda images to ECR ==="
 	SMARTRETAIL_ENV=$(ENV) AWS_PROFILE=$(PROFILE) AWS_DEFAULT_REGION=$(REGION) \
 	    ./scripts/shared/deploy-services.sh --env $(ENV) --profile $(PROFILE) --region $(REGION)
@@ -72,4 +72,4 @@ aws-create-users:
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/shared/create-cognito-users.sh $(ENV)
 
 aws-destroy: ## Full teardown: CDK stacks + S3 + ECR + CloudFront + SSM + logs
-	SMARTRETAIL_ENV=$(ENV) AWS_PROFILE=$(PROFILE) ./scripts/aws-demo/destroy-infra.sh
+	SMARTRETAIL_ENV=$(ENV) AWS_PROFILE=$(PROFILE) ./environments/demo/scripts/destroy-infra.sh

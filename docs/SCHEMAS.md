@@ -1,7 +1,7 @@
 # Database Schemas
  
 All schemas live in the single PostgreSQL database named `smartretail`.
-Flyway migrations in `migrations/flyway/` create and seed all schemas.
+Flyway migrations in `backend/migrations/` create and seed all schemas.
  
 ## Schema Ownership Rules
  

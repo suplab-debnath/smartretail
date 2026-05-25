@@ -20,7 +20,7 @@ DB_PASSWORD=$(aws secretsmanager get-secret-value \
     --secret-id "$SECRET_ARN" \
     --query SecretString --output text | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
 
-cd migrations/flyway
+cd backend/migrations
 mvn flyway:migrate \
     -Dflyway.url="jdbc:postgresql://${RDS_ENDPOINT}:5432/smartretail" \
     -Dflyway.user=smartretail_admin \

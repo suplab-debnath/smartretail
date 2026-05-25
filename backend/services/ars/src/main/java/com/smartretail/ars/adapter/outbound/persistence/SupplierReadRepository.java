@@ -6,6 +6,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.sql.Types;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +70,34 @@ public class SupplierReadRepository implements SupplierReadPort {
             GROUP BY supplier_id
             """;
 
+    private static final String SUPPLIER_ORDERS_SQL = """
+            SELECT
+                sp.supplier_po_id,
+                CAST(sp.po_id AS UUID)    AS po_id,
+                sp.supplier_id,
+                sr.supplier_name,
+                sp.sku_id,
+                sp.dc_id,
+                COALESCE(sp.quantity, 0)  AS quantity,
+                sp.po_status              AS shipment_status,
+                sp.confirmed_at,
+                sp.dispatched_at,
+                sp.eta,
+                MAX(su.created_at)        AS last_update_at
+            FROM supplier.supplier_pos sp
+            JOIN supplier.supplier_records sr
+                ON sp.supplier_id = sr.supplier_id
+            LEFT JOIN supplier.shipment_updates su
+                ON sp.supplier_po_id = su.supplier_po_id
+            WHERE (:status IS NULL OR sp.po_status = :status)
+            GROUP BY sp.supplier_po_id, sp.po_id, sp.supplier_id, sr.supplier_name,
+                     sp.sku_id, sp.dc_id, sp.quantity, sp.po_status,
+                     sp.confirmed_at, sp.dispatched_at, sp.eta
+            ORDER BY
+                CASE WHEN sp.po_status = 'EXCEPTION' THEN 0 ELSE 1 END,
+                sp.eta ASC NULLS LAST
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public SupplierReadRepository(NamedParameterJdbcTemplate jdbc) {
@@ -116,6 +146,29 @@ public class SupplierReadRepository implements SupplierReadPort {
             );
         });
         return result;
+    }
+
+    @Override
+    public List<SupplierOrderRow> findSupplierOrders(String status) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("status", status, Types.VARCHAR);
+        return jdbc.query(SUPPLIER_ORDERS_SQL, params, (rs, rowNum) -> new SupplierOrderRow(
+                rs.getObject("supplier_po_id", UUID.class),
+                rs.getObject("po_id", UUID.class),
+                rs.getObject("supplier_id", UUID.class),
+                rs.getString("supplier_name"),
+                rs.getString("sku_id"),
+                rs.getString("dc_id"),
+                rs.getInt("quantity"),
+                rs.getString("shipment_status"),
+                rs.getTimestamp("confirmed_at") != null
+                        ? rs.getTimestamp("confirmed_at").toInstant() : null,
+                rs.getTimestamp("dispatched_at") != null
+                        ? rs.getTimestamp("dispatched_at").toInstant() : null,
+                rs.getObject("eta", LocalDate.class),
+                rs.getTimestamp("last_update_at") != null
+                        ? rs.getTimestamp("last_update_at").toInstant() : null
+        ));
     }
 
     @Override

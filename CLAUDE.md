@@ -74,62 +74,66 @@ smartretail/
 │       └── testing.md
 ├── docs/
 ├── .make/                 ← Makefile includes (vars, local, test, build, aws, demo, coverage)
-├── demo/
-│   ├── server/            ← Demo control server (:3099) — triggers scripts, streams SSE
-│   └── ui/                ← Demo Control Center MFE (:5176)
-├── infra/
-│  ├── cdk-demo/           ← demo stack (SQS, default VPC, ARM64) — run this for demos
-│  │  ├──bin/app.ts
-│  │  ├──lib/
-│  │  │  ├──network-stack.ts
-│  │  │  ├──data-stack.ts
-│  │  │  ├──messaging-stack.ts
-│  │  │  ├──identity-stack.ts
-│  │  │  ├──compute-stack.ts
-│  │  │  └── api-stack.ts
-│  │  └── package.json
-│  ├── cdk-prod/           ← production stack (Kinesis, 3-AZ VPC, RDS Proxy, CloudFront) — manual deploys only
-│  └── cdk-dev/            ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront) — same services as prod, smaller sizing
+├── tools/
+│   └── demo/
+│       ├── server/        ← Demo control server (:3099) — triggers scripts, streams SSE
+│       └── ui/            ← Demo Control Center MFE (:5176)
+├── environments/
+│  ├── local/
+│  │  ├── scripts/localstack-init.sh   ← creates all LocalStack resources on startup
+│  │  └── README.md
+│  ├── demo/               ← demo stack (SQS, default VPC, ARM64) — run this for demos
+│  │  ├── infra/           ← CDK stack (Min-* stacks)
+│  │  │  ├── bin/app.ts
+│  │  │  ├── lib/
+│  │  │  │  ├── network-stack.ts
+│  │  │  │  ├── data-stack.ts
+│  │  │  │  ├── messaging-stack.ts
+│  │  │  │  ├── identity-stack.ts
+│  │  │  │  ├── compute-stack.ts
+│  │  │  │  └── api-stack.ts
+│  │  │  └── package.json
+│  │  ├── scripts/
+│  │  │  ├── deploy-demo.sh
+│  │  │  ├── deploy-services-demo.sh
+│  │  │  ├── deploy-mfes-demo.sh
+│  │  │  ├── run-flyway-aws-demo.sh
+│  │  │  └── destroy-infra.sh
+│  │  └── README.md
+│  ├── dev/                ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront)
+│  │  ├── infra/           ← CDK stack (Dev-* stacks)
+│  │  ├── scripts/
+│  │  │  └── deploy-cdk.sh
+│  │  └── README.md
+│  ├── prod/               ← production stack (Kinesis, 3-AZ VPC, Multi-AZ RDS) — manual deploys only
+│  │  ├── infra/           ← CDK stack (Prod-* stacks)
+│  │  └── README.md
+│  └── shared/
+│     └── iam-policies/    ← IAM policy documents
 ├── backend/
 │   ├── services/
 │   │   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
 │   │   │   └── src/main/resources/{svc}-api.yaml  ← OpenAPI spec (self-contained, components inlined)
-│   ├── lambdas/
-│   │   ├── kinesis-consumer/   ← Kinesis → SIS inbound adapter
-│   │   └── batch-post-processor/ ← SageMaker S3 output → DFS inbound adapter
-│   └── coverage/               ← JaCoCo aggregate report (services + lambdas)
-├── migrations
-│  └── flyway/
-│    └── src/main/resources/db/migration/
-│      ├──V1__create_sales_schema.sql
-│      ├──V2__create_forecasting_schema.sql
-│      ├──V3__create_inventory_schema.sql
-│      ├──V4__create_replenishment_schema.sql
-│      ├──V5__create_supplier_schema.sql
-│      ├──V6__create_promotions_schema.sql
-│      └── V7__seed_data.sql
+│   ├── adapters/
+│   │   ├── kinesis-consumer/      ← Kinesis → SIS inbound adapter Lambda
+│   │   └── batch-post-processor/  ← SageMaker S3 output → DFS inbound adapter Lambda
+│   ├── migrations/
+│   │   └── src/main/resources/db/migration/
+│   │       ├── V1__create_sales_schema.sql
+│   │       ├── V2__create_forecasting_schema.sql
+│   │       ├── V3__create_inventory_schema.sql
+│   │       ├── V4__create_replenishment_schema.sql
+│   │       ├── V5__create_supplier_schema.sql
+│   │       ├── V6__create_promotions_schema.sql
+│   │       └── V7__seed_data.sql
+│   └── coverage/               ← JaCoCo aggregate report
 ├── mfe/
 │   ├── shared/auth/
 │   ├── store-manager/     ← Store Manager Dashboard (:5173) — ARS, IMS
 │   ├── sc-planner/        ← SC Planner Console (:5174) — RE, ARS, DFS, SUP
 │   ├── executive/         ← Executive Dashboard (:5175) — ARS, DFS
 │   └── supplier/          ← Supplier Portal (:5177, SUPPLIER_ADMIN role) — SUP
-├── deploy/
-│   ├── local/README.md        ← self-contained local setup & run guide
-│   ├── aws-demo/README.md     ← self-contained SC Planner demo deployment guide
-│   ├── aws-dev/README.md      ← self-contained dev-tier deployment guide
-│   └── aws-prod/README.md     ← self-contained production deployment guide
 └── scripts/
-  ├── local/
-  │   └── localstack-init.sh
-  ├── aws-demo/
-  │   ├── deploy-demo.sh
-  │   ├── deploy-services-demo.sh
-  │   ├── deploy-mfes-demo.sh
-  │   ├── run-flyway-aws-demo.sh
-  │   └── destroy-infra.sh
-  ├── aws-dev/
-  │   └── deploy-cdk.sh
   ├── shared/
   │   ├── deploy-services.sh
   │   ├── deploy-mfes.sh

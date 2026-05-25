@@ -7,7 +7,7 @@ local-up:
 	@echo "✅ Local environment ready"
 
 local-migrate:
-	cd migrations/flyway && mvn flyway:migrate --no-transfer-progress \
+	cd backend/migrations && mvn flyway:migrate --no-transfer-progress \
 	    -Dflyway.url=jdbc:postgresql://localhost:5432/smartretail \
 	    -Dflyway.user=smartretail_admin \
 	    -Dflyway.password=local_dev_password \
@@ -15,7 +15,7 @@ local-migrate:
 
 local-seed:
 	docker exec -i smartretail-postgres psql -U smartretail_admin -d smartretail \
-	    < migrations/flyway/src/main/resources/db/migration/V7__seed_data.sql
+	    < backend/migrations/src/main/resources/db/migration/V7__seed_data.sql
 
 local-sis:
 	SPRING_PROFILES_ACTIVE=local DB_SCHEMA=sales DB_USERNAME=smartretail_admin \
@@ -65,23 +65,23 @@ local-mfe-supplier:
 	cd mfe/supplier && npm run dev -- --port 5177
 
 local-demo-server: ## Start demo control server at :3099 (local mode)
-	cd demo/server && npm install --silent && node server.js
+	cd tools/demo/server && npm install --silent && node server.js
 
 local-mfe-demo: ## Start Demo Control Center MFE at :5176
-	cd demo/ui && npm install --silent && npm run dev
+	cd tools/demo/ui && npm install --silent && npm run dev
 
-local-demo: ## Start full demo experience — demo/server + demo/ui in parallel
-	@echo "Starting demo/server (:3099) and demo/ui (:5176)…"
+local-demo: ## Start full demo experience — tools/demo/server + tools/demo/ui in parallel
+	@echo "Starting tools/demo/server (:3099) and tools/demo/ui (:5176)…"
 	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make local-demo-server & make local-mfe-demo
 
 aws-demo-server: ## Start demo control server in AWS mode
-	cd demo/server && npm install --silent && SMARTRETAIL_ENV=aws node server.js
+	cd tools/demo/server && npm install --silent && SMARTRETAIL_ENV=aws node server.js
 
 aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
-	@echo "Starting demo/server in AWS mode and demo/ui…"
+	@echo "Starting tools/demo/server in AWS mode and tools/demo/ui…"
 	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
-	@make aws-demo-server & cd demo/ui && npm run dev
+	@make aws-demo-server & cd tools/demo/ui && npm run dev
 
 local-free-ports: ## Free up ports 8080-8085, 5173-5177, and 3099
 	@echo "Checking and freeing ports..."

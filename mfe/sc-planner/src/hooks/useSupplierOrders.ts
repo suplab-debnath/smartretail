@@ -19,7 +19,7 @@ export function useSupplierOrders(status?: string, refreshKey = 0) {
     if (status && status !== 'ALL') params.set('status', status)
     const query = params.toString() ? `?${params.toString()}` : ''
 
-    fetchJson<SupplierOrderListResponse>(`/v1/supplier/orders${query}`, {
+    fetchJson<SupplierOrderListResponse>(`/v1/dashboard/supplier-orders${query}`, {
       headers: { 'X-Dev-Role': 'SC_PLANNER' },
     })
       .then(json => {

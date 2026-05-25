@@ -322,8 +322,9 @@ interface PurchaseOrder {
 PO list with supplier, ETA, fulfilment status, and shipment progress.
  
 ```typescript
-// GET /v1/dashboard/supplier-performance (for PO / shipment data)
-// GET /v1/replenishment/orders?status=APPROVED (for active POs)
+// GET /v1/dashboard/supplier-orders          → ARS (supplier.supplier_pos + supplier_records, intra-schema join)
+// Optional query param: ?status=DISPATCHED   → filter by shipment status
+// Supplier name is embedded in each order row — no separate SUP call needed
  
 interface SupplierOrder {
   poId: string;
