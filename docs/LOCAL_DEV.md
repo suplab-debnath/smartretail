@@ -135,7 +135,7 @@ services:
     volumes:
       - localstack-data:/tmp/localstack
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+      - ./scripts/local/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'"]
       interval: 10s
@@ -147,7 +147,7 @@ volumes:
   localstack-data:
 ```
  
-### scripts/localstack-init.sh
+### scripts/local/localstack-init.sh
  
 This script runs automatically when LocalStack is ready:
  
@@ -575,16 +575,16 @@ test-unit:
   mvn test -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup
  
 test-flow1:
-  SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow1
+  SMARTRETAIL_ENV=$(ENV) ./scripts/shared/smoke-test.sh flow1
  
 test-flow2:
-  SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow2
+  SMARTRETAIL_ENV=$(ENV) ./scripts/shared/smoke-test.sh flow2
  
 test-flow3:
-  SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh flow3
+  SMARTRETAIL_ENV=$(ENV) ./scripts/shared/smoke-test.sh flow3
  
 test-all:
-  SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh all
+  SMARTRETAIL_ENV=$(ENV) ./scripts/shared/smoke-test.sh all
  
 # ─── AWS Deploy ───────────────────────────────────────────────────────
 aws-bootstrap:
@@ -598,7 +598,7 @@ aws-deploy-data:
   AWS_PROFILE=$(PROFILE) cdk deploy DataStack --require-approval never
  
 aws-migrate:
-  AWS_PROFILE=$(PROFILE) ./scripts/run-flyway-aws.sh $(ENV)
+  AWS_PROFILE=$(PROFILE) ./scripts/shared/run-flyway-aws.sh $(ENV)
  
 aws-deploy-messaging:
   AWS_PROFILE=$(PROFILE) cdk deploy MessagingStack --require-approval never
@@ -616,10 +616,10 @@ aws-deploy-all:
   AWS_PROFILE=$(PROFILE) cdk deploy --all --require-approval never
  
 aws-create-users:
-  AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/create-cognito-users.sh
+  AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/shared/create-cognito-users.sh
  
 aws-smoke-test:
-  AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/smoke-test.sh all
+  AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/shared/smoke-test.sh all
  
 # ─── Build ────────────────────────────────────────────────────────────
 build-services:

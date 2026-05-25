@@ -39,7 +39,7 @@ PGPASSWORD=local_dev_password psql -h localhost -U smartretail_admin -d smartret
 # Expected: 60
  
 # Publish a test event end-to-end
-python3 scripts/publish-pos-event.py \
+python3 scripts/shared/publish-pos-event.py \
     --transaction-id $(python3 -c "import uuid; print(uuid.uuid4())") \
     --sku-id SKU-BEV-001 --dc-id DC-LONDON \
     --store-id STORE-001 --quantity 5 --unit-price 8.50 \

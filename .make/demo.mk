@@ -36,7 +36,7 @@ demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service 
 
 demo-migrate: ## Run Flyway migrations on demo RDS (includes V7 seed data)
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
-	    ./scripts/run-flyway-aws.sh $(DEMO_ENV)
+	    ./scripts/shared/run-flyway-aws.sh $(DEMO_ENV)
 
 demo-deploy-mfe: ## Build and deploy SC Planner MFE to demo S3 bucket
 	cd mfe/sc-planner && npm install --silent && npm run build
@@ -50,7 +50,7 @@ demo-deploy-mfe: ## Build and deploy SC Planner MFE to demo S3 bucket
 
 demo-create-users: ## Create Cognito users for the demo environment
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
-	    ./scripts/create-cognito-users.sh $(DEMO_ENV)
+	    ./scripts/shared/create-cognito-users.sh $(DEMO_ENV)
 
 demo-full-deploy: ## Full demo deployment: CDK → images → migrate → MFE → users
 	@echo "=== [1/5] CDK stacks ==="
@@ -100,13 +100,13 @@ dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
 
 dev-deploy-services: ## Build, push images, force ECS redeployment (dev)
 	SMARTRETAIL_ENV=dev AWS_PROFILE=$(PROFILE) AWS_DEFAULT_REGION=$(REGION) \
-	    ./scripts/deploy-services.sh --env dev --profile $(PROFILE) --region $(REGION)
+	    ./scripts/shared/deploy-services.sh --env dev --profile $(PROFILE) --region $(REGION)
 
 dev-migrate:
-	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/run-flyway-aws.sh dev
+	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/shared/run-flyway-aws.sh dev
 
 dev-create-users:
-	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/create-cognito-users.sh dev
+	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev ./scripts/shared/create-cognito-users.sh dev
 
 dev-destroy: ## Destroy all Min-* CDK stacks (dev environment)
 	cd infra/cdk-demo && AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=dev npx cdk destroy --all --force

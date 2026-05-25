@@ -25,7 +25,7 @@ make local-migrate
 # AWS (RDS via RDS Proxy — requires VPC access)
 make aws-migrate
 # or directly:
-bash scripts/run-flyway-aws.sh
+bash scripts/shared/run-flyway-aws.sh
 ```
 
 ## Flyway configuration

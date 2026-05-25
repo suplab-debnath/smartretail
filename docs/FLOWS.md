@@ -30,7 +30,7 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 - SQS: `smartretail-re-alert-{env}` FIFO queue (receives IMS alert)
  
 **Trigger:**
-Run `scripts/publish-pos-event.py` with a test transaction payload.
+Run `scripts/shared/publish-pos-event.py` with a test transaction payload.
  
 **Observable evidence — all must be true for Flow 1 to pass:**
  
@@ -48,7 +48,7 @@ Run `scripts/publish-pos-event.py` with a test transaction payload.
 | 1.10 | IMS publishes InventoryAlertEvent | CloudWatch Logs: /smartretail/ims/dev — look for "InventoryAlertEvent published" |
  
 **Duplicate test:**
-Run `scripts/publish-pos-event.py` again with the SAME transactionId.
+Run `scripts/shared/publish-pos-event.py` again with the SAME transactionId.
 SIS should return 409 Conflict. No new sales_events row. DynamoDB key already exists.
  
 ---
@@ -70,7 +70,7 @@ SIS should return 409 Conflict. No new sales_events row. DynamoDB key already ex
 **Pre-condition:**
 Flow 1 must have published an InventoryAlertEvent to the RE FIFO queue.
 Alternatively: inject a test InventoryAlertEvent directly into the RE SQS queue
-using `scripts/publish-pos-event.py --flow2-direct`.
+using `scripts/shared/publish-pos-event.py --flow2-direct`.
  
 **Two sub-scenarios to test:**
  

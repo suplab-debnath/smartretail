@@ -113,13 +113,31 @@ smartretail/
 │   ├── sc-planner/        ← SC Planner Console (:5174) — RE, ARS, DFS, SUP
 │   ├── executive/         ← Executive Dashboard (:5175) — ARS, DFS
 │   └── supplier/          ← Supplier Portal (:5177, SUPPLIER_ADMIN role) — SUP
+├── deploy/
+│   ├── local/README.md        ← self-contained local setup & run guide
+│   ├── aws-demo/README.md     ← self-contained SC Planner demo deployment guide
+│   ├── aws-dev/README.md      ← self-contained dev-tier deployment guide
+│   └── aws-prod/README.md     ← self-contained production deployment guide
 └── scripts/
-  ├──localstack-init.sh
-  ├──publish-pos-event.py
-  ├──smoke-test.sh
-  ├──run-flyway-aws.sh
-  ├──create-cognito-users.sh
-  └── generate-mfe-config.sh
+  ├── local/
+  │   └── localstack-init.sh
+  ├── aws-demo/
+  │   ├── deploy-demo.sh
+  │   ├── deploy-services-demo.sh
+  │   ├── deploy-mfes-demo.sh
+  │   ├── run-flyway-aws-demo.sh
+  │   └── destroy-infra.sh
+  ├── aws-dev/
+  │   └── deploy-cdk.sh
+  ├── shared/
+  │   ├── deploy-services.sh
+  │   ├── deploy-mfes.sh
+  │   ├── run-flyway-aws.sh
+  │   ├── create-cognito-users.sh
+  │   ├── smoke-test.sh
+  │   └── publish-pos-event.py
+  └── ci/
+      └── merge-mfe-coverage.sh
 ```
 
 ---

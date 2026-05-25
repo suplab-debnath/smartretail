@@ -59,7 +59,7 @@ S3 static website (HTTP)  ──► SC Planner MFE
 ### One-command full deployment
 
 ```bash
-SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./scripts/deploy-demo.sh
+SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev ./scripts/aws-demo/deploy-demo.sh
 ```
 
 With alarm email notifications:
@@ -67,7 +67,7 @@ With alarm email notifications:
 ```bash
 SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev \
   CDK_CONTEXT_alertEmail=you@example.com \
-  ./scripts/deploy-demo.sh
+  ./scripts/aws-demo/deploy-demo.sh
 ```
 
 ### Makefile targets (granular control)
@@ -134,7 +134,7 @@ SMARTRETAIL_ENV=demo AWS_PROFILE=smartretail-dev \
   npx cdk deploy --all -c alertEmail=you@example.com
 ```
 
-Or use `CDK_CONTEXT_alertEmail=you@example.com` with `./scripts/deploy-demo.sh`.
+Or use `CDK_CONTEXT_alertEmail=you@example.com` with `./scripts/aws-demo/deploy-demo.sh`.
 
 ### Alarms (6 total)
 
