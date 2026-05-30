@@ -6,7 +6,6 @@ import com.smartretail.sis.port.inbound.SalesEventPort;
 import com.smartretail.sis.port.outbound.EventPublisherPort;
 import com.smartretail.sis.port.outbound.EventStorePort;
 import com.smartretail.sis.port.outbound.IdempotencyPort;
-import com.smartretail.sis.port.outbound.RawArchivePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,17 +23,14 @@ public class SalesIngestionUseCase implements SalesEventPort {
 
     private final EventStorePort eventStore;
     private final EventPublisherPort eventPublisher;
-    private final RawArchivePort rawArchive;
     private final IdempotencyPort idempotency;
 
     public SalesIngestionUseCase(
             EventStorePort eventStore,
             EventPublisherPort eventPublisher,
-            RawArchivePort rawArchive,
             IdempotencyPort idempotency) {
         this.eventStore = eventStore;
         this.eventPublisher = eventPublisher;
-        this.rawArchive = rawArchive;
         this.idempotency = idempotency;
     }
 
@@ -48,8 +44,7 @@ public class SalesIngestionUseCase implements SalesEventPort {
             return new IngestionResult.Duplicate(transaction.transactionId());
         }
 
-        String s3Uri = rawArchive.archive(transaction);
-        eventStore.save(transaction, s3Uri);
+        eventStore.save(transaction);
         idempotency.markProcessed(eventId);
         eventPublisher.publishSalesTransactionEvent(transaction);
 

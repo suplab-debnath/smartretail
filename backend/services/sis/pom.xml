@@ -46,18 +46,6 @@
             <artifactId>spring-cloud-aws-starter-sqs</artifactId>
         </dependency>
 
-        <!-- AWS SDK — DynamoDB (idempotency store) -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>dynamodb</artifactId>
-        </dependency>
-
-        <!-- AWS SDK — S3 (raw event archive) -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-        </dependency>
-
         <!-- AWS SDK — EventBridge (domain event publish) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>

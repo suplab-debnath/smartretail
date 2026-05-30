@@ -4,10 +4,20 @@ info:
   title: SmartRetail Sales Ingestion Service API
   version: "1.0.0"
   description: |
-    Receives POS and e-commerce sales transaction events from the Kinesis Consumer Lambda.
-    Performs idempotency checks via DynamoDB, persists events to the sales schema,
-    archives raw payloads to S3, and publishes SalesTransactionEvent to EventBridge
-    for downstream consumption by IMS.
+    Receives POS and e-commerce sales transaction events via two paths:
+
+    **Firehose path (production):** Amazon Data Firehose delivers base64-encoded record
+    batches via its HTTP endpoint destination. SIS detects this via the
+    X-Amz-Firehose-Request-Id request header, decodes each record, runs idempotency
+    checks, persists to sales.sales_events, and always returns 200 OK (Firehose contract).
+
+    **Direct path (local dev / test scripts):** Single-record JSON body submitted
+    directly to POST /v1/ingest/events. Returns 202 Accepted or 409 Conflict.
+
+    Idempotency: SHA-256(transactionId) checked against sales.idempotency_keys (RDS,
+    same transaction as the sales_events INSERT). S3 raw archive written by Firehose
+    natively — SIS has no S3 obligation. SalesTransactionEvent published to EventBridge
+    after commit (best-effort).
   contact:
     name: SmartRetail Platform Team
 
@@ -40,9 +50,68 @@ components:
         - ECOMMERCE
       example: POS
 
+    FirehoseBatchRecord:
+      type: object
+      description: A single record within a Firehose HTTP endpoint batch delivery
+      required:
+        - data
+      additionalProperties: false
+      properties:
+        data:
+          type: string
+          description: Base64-encoded POS event JSON (SalesEventRequest payload)
+          example: "eyJ0cmFuc2FjdGlvbklkIjoiNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIn0="
+
+    FirehoseBatchRequest:
+      type: object
+      description: |
+        Batch envelope sent by Amazon Data Firehose to its HTTP endpoint destination.
+        Detected by the presence of the X-Amz-Firehose-Request-Id header.
+      required:
+        - requestId
+        - timestamp
+        - records
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          description: UUID assigned by Firehose to this delivery attempt; echoed in the response
+          example: "ed4acda5-034f-9f42-bba1-f29aea6d7d8f"
+        timestamp:
+          type: integer
+          format: int64
+          description: Epoch milliseconds when Firehose created this request
+          example: 1685000000000
+        records:
+          type: array
+          description: Batch of base64-encoded POS event records
+          items:
+            $ref: '#/components/schemas/FirehoseBatchRecord'
+
+    FirehoseIngestResponse:
+      type: object
+      description: |
+        Response required by the Firehose HTTP endpoint destination protocol.
+        SIS always returns 200 OK with this body — even for duplicates or validation
+        failures — to prevent Firehose from retrying the entire batch.
+      required:
+        - requestId
+        - timestamp
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          description: Echo of requestId from the FirehoseBatchRequest
+          example: "ed4acda5-034f-9f42-bba1-f29aea6d7d8f"
+        timestamp:
+          type: integer
+          format: int64
+          description: Current epoch milliseconds at time of response
+          example: 1685000001234
+
     SalesEventRequest:
       type: object
-      description: A single sales transaction event submitted by the Kinesis Consumer Lambda
+      description: A single sales transaction event submitted via the direct POST path
       additionalProperties: false
       required:
         - transactionId
@@ -57,7 +126,7 @@ components:
         transactionId:
           type: string
           format: uuid
-          description: Client-generated unique identifier; used for idempotency (SHA-256 checked against DynamoDB)
+          description: Client-generated unique identifier; used for idempotency (SHA-256 checked against sales.idempotency_keys in RDS)
           example: "550e8400-e29b-41d4-a716-446655440000"
         storeId:
           type: string
@@ -187,16 +256,20 @@ paths:
       operationId: ingestSalesEvent
       summary: Ingest a sales transaction event
       description: |
-        Accepts a single POS or e-commerce sales transaction.
-        Called exclusively by the Kinesis Consumer Lambda — not by MFEs.
+        Dual-mode endpoint: handles both Firehose batch deliveries and direct single-record POSTs.
 
-        Processing (synchronous within the request):
-        1. SHA-256(transactionId) → DynamoDB GetItem (idempotency check)
-        2. If duplicate → 409 DUPLICATE_EVENT; no side effects
-        3. Write to sales.sales_events
-        4. Archive raw payload to S3
-        5. Write idempotency key to DynamoDB (TTL 48 h)
-        6. Publish SalesTransactionEvent to EventBridge
+        **Firehose path** (detected by X-Amz-Firehose-Request-Id header):
+        FirehoseBatchFilter intercepts, base64-decodes each record, calls ingest for each,
+        and always returns 200 OK with FirehoseIngestResponse (Firehose contract).
+
+        **Direct path** (no Firehose header):
+        Accepts a single SalesEventRequest. Returns 202 Accepted or 409 Conflict.
+
+        Processing per record (synchronous within the request):
+        1. SHA-256(transactionId) → sales.idempotency_keys SELECT (idempotency check)
+        2. If duplicate → skip (Firehose) or 409 DUPLICATE_EVENT (direct); no side effects
+        3. Write to sales.sales_events + INSERT sales.idempotency_keys (same @Transactional)
+        4. Publish SalesTransactionEvent to EventBridge (best-effort, after commit)
       requestBody:
         required: true
         content:
@@ -227,7 +300,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: Duplicate event — transactionId already processed
+          description: Duplicate event — transactionId already processed. Only returned on the direct POST path; Firehose callers always receive 200.
           content:
             application/json:
               schema:

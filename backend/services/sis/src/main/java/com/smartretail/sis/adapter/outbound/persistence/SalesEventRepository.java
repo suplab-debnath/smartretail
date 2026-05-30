@@ -16,10 +16,10 @@ public class SalesEventRepository implements EventStorePort {
     private static final String INSERT_SALES_EVENT_SQL = """
             INSERT INTO sales.sales_events
               (transaction_id, event_date, store_id, sku_id, dc_id,
-               quantity, unit_price, channel, event_timestamp, raw_s3_reference)
+               quantity, unit_price, channel, event_timestamp)
             VALUES
               (:transactionId, :eventDate, :storeId, :skuId, :dcId,
-               :quantity, :unitPrice, :channel, :eventTimestamp, :rawS3Reference)
+               :quantity, :unitPrice, :channel, :eventTimestamp)
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -29,7 +29,7 @@ public class SalesEventRepository implements EventStorePort {
     }
 
     @Override
-    public void save(SalesTransaction transaction, String rawS3Reference) {
+    public void save(SalesTransaction transaction) {
         LocalDate eventDate = transaction.eventTimestamp()
                 .atZone(ZoneOffset.UTC).toLocalDate();
 
@@ -42,8 +42,7 @@ public class SalesEventRepository implements EventStorePort {
                 .addValue("quantity", transaction.quantity())
                 .addValue("unitPrice", transaction.unitPrice())
                 .addValue("channel", transaction.channel().name())
-                .addValue("eventTimestamp", Timestamp.from(transaction.eventTimestamp()))
-                .addValue("rawS3Reference", rawS3Reference);
+                .addValue("eventTimestamp", Timestamp.from(transaction.eventTimestamp()));
 
         jdbc.update(INSERT_SALES_EVENT_SQL, params);
     }

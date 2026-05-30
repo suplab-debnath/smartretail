@@ -7,9 +7,7 @@ spring:
 smartretail:
   localstack:
     endpoint: http://localhost:4566
-  dynamodb:
-    idempotency-table: smartretail-idempotency-keys-local
-  s3:
-    events-bucket: smartretail-events-local
+  firehose:
+    access-key: local-dev-key
   eventbridge:
     bus-name: smartretail-events-local
