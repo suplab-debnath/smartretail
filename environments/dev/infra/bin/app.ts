@@ -28,7 +28,7 @@ const data      = new DataStack     (app, 'Dev-DataStack',      { env: cdkEnv, s
 const messaging = new MessagingStack(app, 'Dev-MessagingStack', { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Dev-IdentityStack',  { env: cdkEnv, srEnv: env });
 const compute   = new ComputeStack  (app, 'Dev-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
-const api       = new ApiStack      (app, 'Dev-ApiStack',       { env: cdkEnv, srEnv: env, network, compute });
+const api       = new ApiStack      (app, 'Dev-ApiStack',       { env: cdkEnv, srEnv: env, network, data, compute });
 new HostingStack   (app, 'Dev-HostingStack',    { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
 new MonitoringStack(app, 'Dev-MonitoringStack', {
   env: cdkEnv, srEnv: env,

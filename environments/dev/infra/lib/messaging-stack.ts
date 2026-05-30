@@ -1,5 +1,4 @@
 import * as cdk from 'aws-cdk-lib';
-import * as kinesis from 'aws-cdk-lib/aws-kinesis';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -11,7 +10,6 @@ export interface MessagingStackProps extends cdk.StackProps {
 }
 
 export class MessagingStack extends cdk.Stack {
-  public readonly kinesisStream: kinesis.Stream;
   public readonly eventBus: events.EventBus;
   public readonly imsSalesQueue: sqs.Queue;
   public readonly imsSalesDlq: sqs.Queue;
@@ -29,14 +27,6 @@ export class MessagingStack extends cdk.Stack {
     cdk.Tags.of(this).add('Name', 'smartretail-messaging');
 
     const { srEnv } = props;
-
-    this.kinesisStream = new kinesis.Stream(this, 'SmartRetailStream', {
-      streamName: `smartretail-events-${srEnv}`,
-      streamMode: kinesis.StreamMode.ON_DEMAND,
-      retentionPeriod: cdk.Duration.days(1),
-      encryption: kinesis.StreamEncryption.UNENCRYPTED,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
 
     this.eventBus = new events.EventBus(this, 'SmartRetailBus', {
       eventBusName: `smartretail-events-${srEnv}`,
@@ -105,8 +95,6 @@ export class MessagingStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('kinesis/stream-name',        this.kinesisStream.streamName);
-    put('kinesis/stream-arn',         this.kinesisStream.streamArn);
     put('eventbridge/bus-name',       this.eventBus.eventBusName);
     put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
     put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);

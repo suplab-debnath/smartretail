@@ -40,7 +40,6 @@ export class MonitoringStack extends cdk.Stack {
     const snsAction = new cwActions.SnsAction(alertTopic);
 
     // ── Log metric filters ────────────────────────────────────────────────────
-    // Error counts per service
     for (const svc of SERVICES) {
       new logs.MetricFilter(this, `${svc}ErrorFilter`, {
         logGroup: logs.LogGroup.fromLogGroupName(
@@ -53,7 +52,7 @@ export class MonitoringStack extends cdk.Stack {
       });
     }
 
-    // Business pipeline event counts — proxy KPIs without service code changes
+    // Business pipeline event counts
     new logs.MetricFilter(this, 'PosEventsFilter', {
       logGroup: logs.LogGroup.fromLogGroupName(this, 'SisLgBiz', `/smartretail/sis/${srEnv}`),
       metricNamespace: 'SmartRetail/App',
@@ -80,15 +79,26 @@ export class MonitoringStack extends cdk.Stack {
     });
 
     // ── Metric helpers ────────────────────────────────────────────────────────
-    const p2 = cdk.Duration.minutes(2);
-    const p5 = cdk.Duration.minutes(5);
+    const p5  = cdk.Duration.minutes(5);
     const p10 = cdk.Duration.minutes(10);
 
-    const albM = (name: string, stat: string, period: cdk.Duration) =>
+    // API Gateway HTTP API metrics (replace ALB)
+    const apiM = (name: string, stat: string, period: cdk.Duration) =>
       new cloudwatch.Metric({
-        namespace: 'AWS/ApplicationELB',
+        namespace: 'AWS/ApiGateway',
         metricName: name,
-        dimensionsMap: { LoadBalancer: api.alb.loadBalancerFullName },
+        dimensionsMap: { ApiId: api.apiEndpoint.split('.')[0].replace('https://', '') },
+        statistic: stat,
+        period,
+        label: name,
+      });
+
+    // Firehose metrics
+    const firehoseM = (name: string, stat: string, period: cdk.Duration) =>
+      new cloudwatch.Metric({
+        namespace: 'AWS/Firehose',
+        metricName: name,
+        dimensionsMap: { DeliveryStreamName: api.firehoseStreamName },
         statistic: stat,
         period,
         label: name,
@@ -117,26 +127,6 @@ export class MonitoringStack extends cdk.Stack {
         label: svc.toUpperCase(),
       });
 
-    const lambdaM = (name: string, stat: string, period: cdk.Duration) =>
-      new cloudwatch.Metric({
-        namespace: 'AWS/Lambda',
-        metricName: name,
-        dimensionsMap: { FunctionName: compute.kinesisConsumerFn.functionName },
-        statistic: stat,
-        period,
-        label: name,
-      });
-
-    const kinesisM = (name: string, stat: string, period: cdk.Duration) =>
-      new cloudwatch.Metric({
-        namespace: 'AWS/Kinesis',
-        metricName: name,
-        dimensionsMap: { StreamName: messaging.kinesisStream.streamName },
-        statistic: stat,
-        period,
-        label: name,
-      });
-
     const appM = (name: string, label: string) =>
       new cloudwatch.Metric({
         namespace: 'SmartRetail/App',
@@ -146,7 +136,7 @@ export class MonitoringStack extends cdk.Stack {
         label,
       });
 
-    // ── Alarms (8 total) ──────────────────────────────────────────────────────
+    // ── Alarms ────────────────────────────────────────────────────────────────
     const alarm = (
       id: string, alarmName: string, metric: cloudwatch.IMetric,
       threshold: number, evaluationPeriods: number,
@@ -180,14 +170,9 @@ export class MonitoringStack extends cdk.Stack {
       messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum' }),
       0, 1);
 
-    const albUnhealthyAlarm = alarm(
-      'AlbUnhealthyAlarm', 'ALB-UnhealthyHosts',
-      albM('UnHealthyHostCount', 'Maximum', p2),
-      0, 1);
-
-    const alb5xxAlarm = alarm(
-      'Alb5xxAlarm', 'ALB-5xxErrors',
-      albM('HTTPCode_ELB_5XX_Count', 'Sum', p5),
+    const api5xxAlarm = alarm(
+      'Api5xxAlarm', 'API-5xxErrors',
+      apiM('5XXError', 'Sum', p5),
       10, 1);
 
     const rdsCpuAlarm = alarm(
@@ -195,21 +180,14 @@ export class MonitoringStack extends cdk.Stack {
       rdsM('CPUUtilization', 'Average', p10),
       80, 2);
 
-    const lambdaErrorAlarm = alarm(
-      'LambdaErrorAlarm', 'Lambda-ConsumerErrors',
-      lambdaM('Errors', 'Sum', p5),
-      5, 1);
-
-    // Kinesis iterator age > 1 min sustained means consumer is falling behind
-    const kinesisLagAlarm = alarm(
-      'KinesisLagAlarm', 'Kinesis-ConsumerLag',
-      kinesisM('GetRecords.IteratorAgeMilliseconds', 'Maximum', p5),
-      60000, 2);
+    const firehoseFailedAlarm = alarm(
+      'FirehoseDeliveryFailedAlarm', 'Firehose-DeliveryFailed',
+      firehoseM('DeliveryToHttpEndpoint.DataFreshness', 'Maximum', p5),
+      600, 2);
 
     const allAlarms = [
       dlqAlarmImsSales, dlqAlarmReAlert, dlqAlarmArsUpdates,
-      albUnhealthyAlarm, alb5xxAlarm, rdsCpuAlarm,
-      lambdaErrorAlarm, kinesisLagAlarm,
+      api5xxAlarm, rdsCpuAlarm, firehoseFailedAlarm,
     ];
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
@@ -218,7 +196,6 @@ export class MonitoringStack extends cdk.Stack {
       defaultInterval: cdk.Duration.hours(3),
     });
 
-    // Title bar
     dashboard.addWidgets(
       new cloudwatch.TextWidget({
         markdown: [
@@ -229,33 +206,33 @@ export class MonitoringStack extends cdk.Stack {
       }),
     );
 
-    // Row 1 — ALB / API layer
+    // Row 1 — API Gateway layer
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
-        title: 'API Requests / min',
+        title: 'API Requests / 5 min',
         width: 6, height: 6,
-        left: [albM('RequestCount', 'Sum', p5)],
+        left: [apiM('Count', 'Sum', p5)],
       }),
       new cloudwatch.GraphWidget({
         title: 'API 5xx Errors',
         width: 6, height: 6,
-        left: [albM('HTTPCode_ELB_5XX_Count', 'Sum', p5)],
+        left: [apiM('5XXError', 'Sum', p5)],
         leftAnnotations: [{ value: 10, color: '#ff0000', label: 'Alert threshold' }],
       }),
       new cloudwatch.GraphWidget({
-        title: 'Target Response Time (avg s)',
+        title: 'API Latency p99 (ms)',
         width: 6, height: 6,
-        left: [albM('TargetResponseTime', 'Average', p5)],
+        left: [apiM('Latency', 'p99', p5)],
       }),
-      new cloudwatch.SingleValueWidget({
-        title: 'Unhealthy Hosts',
+      new cloudwatch.GraphWidget({
+        title: 'Firehose Data Freshness (s)',
         width: 6, height: 6,
-        metrics: [albM('UnHealthyHostCount', 'Maximum', p2)],
-        sparkline: true,
+        left: [firehoseM('DeliveryToHttpEndpoint.DataFreshness', 'Maximum', p5)],
+        leftAnnotations: [{ value: 600, color: '#ff0000', label: 'Alert threshold' }],
       }),
     );
 
-    // Row 2 — Business pipeline KPIs (log metric filters)
+    // Row 2 — Business pipeline KPIs
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
         title: 'Business Pipeline Events / 5 min',
@@ -274,132 +251,52 @@ export class MonitoringStack extends cdk.Stack {
       }),
     );
 
-    // Row 3 — Kinesis consumer (Lambda)
+    // Row 3 — ECS cluster
     dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: 'Lambda Consumer Errors',
-        width: 6, height: 6,
-        left: [lambdaM('Errors', 'Sum', p5)],
-        leftAnnotations: [{ value: 5, color: '#ff0000', label: 'Alert threshold' }],
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Lambda Duration p99 (ms)',
-        width: 6, height: 6,
-        left: [lambdaM('Duration', 'p99', p5)],
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'Lambda Throttles',
-        width: 6, height: 6,
-        left: [lambdaM('Throttles', 'Sum', p5)],
-      }),
-      new cloudwatch.SingleValueWidget({
-        title: 'Kinesis Iterator Lag max (ms)',
-        width: 6, height: 6,
-        metrics: [kinesisM('GetRecords.IteratorAgeMilliseconds', 'Maximum', p5)],
-        sparkline: true,
-      }),
+      ...(['sis', 'ims', 're', 'ars'] as const).map(svc =>
+        new cloudwatch.GraphWidget({
+          title: `${svc.toUpperCase()} CPU %`,
+          width: 6, height: 6,
+          left: [ecsM(svc, 'CpuUtilized')],
+        }),
+      ),
     );
 
-    // Row 4 — ECS Container Insights
+    // Row 4 — RDS + SQS DLQs
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
-        title: 'ECS CPU Utilised (vCPU units)',
-        width: 12, height: 6,
-        left: SERVICES.map(svc => ecsM(svc, 'CpuUtilized')),
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'ECS Memory Utilised (MiB)',
-        width: 12, height: 6,
-        left: SERVICES.map(svc => ecsM(svc, 'MemoryUtilized')),
-      }),
-    );
-
-    // Row 5 — SQS queue health
-    dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: 'SQS Queue Depths',
-        width: 12, height: 6,
-        left: [
-          messaging.imsSalesQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS Sales' }),
-          messaging.reAlertQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'RE Alert' }),
-          messaging.arsUpdatesQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'ARS Updates' }),
-        ],
-      }),
-      new cloudwatch.GraphWidget({
-        title: 'DLQ Depths (target: 0)',
-        width: 12, height: 6,
-        left: [
-          messaging.imsSalesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS-Sales DLQ' }),
-          messaging.reAlertDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'RE-Alert DLQ' }),
-          messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'ARS-Updates DLQ' }),
-        ],
-        leftAnnotations: [{ value: 0, color: '#ff6600', label: 'Any message triggers alarm' }],
-      }),
-    );
-
-    // Row 6 — RDS
-    dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: 'RDS CPU Utilization %',
-        width: 8, height: 6,
-        left: [rdsM('CPUUtilization', 'Average', p5)],
+        title: 'RDS CPU %',
+        width: 6, height: 6,
+        left: [rdsM('CPUUtilization', 'Average', p10)],
         leftAnnotations: [{ value: 80, color: '#ff0000', label: 'Alert threshold' }],
       }),
       new cloudwatch.GraphWidget({
-        title: 'RDS DB Connections',
-        width: 8, height: 6,
-        left: [rdsM('DatabaseConnections', 'Average', p5)],
+        title: 'RDS Connections',
+        width: 6, height: 6,
+        left: [rdsM('DatabaseConnections', 'Average', p10)],
       }),
-      new cloudwatch.SingleValueWidget({
-        title: 'RDS Free Storage (GB)',
-        width: 8, height: 6,
-        metrics: [
-          new cloudwatch.MathExpression({
-            expression: 'FLOOR(m1 / 1073741824)',
-            usingMetrics: { m1: rdsM('FreeStorageSpace', 'Minimum', p5) },
-            label: 'Free Storage (GB)',
-          }),
+      new cloudwatch.GraphWidget({
+        title: 'SQS DLQ depths',
+        width: 12, height: 6,
+        left: [
+          messaging.imsSalesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum', label: 'IMS Sales DLQ' }),
+          messaging.reAlertDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum', label: 'RE Alert DLQ' }),
+          messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum', label: 'ARS Updates DLQ' }),
         ],
-        sparkline: false,
+        leftAnnotations: [{ value: 1, color: '#ff0000', label: 'Alert threshold' }],
       }),
     );
 
-    // Row 7 — Log Insights: live tails
-    dashboard.addWidgets(
-      new cloudwatch.LogQueryWidget({
-        title: 'Recent Application Errors (last 1h)',
-        width: 12, height: 8,
-        logGroupNames: SERVICES.map(svc => `/smartretail/${svc}/${srEnv}`),
-        view: cloudwatch.LogQueryVisualizationType.TABLE,
-        queryLines: [
-          'fields @timestamp, @logStream, @message',
-          'filter @message =~ /ERROR/',
-          'sort @timestamp desc',
-          '| limit 25',
-        ],
-      }),
-      new cloudwatch.LogQueryWidget({
-        title: 'Business Pipeline Events (last 1h)',
-        width: 12, height: 8,
-        logGroupNames: SERVICES.map(svc => `/smartretail/${svc}/${srEnv}`),
-        view: cloudwatch.LogQueryVisualizationType.TABLE,
-        queryLines: [
-          'fields @timestamp, @logStream, @message',
-          'filter @message =~ /SalesTransactionEvent|InventoryAlertEvent|PurchaseOrderEvent/',
-          'sort @timestamp desc',
-          '| limit 25',
-        ],
-      }),
-    );
-
-    // Row 8 — Alarm status overview
+    // Row 5 — Alarm summary
     dashboard.addWidgets(
       new cloudwatch.AlarmStatusWidget({
-        title: 'Alarm Status',
-        width: 24, height: 4,
+        title: 'Active Alarms',
         alarms: allAlarms,
-        sortBy: cloudwatch.AlarmStatusWidgetSortBy.STATE_UPDATED_TIMESTAMP,
+        width: 24, height: 4,
       }),
     );
+
+    // Suppress unused variable warning
+    void allAlarms;
   }
 }

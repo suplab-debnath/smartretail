@@ -1,8 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
@@ -14,9 +14,10 @@ export interface DataStackProps extends cdk.StackProps {
 
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
-  public readonly idempotencyTable: dynamodb.Table;
+  public readonly eventsBucket: s3.Bucket;
   public readonly eventsBucketName: string;
   public readonly sagemakerBucket: s3.Bucket;
+  public readonly firehoseAccessKeySecret: secretsmanager.Secret;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
@@ -61,17 +62,18 @@ export class DataStack extends cdk.Stack {
 
     this.dbEndpoint = proxy.endpoint;
 
-    // DynamoDB — on-demand, TTL for idempotency
-    this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
-      tableName: `smartretail-idempotency-keys-${srEnv}`,
-      partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: 'expires_at',
+    // Firehose ingest access key — used by SIS FirehoseBatchFilter to validate Firehose deliveries
+    this.firehoseAccessKeySecret = new secretsmanager.Secret(this, 'FirehoseIngestKey', {
+      secretName: `/smartretail/${srEnv}/firehose/ingest-access-key`,
+      generateSecretString: {
+        excludePunctuation: true,
+        passwordLength: 64,
+      },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // Events S3 bucket — versioned
-    const eventsBucket = new s3.Bucket(this, 'EventsBucket', {
+    // Events S3 bucket — Firehose S3 backup destination (versioned in prod)
+    this.eventsBucket = new s3.Bucket(this, 'EventsBucket', {
       bucketName: `smartretail-events-${srEnv}-${account}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -79,10 +81,9 @@ export class DataStack extends cdk.Stack {
       lifecycleRules: [{ expiration: cdk.Duration.days(365 * 7) }],
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
-    this.eventsBucketName = eventsBucket.bucketName;
+    this.eventsBucketName = this.eventsBucket.bucketName;
 
     // SageMaker S3 bucket — training data, model artefacts, transform output
-    // Key prefix convention: sagemaker/output/{run_id}/part-*.csv  (read by Batch Post-Processor Lambda)
     this.sagemakerBucket = new s3.Bucket(this, 'SageMakerBucket', {
       bucketName: `smartretail-sagemaker-${srEnv}-${account}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -92,7 +93,7 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // MFE S3 buckets — private, served via CloudFront (configured in hosting-stack)
+    // MFE S3 buckets — private, served via CloudFront
     ['store-manager', 'sc-planner', 'executive', 'supplier'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
       this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
@@ -108,10 +109,10 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/proxy-endpoint', proxy.endpoint);
-    put('rds/secret-arn', rdsInstance.secret!.secretArn);
-    put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
-    put('s3/events-bucket-name', eventsBucket.bucketName);
-    put('s3/sagemaker-bucket-name', this.sagemakerBucket.bucketName);
+    put('rds/proxy-endpoint',            proxy.endpoint);
+    put('rds/secret-arn',                rdsInstance.secret!.secretArn);
+    put('firehose/access-key-secret-arn', this.firehoseAccessKeySecret.secretArn);
+    put('s3/events-bucket-name',         this.eventsBucket.bucketName);
+    put('s3/sagemaker-bucket-name',      this.sagemakerBucket.bucketName);
   }
 }

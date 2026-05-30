@@ -24,6 +24,7 @@ interface ServiceConfig {
   name: string;
   port: number;
   envVars: Record<string, string>;
+  secrets?: Record<string, ecs.Secret>;
   policies: iam.PolicyStatement[];
 }
 
@@ -51,7 +52,7 @@ export class ComputeStack extends cdk.Stack {
       enableFargateCapacityProviders: true,
     });
 
-    // CloudMap for Lambda → SIS service discovery
+    // CloudMap — used by Batch Post-Processor Lambda for DFS service discovery
     this.cluster.addDefaultCloudMapNamespace({ name: 'smartretail.local' });
 
     const ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
@@ -60,6 +61,9 @@ export class ComputeStack extends cdk.Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
       ],
     });
+
+    // Allow ECS task execution role to read Firehose access key from Secrets Manager
+    data.firehoseAccessKeySecret.grantRead(ecsExecutionRole);
 
     const commonEnv = {
       SMARTRETAIL_ENV: srEnv,
@@ -73,19 +77,12 @@ export class ComputeStack extends cdk.Stack {
         ...commonEnv,
         DB_SCHEMA: 'sales',
         DB_USERNAME: 'smartretail_admin',
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        EVENTS_BUCKET_NAME: data.eventsBucketName,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
+      secrets: {
+        SMARTRETAIL_FIREHOSE_ACCESSKEY: ecs.Secret.fromSecretsManager(data.firehoseAccessKeySecret),
+      },
       policies: [
-        new iam.PolicyStatement({
-          actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-          resources: [data.idempotencyTable.tableArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['s3:PutObject'],
-          resources: [`arn:aws:s3:::${data.eventsBucketName}/*`],
-        }),
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
           resources: [messaging.eventBus.eventBusArn],
@@ -226,52 +223,6 @@ export class ComputeStack extends cdk.Stack {
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
     this.ppsService = this.createFargateService(ppsConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — X86_64, private app subnet
-    const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
-      repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
-
-    const lambdaRole = new iam.Role(this, 'KinesisConsumerRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-      ],
-    });
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['kinesis:GetRecords', 'kinesis:GetShardIterator', 'kinesis:DescribeStream', 'kinesis:ListShards'],
-      resources: [messaging.kinesisStream.streamArn],
-    }));
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-      resources: [data.idempotencyTable.tableArn],
-    }));
-
-    const kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
-      functionName: `smartretail-kinesis-consumer-${srEnv}`,
-      code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.X86_64,
-      vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [network.sgLambda],
-      timeout: cdk.Duration.seconds(300),
-      memorySize: 512,
-      role: lambdaRole,
-      environment: {
-        SIS_ENDPOINT: `http://smartretail-sis-${srEnv}.smartretail.local:8080`,
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        ENV: srEnv,
-      },
-    });
-
-    kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(messaging.kinesisStream, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      batchSize: 100,
-      bisectBatchOnError: true,
-      retryAttempts: 3,
-    }));
-
     // Batch Post-Processor Lambda — reads SageMaker transform output CSV, POSTs to DFS
     const batchPostProcessorRepo = new ecr.Repository(this, 'BatchPostProcessorRepo', {
       repositoryName: `smartretail-batch-post-processor-${srEnv}`,
@@ -290,13 +241,20 @@ export class ComputeStack extends cdk.Stack {
       resources: [data.sagemakerBucket.arnForObjects('sagemaker/output/*')],
     }));
 
+    // Dedicated SG for the Batch Post-Processor Lambda
+    const sgBatchProcessor = new ec2.SecurityGroup(this, 'SgBatchProcessor', {
+      vpc: network.vpc,
+      description: 'Batch Post-Processor Lambda',
+      allowAllOutbound: true,
+    });
+
     const batchPostProcessorFn = new lambda.DockerImageFunction(this, 'BatchPostProcessor', {
       functionName: `smartretail-batch-post-processor-${srEnv}`,
       code: lambda.DockerImageCode.fromEcr(batchPostProcessorRepo),
       architecture: lambda.Architecture.X86_64,
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [network.sgLambda],
+      securityGroups: [sgBatchProcessor],
       timeout: cdk.Duration.seconds(300),
       memorySize: 512,
       role: batchPostProcessorRole,
@@ -315,6 +273,9 @@ export class ComputeStack extends cdk.Stack {
       parameterName: `/smartretail/${srEnv}/ecs/cluster-name`,
       stringValue: this.cluster.clusterName,
     });
+
+    // Suppress unused variable warning
+    void batchPostProcessorFn;
   }
 
   private createFargateService(
@@ -326,7 +287,7 @@ export class ComputeStack extends cdk.Stack {
     const ecrRepo = new ecr.Repository(this, `${config.name}Repo`, {
       repositoryName: `smartretail-${config.name}-${srEnv}`,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      lifecycleRules: [{ maxImageCount: 10 }],
+      lifecycleRules: [{ maxImageCount: 5 }],
     });
 
     const taskRole = new iam.Role(this, `${config.name}TaskRole`, {
@@ -348,7 +309,7 @@ export class ComputeStack extends cdk.Stack {
 
     const logGroup = new logs.LogGroup(this, `${config.name}LogGroup`, {
       logGroupName: `/smartretail/${config.name}/${srEnv}`,
-      retention: logs.RetentionDays.ONE_MONTH,
+      retention: logs.RetentionDays.THREE_MONTHS,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -358,12 +319,13 @@ export class ComputeStack extends cdk.Stack {
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup }),
       healthCheck: {
         command: ['CMD-SHELL', `curl -f http://localhost:${config.port}/actuator/health || exit 1`],
-        interval: cdk.Duration.seconds(15),
+        interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
         startPeriod: cdk.Duration.seconds(60),
       },
       environment: { ...config.envVars, SPRING_PROFILES_ACTIVE: 'aws' },
+      secrets: config.secrets,
     });
 
     const service = new ecs.FargateService(this, `${config.name}Service`, {
@@ -374,7 +336,7 @@ export class ComputeStack extends cdk.Stack {
       assignPublicIp: false,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [network.sgEcsTasks],
-      healthCheckGracePeriod: cdk.Duration.seconds(90),
+      healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
       cloudMapOptions: { name: `smartretail-${config.name}-${srEnv}` },
       capacityProviderStrategies: [
@@ -383,8 +345,8 @@ export class ComputeStack extends cdk.Stack {
       ],
     });
 
-    const scaling = service.autoScaleTaskCount({ minCapacity: 2, maxCapacity: 6 });
-    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 60 });
+    const scaling = service.autoScaleTaskCount({ minCapacity: 2, maxCapacity: 10 });
+    scaling.scaleOnCpuUtilization(`${config.name}CpuScaling`, { targetUtilizationPercent: 70 });
 
     return service;
   }
