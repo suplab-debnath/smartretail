@@ -49,7 +49,8 @@ SKU-BEV-001,DC-LONDON,2026-06-01,30,80,105,135
 ```
 src/main/java/com/smartretail/lambda/batchpostprocessor/
 ├── BatchPostProcessorHandler.java   Entry point — RequestHandler<S3Event, Void>
-├── S3CsvReader.java                 S3 GetObject + CSV parsing
+├── S3CsvReader.java                 S3 CSV reader interface
+├── S3CsvReaderImpl.java             S3 GetObject + CSV parsing implementation
 ├── DfsApiClient.java                HTTP POST to DFS (java.net.http.HttpClient)
 └── ForecastRowPayload.java          Immutable CSV row record
 ```

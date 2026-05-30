@@ -23,10 +23,14 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BatchPostProcessorHandlerTest {
 
-    @Mock private S3CsvReader s3CsvReader;
-    @Mock private DfsApiClient dfsApiClient;
-    @Mock private Context context;
-    @Mock private LambdaLogger logger;
+    @Mock
+    private S3CsvReader s3CsvReader;
+    @Mock
+    private DfsApiClient dfsApiClient;
+    @Mock
+    private Context context;
+    @Mock
+    private LambdaLogger logger;
 
     private BatchPostProcessorHandler handler;
 
@@ -34,24 +38,6 @@ class BatchPostProcessorHandlerTest {
     void setUp() {
         when(context.getLogger()).thenReturn(logger);
         handler = new BatchPostProcessorHandler(s3CsvReader, dfsApiClient);
-    }
-
-    @Test
-    void shouldExtractRunIdAndPostToDfs() {
-        UUID runId = UUID.randomUUID();
-        String key = "sagemaker/output/" + runId + "/part-0.csv";
-        S3Event event = buildS3Event("smartretail-sagemaker-dev", key);
-
-        List<ForecastRowPayload> rows = List.of(
-                new ForecastRowPayload("SKU-001", "DC-LONDON", LocalDate.of(2026, 6, 1), 30, 80, 100, 130)
-        );
-        when(s3CsvReader.readRows(any(), any(), any())).thenReturn(rows);
-        when(dfsApiClient.postResults(any(), any(), any())).thenReturn(201);
-
-        handler.handleRequest(event, context);
-
-        verify(s3CsvReader).readRows(eq("smartretail-sagemaker-dev"), eq(key), eq(logger));
-        verify(dfsApiClient).postResults(eq(runId), eq(rows), eq(logger));
     }
 
     @Test
@@ -80,8 +66,7 @@ class BatchPostProcessorHandlerTest {
         UUID runId = UUID.randomUUID();
         S3Event event = buildS3Event("bucket", "sagemaker/output/" + runId + "/part-0.csv");
         List<ForecastRowPayload> rows = List.of(
-                new ForecastRowPayload("SKU-001", "DC-LONDON", LocalDate.of(2026, 6, 1), 30, 80, 100, 130)
-        );
+                new ForecastRowPayload("SKU-001", "DC-LONDON", LocalDate.of(2026, 6, 1), 30, 80, 100, 130));
         when(s3CsvReader.readRows(any(), any(), any())).thenReturn(rows);
         when(dfsApiClient.postResults(any(), any(), any()))
                 .thenThrow(new RuntimeException("DFS unavailable"));
@@ -89,6 +74,28 @@ class BatchPostProcessorHandlerTest {
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> handler.handleRequest(event, context));
         assertTrue(ex.getMessage().contains("DFS unavailable"));
+    }
+
+    @Test
+    void shouldSupportInterfaceInjectionWithCustomImplementation() {
+        UUID runId = UUID.randomUUID();
+        String key = "sagemaker/output/" + runId + "/part-0.csv";
+        S3Event event = buildS3Event("smartretail-sagemaker-dev", key);
+
+        List<ForecastRowPayload> expectedRows = List.of(
+                new ForecastRowPayload("SKU-999", "DC-MUNICH", LocalDate.of(2026, 6, 15), 14, 50, 60, 70));
+
+        S3CsvReader customReader = (bucket, keyParam, loggerParam) -> {
+            loggerParam.log("Custom reader invoked for " + bucket + "/" + keyParam);
+            return expectedRows;
+        };
+
+        BatchPostProcessorHandler customHandler = new BatchPostProcessorHandler(customReader, dfsApiClient);
+        when(dfsApiClient.postResults(any(), any(), any())).thenReturn(201);
+
+        customHandler.handleRequest(event, context);
+
+        verify(dfsApiClient).postResults(eq(runId), eq(expectedRows), eq(logger));
     }
 
     private S3Event buildS3Event(String bucket, String key) {

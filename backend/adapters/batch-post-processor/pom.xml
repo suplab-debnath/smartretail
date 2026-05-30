@@ -76,6 +76,15 @@
                 </configuration>
             </plugin>
 
+            <!-- Surefire — JUnit 5 with bytebuddy experimental flag for Java 25 compatibility -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                </configuration>
+            </plugin>
+
             <!-- Shade — produce fat JAR for Lambda deployment -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

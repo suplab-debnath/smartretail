@@ -30,10 +30,15 @@ public class DfsApiClient {
     private final String dfsEndpoint;
 
     public DfsApiClient(String dfsEndpoint) {
-        this.dfsEndpoint = dfsEndpoint;
-        this.httpClient = HttpClient.newBuilder()
+        this(dfsEndpoint, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-                .build();
+                .build());
+    }
+
+    /** Test constructor — accepts injected HttpClient. */
+    DfsApiClient(String dfsEndpoint, HttpClient httpClient) {
+        this.dfsEndpoint = dfsEndpoint;
+        this.httpClient = httpClient;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);

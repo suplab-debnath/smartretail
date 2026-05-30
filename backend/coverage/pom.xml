@@ -95,6 +95,11 @@
                                 <exclude>com/smartretail/*/adapter/in/web/generated/**</exclude>
                                 <exclude>com/smartretail/**/*Application.class</exclude>
                                 <exclude>com/smartretail/*/config/**</exclude>
+                                <exclude>**/generated/**</exclude>
+                                <exclude>**/*Repository.class</exclude>
+                                <exclude>**/*Repository*</exclude>
+                                <exclude>**/*MapperImpl.class</exclude>
+                                <exclude>**/*MapperImpl*</exclude>
                             </excludes>
                         </configuration>
                     </execution>

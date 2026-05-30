@@ -32,7 +32,7 @@ public class BatchPostProcessorHandler implements RequestHandler<S3Event, Void> 
 
     /** Production constructor — reads env vars, builds AWS clients. */
     public BatchPostProcessorHandler() {
-        this.s3CsvReader  = new S3CsvReader(S3Client.create());
+        this.s3CsvReader  = new S3CsvReaderImpl(S3Client.create());
         this.dfsApiClient = new DfsApiClient(requireEnv("DFS_ENDPOINT"));
     }
 
