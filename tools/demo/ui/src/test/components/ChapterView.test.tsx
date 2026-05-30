@@ -26,8 +26,8 @@ const makeFlow = (): FlowDef => ({
       id: 'step1',
       title: 'Send POS Event',
       narrative: 'A POS event is sent to Kinesis.',
-      activeNodes: ['kinesis', 'sis'],
-      flowEdges: [['kinesis', 'lambda']],
+      activeNodes: ['firehose', 'sis'],
+      flowEdges: [['firehose', 'sis']],
     },
     {
       id: 'step2',

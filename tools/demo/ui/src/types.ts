@@ -1,5 +1,5 @@
 export type ServiceId =
-  | 'kinesis' | 'lambda' | 'sis' | 'ims' | 're' | 'ars' | 'dfs' | 'sup'
+  | 'firehose' | 'sis' | 'ims' | 're' | 'ars' | 'dfs' | 'sup'
   | 'eventbridge' | 'sqs' | 'rds';
 
 export type NodeState   = 'idle' | 'active' | 'success' | 'error';

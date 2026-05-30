@@ -11,26 +11,24 @@ type NodeDef = { id: ServiceId; label: string; x: number; y: number; layer: numb
 
 const NODES: NodeDef[] = [
   // Layer 0 — ingest
-  { id: 'kinesis',     label: 'Kinesis',      x: 30,  y: 40,  layer: 0 },
-  { id: 'lambda',      label: 'Lambda',       x: 160, y: 40,  layer: 0 },
-  { id: 'sis',         label: 'SIS',          x: 290, y: 40,  layer: 0 },
-  { id: 'eventbridge', label: 'EventBridge',  x: 440, y: 40,  layer: 0 },
+  { id: 'firehose',    label: 'Firehose',     x: 30,  y: 40,  layer: 0 },
+  { id: 'sis',         label: 'SIS',          x: 160, y: 40,  layer: 0 },
+  { id: 'eventbridge', label: 'EventBridge',  x: 310, y: 40,  layer: 0 },
   // Layer 1 — process
-  { id: 'ims',         label: 'IMS',          x: 590, y: 40,  layer: 1 },
-  { id: 'sqs',         label: 'SQS (RE)',     x: 440, y: 140, layer: 1 },
-  { id: 're',          label: 'RE',           x: 590, y: 140, layer: 1 },
+  { id: 'ims',         label: 'IMS',          x: 460, y: 40,  layer: 1 },
+  { id: 'sqs',         label: 'SQS (RE)',     x: 310, y: 140, layer: 1 },
+  { id: 're',          label: 'RE',           x: 460, y: 140, layer: 1 },
   // Layer 2 — aggregate + DFS/SUP
-  { id: 'dfs',         label: 'DFS',          x: 720, y: 40,  layer: 2 },
-  { id: 'sup',         label: 'SUP',          x: 720, y: 140, layer: 2 },
-  { id: 'rds',         label: 'RDS',          x: 720, y: 240, layer: 2 },
-  { id: 'ars',         label: 'ARS',          x: 440, y: 260, layer: 2 },
+  { id: 'dfs',         label: 'DFS',          x: 610, y: 40,  layer: 2 },
+  { id: 'sup',         label: 'SUP',          x: 610, y: 140, layer: 2 },
+  { id: 'rds',         label: 'RDS',          x: 610, y: 240, layer: 2 },
+  { id: 'ars',         label: 'ARS',          x: 310, y: 260, layer: 2 },
 ]
 
 // Static edges as [fromId, toId]
 type EdgeDef = [ServiceId, ServiceId]
 const STATIC_EDGES: EdgeDef[] = [
-  ['kinesis', 'lambda'],
-  ['lambda',  'sis'],
+  ['firehose', 'sis'],
   ['sis',     'eventbridge'],
   ['eventbridge', 'ims'],
   ['eventbridge', 'sqs'],

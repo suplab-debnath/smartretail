@@ -10,7 +10,7 @@ describe('ArchitectureDiagram', () => {
 
   it('renders all service node labels', () => {
     render(<ArchitectureDiagram nodeStates={{}} />)
-    for (const label of ['Kinesis', 'Lambda', 'SIS', 'IMS', 'RE', 'ARS', 'DFS', 'SUP', 'RDS']) {
+    for (const label of ['Firehose', 'SIS', 'IMS', 'RE', 'ARS', 'DFS', 'SUP', 'RDS']) {
       expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1)
     }
   })
@@ -34,7 +34,7 @@ describe('ArchitectureDiagram', () => {
   })
 
   it('renders with active edges', () => {
-    render(<ArchitectureDiagram nodeStates={{ sis: 'active' }} activeEdges={[['sis', 'eventbridge'], ['kinesis', 'lambda']]} />)
+    render(<ArchitectureDiagram nodeStates={{ sis: 'active' }} activeEdges={[['sis', 'eventbridge'], ['firehose', 'sis']]} />)
     expect(screen.getByLabelText('SmartRetail service architecture')).toBeInTheDocument()
   })
 

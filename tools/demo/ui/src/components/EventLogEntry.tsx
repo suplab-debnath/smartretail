@@ -15,8 +15,7 @@ const SERVICE_STYLE: Record<string, string> = {
   ars:         'bg-rose-900 text-rose-300',
   dfs:         'bg-teal-900 text-teal-300',
   sup:         'bg-green-900 text-green-300',
-  kinesis:     'bg-orange-900 text-orange-300',
-  lambda:      'bg-yellow-900 text-yellow-300',
+  firehose:    'bg-orange-900 text-orange-300',
   eventbridge: 'bg-indigo-900 text-indigo-300',
 }
 
