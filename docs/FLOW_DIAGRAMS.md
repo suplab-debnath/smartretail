@@ -2,7 +2,7 @@
 
 Legend:
 ```
-────►   Production path  (cdk-prod / cdk-dev — Kinesis, RDS Proxy, CloudFront)
+────►   Production path  (cdk-prod / cdk-dev — Firehose, RDS Proxy, CloudFront)
 - - ->  Demo path        (cdk-demo — SQS-only, direct RDS, S3 website)
 ═════►  Shared path      (identical in both)
 ```
@@ -16,22 +16,26 @@ A sale at a store terminal enters the system through SIS and drives inventory up
 ```
 POS Terminal
     │
-    │  HTTP POST /v1/ingest/sales
-    │
+    │  store LAN / batch
     ▼
-[ API Gateway ]
+[ Store-Edge Aggregator ]  (outside AWS — Greengrass or equiv.)
     │
+    │  Firehose PutRecordBatch (HTTPS, IAM SigV4)
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  INGESTION                                                      │
 │                                                                 │
-│   ────────────────────────────────────► Kinesis Data Stream     │  prod only
-│                                              │                  │
+│   ──────────────────────────────────────► Store-Edge Aggregator │  prod only
+│                                              │  IAM SigV4       │
 │                                              ▼                  │
-│   SIS (ECS)  ◄─────────────────── Lambda (kinesis-consumer)    │  prod only
+│                                      Amazon Data Firehose       │  prod only
+│                                       ├── S3 raw archive        │
+│                                       └── API GW HTTP endpoint  │
+│                                              │  VPC Link        │
+│   SIS (ECS)  ◄──────────────────────────────┘                  │  prod only
 │                                                                 │
 │   - - - - - - - - - - - - - - - - - - - - - - - - - - - - ->   │
-│   SIS puts directly onto SQS (no Kinesis, no Lambda)           │  demo only
+│   SIS accepts direct POST (no Firehose, no Lambda)             │  demo only
 │   [SIS not deployed in demo — data pre-seeded via V7 SQL]      │  demo only
 └─────────────────────────────────────────────────────────────────┘
     │
@@ -51,7 +55,7 @@ POS Terminal
                               ▼ (see Flow 2 fan-out)
 ```
 
-**Idempotency (prod only):** Lambda writes SHA-256 of `transactionId` to DynamoDB before forwarding to SIS. Duplicate POS events are dropped.
+**Idempotency (prod only):** SIS checks and writes SHA-256 of `transactionId` to `sales.idempotency_keys` (RDS) within the same transaction as the `sales_events` INSERT. Duplicate Firehose-delivered events are silently skipped and SIS returns 200 OK (Firehose interprets this as success).
 
 ---
 
@@ -121,7 +125,7 @@ Only POs in `PENDING_APPROVAL` status reach this flow.
 └─────────────────────────────────────────────────────────────────┘
     │
     ▼
-  ALB  ──►  RE (ECS)
+  API Gateway (VPC Link)  ──►  RE (ECS)
               │
               ├═════► Validate: status must be PENDING_APPROVAL (else 409)
               ├═════► Validate: SC_PLANNER or ADMIN role (else 403)
@@ -232,7 +236,8 @@ Seed-data driven for read surfaces. Surface 9.7 (manual replenishment trigger) i
 ```
                          ┌──────────────────────────────────────────────┐
                          │  INGESTION (prod)                            │
-  POS Terminal ─────────►│  Kinesis ──► Lambda ──► SIS ──► imsSalesQueue│
+  POS Terminal ─────────►│  Edge Aggregator ──► Firehose ──► API GW      │
+                         │  ──► SIS ──► imsSalesQueue                   │
                          │                                              │
                          │  INGESTION (demo — pre-seeded, SIS absent)  │
   POS Terminal  - - - -> │  [V7 seed SQL populates RDS directly]        │

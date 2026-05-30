@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS sales.sales_events (
     unit_price       NUMERIC(10,2) NOT NULL CHECK (unit_price >= 0),
     channel          VARCHAR(20)   NOT NULL CHECK (channel IN ('POS', 'ECOMMERCE')),
     event_timestamp  TIMESTAMPTZ   NOT NULL,
-    raw_s3_reference VARCHAR(500),
     created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     CONSTRAINT sales_events_pk PRIMARY KEY (transaction_id, event_date)
 ) PARTITION BY RANGE (event_date);
@@ -34,5 +33,16 @@ CREATE INDEX IF NOT EXISTS idx_sales_store_date
 COMMENT ON TABLE sales.sales_events IS
     'Partitioned by event_date. Owned exclusively by SIS. No other service may write here.';
 
-COMMENT ON COLUMN sales.sales_events.raw_s3_reference IS
-    'S3 URI of the archived raw Kinesis payload. Written by SIS S3 outbound adapter.';
+-- ── Idempotency keys (SIS deduplication) ─────────────────────────────────────
+-- Dedup check and sales_events INSERT are in the same @Transactional boundary.
+-- Firehose retries deliver duplicates that are silently skipped via this table.
+CREATE TABLE IF NOT EXISTS sales.idempotency_keys (
+    event_id    VARCHAR(64)  PRIMARY KEY,
+    received_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_received_at
+    ON sales.idempotency_keys (received_at);
+
+COMMENT ON TABLE sales.idempotency_keys IS
+    'SIS deduplication — 48h rolling window. Cleaned hourly by IdempotencyCleanupJob.';

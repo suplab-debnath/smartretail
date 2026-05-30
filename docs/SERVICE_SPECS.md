@@ -11,49 +11,24 @@ All services share this Maven parent POM structure:
  
 ---
  
-## Kinesis Consumer Lambda (SIS Inbound Adapter)
- 
-Location: `backend/adapters/kinesis-consumer/`
-Handler: `com.smartretail.lambda.kinesis.KinesisConsumerHandler`
- 
-### Responsibilities
- 
-1. Receive a batch of Kinesis records
-2. For each record:
-   a. Deserialize the POS event JSON
-   b. Compute SHA-256(transactionId) → check DynamoDB (GetItem)
-   c. If duplicate: skip silently, log at DEBUG
-   d. If not duplicate: validate JSON schema
-   e. If invalid: route to SQS DLQ with error envelope
-   f. If valid: POST to SIS /v1/ingest/events endpoint
-   g. On SIS 202: write idempotency key to DynamoDB (TTL = now + 48h)
-   h. On SIS 409: duplicate detected by SIS (race condition) — skip
-   i. On SIS 4xx/5xx: retry with exponential backoff, DLQ after 3 attempts
- 
-### Key implementation notes
- 
-- Uses `bisect-on-error: true` in Kinesis event source mapping
-- SIS endpoint URL read from environment variable SIS_ENDPOINT
-- DynamoDB table name read from environment variable IDEMPOTENCY_TABLE_NAME
-- Uses AWS SDK v2 async clients
-- No business logic here — pure infrastructure adapter
- 
-### POS event JSON format (Kinesis record payload):
-```json
-{
-  "transactionId": "uuid",
-  "storeId": "STORE-001",
-  "skuId": "SKU-BEV-001",
-  "dcId": "DC-LONDON",
-  "quantity": 30,
-  "unitPrice": 8.50,
-  "channel": "POS",
-  "eventTimestamp": "2026-05-15T14:23:00Z"
-}
+## Firehose HTTP Endpoint — SIS Inbound Adapter
+
+> **The Kinesis Consumer Lambda has been removed.** Amazon Data Firehose now delivers inbound POS event batches
+> directly to the SIS REST endpoint via the Firehose HTTP endpoint destination → API Gateway → VPC Link.
+> There is no intermediate Lambda on the ingest path.
+
+The SIS REST controller (`SalesIngestionController`) handles both:
+- **Firehose batch format** — detects `X-Amz-Firehose-Request-Id` header; decodes batch envelope; processes each record; returns Firehose response `{"requestId":"...","timestamp":...}`
+- **Direct POST format** — single-record body for local dev, legacy callers, and test scripts
+
+Access key validation (Firehose path):
 ```
- 
----
- 
+SalesIngestionController reads X-Amz-Firehose-Access-Key header
+    → compare against cached value from Secrets Manager (/smartretail/{env}/firehose/ingest-access-key)
+    → key cached at startup; refreshed on 401 from Secrets Manager
+    → 403 if key mismatch
+```
+
 ## Batch Post-Processor Lambda (DFS Inbound Adapter)
  
 Location: `backend/adapters/batch-post-processor/`
@@ -116,8 +91,7 @@ com.smartretail.sis/
 │   └── outbound/
 │       ├── EventStorePort.java            ← interface
 │       ├── EventPublisherPort.java        ← interface
-│       ├── RawArchivePort.java            ← interface
-│       └── IdempotencyPort.java           ← interface
+│       └── IdempotencyPort.java           ← interface (backed by RDS, not DynamoDB)
 └── adapter/
     ├── inbound/
     │   └── rest/
@@ -128,7 +102,6 @@ com.smartretail.sis/
         ├── event/
         │   └── EventBridgePublisher.java  ← implements EventPublisherPort
         ├── archive/
-        │   └── S3RawArchiveAdapter.java   ← implements RawArchivePort
         └── idempotency/
             └── DynamoDbIdempotencyAdapter.java ← implements IdempotencyPort
 ```
@@ -175,13 +148,12 @@ public record IngestionResult(UUID transactionId, IngestionStatus status) {
 @Component
 public class SalesIngestionUseCase implements SalesEventPort {
  
-    private final EventStorePort eventStore;
-    private final EventPublisherPort eventPublisher;
-    private final RawArchivePort rawArchive;
-    private final IdempotencyPort idempotency;
+    private final EventStorePort eventStore;           // RDS sales_events
+    private final EventPublisherPort eventPublisher;   // EventBridge
+    private final IdempotencyPort idempotency;         // RDS idempotency_keys (NOT DynamoDB)
  
     @Override
-    @Transactional  // Spring transaction — NOT AWS
+    @Transactional  // Spring transaction — covers both sales_events AND idempotency_keys inserts
     public IngestionResult ingest(SalesTransaction transaction) {
         String eventId = sha256(transaction.getTransactionId().toString());
  
@@ -189,12 +161,13 @@ public class SalesIngestionUseCase implements SalesEventPort {
             return new IngestionResult(transaction.getTransactionId(), DUPLICATE);
         }
  
+        // eventStore.save + idempotency.markProcessed are in the SAME @Transactional boundary
         eventStore.save(transaction);
-        rawArchive.archive(transaction);
-        idempotency.markProcessed(eventId);
+        idempotency.markProcessed(eventId);  // INSERT INTO sales.idempotency_keys
         eventPublisher.publish(new SalesTransactionEvent(transaction));
  
         return new IngestionResult(transaction.getTransactionId(), ACCEPTED);
+        // Note: S3 raw archive is written by Firehose natively — SIS has no S3 write obligation
     }
 }
 ```
@@ -239,6 +212,7 @@ public class SalesEventRepository implements EventStorePort {
             INSERT INTO sales.sales_events
               (transaction_id, event_date, store_id, sku_id, dc_id,
                quantity, unit_price, channel, event_timestamp)
+            -- Note: raw_s3_reference column removed; Firehose writes S3 archive natively
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             transaction.getTransactionId(),

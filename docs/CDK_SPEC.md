@@ -3,7 +3,7 @@
 All CDK stacks are in TypeScript.
 
 - **Demo / dev stack** (`environments/demo/infra/`) — SQS-only, reuses default VPC. **This is the stack to run.** Stack names: `Min-*`.
-- **Production stack** (`environments/prod/infra/`) — Kinesis, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
+- **Production stack** (`environments/prod/infra/`) — Firehose, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
 
 The specifications below describe `environments/demo/infra/` (the demo stack).
 Deploy in order: Network → Data → Messaging → Identity → Compute → API.
@@ -15,8 +15,8 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 | Stack | Path | Purpose | CPU arch | Stack prefix |
 |-------|------|---------|----------|-------------|
 | **cdk-demo** | `environments/demo/infra/` | Demo only — SQS, default VPC, ARM64, cheap | ARM64 | `Min-*` |
-| **cdk-dev** | `environments/dev/infra/` | Full dev — Kinesis, 2-AZ VPC, RDS Proxy, CloudFront, X86_64 | X86_64 | `Dev-*` |
-| **cdk-prod** | `environments/prod/infra/` | Production — Kinesis, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64 | `Prod-*` |
+| **cdk-dev** | `environments/dev/infra/` | Full dev — Firehose, 2-AZ VPC, RDS Proxy, CloudFront, X86_64 | X86_64 | `Dev-*` |
+| **cdk-prod** | `environments/prod/infra/` | Production — Firehose, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64 | `Prod-*` |
 
 **cdk-demo** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
 **cdk-dev** and **cdk-prod** are deployed manually from their respective directories.
@@ -40,7 +40,7 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 
 Both stacks deploy 7 ECS services (SIS, IMS, RE, ARS, DFS, SUP, PPS), 4 MFE CloudFront
 distributions (store-manager, sc-planner, executive, supplier), 2 Cognito pools
-(internal + supplier), Kinesis + Lambda consumer, and RDS Proxy.
+(internal + supplier), Firehose delivery stream, and RDS Proxy.
 
 ---
 
@@ -123,7 +123,7 @@ sg-vpc-endpoints:
 ```typescript
 // Gateway endpoints (free)
 vpc.addGatewayEndpoint('S3Endpoint', { service: ec2.GatewayVpcEndpointAwsService.S3 });
-vpc.addGatewayEndpoint('DynamoDBEndpoint', { service: ec2.GatewayVpcEndpointAwsService.DYNAMODB });
+// DynamoDB Gateway endpoint removed — DynamoDB not provisioned
  
 // Interface endpoints (charged per hour)
 const endpointServices = [
@@ -158,8 +158,9 @@ File: `environments/demo/infra/lib/data-stack.ts`
 Creates:
 - RDS PostgreSQL Multi-AZ
 - RDS Proxy
-- DynamoDB idempotency table
 - S3 buckets
+- Secrets Manager secret for Firehose ingest access key
+> Note: DynamoDB idempotency table removed — idempotency uses `sales.idempotency_keys` in RDS (Flyway V1).
  
 ### RDS PostgreSQL
  
@@ -200,18 +201,16 @@ const rdsProxy = new rds.DatabaseProxy(this, 'SmartRetailRdsProxy', {
 });
 ```
  
-### DynamoDB
- 
+### Firehose Ingest Access Key (Secrets Manager)
+
 ```typescript
-const idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
-  tableName: `smartretail-idempotency-keys-${env}`,
-  partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-  timeToLiveAttribute: 'expires_at',
-  removalPolicy: cdk.RemovalPolicy.DESTROY,
+const firehoseAccessKey = new secretsmanager.Secret(this, 'FirehoseIngestKey', {
+  secretName: `/smartretail/${env}/firehose/ingest-access-key`,
+  generateSecretString: { excludePunctuation: true, passwordLength: 64 },
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
 });
 ```
- 
+
 ### S3 Buckets
  
 ```typescript
@@ -253,7 +252,7 @@ new s3.Bucket(this, 'SageMakerBucket', {
 /smartretail/{env}/rds/proxy-endpoint
 /smartretail/{env}/rds/instance-endpoint
 /smartretail/{env}/rds/secret-arn
-/smartretail/{env}/dynamodb/idempotency-table-name
+/smartretail/{env}/firehose/ingest-access-key (Secrets Manager ARN)
 /smartretail/{env}/s3/events-bucket-name
 /smartretail/{env}/s3/sagemaker-bucket-name
 /smartretail/{env}/s3/mfe-store-manager-bucket
@@ -268,22 +267,36 @@ new s3.Bucket(this, 'SageMakerBucket', {
 File: `environments/demo/infra/lib/messaging-stack.ts`
  
 Creates:
-- Kinesis Data Stream
+- Amazon Data Firehose delivery stream
 - EventBridge custom bus
 - SQS queues with DLQs
 - EventBridge rules routing to SQS
  
-### Kinesis
- 
+### Amazon Data Firehose
+
 ```typescript
-const stream = new kinesis.Stream(this, 'SmartRetailStream', {
-  streamName: `smartretail-events-${env}`,
-  streamMode: kinesis.StreamMode.ON_DEMAND,
-  retentionPeriod: cdk.Duration.days(7),
-  encryption: kinesis.StreamEncryption.KMS,
+const deliveryStream = new firehose.CfnDeliveryStream(this, 'SmartRetailIngest', {
+  deliveryStreamName: `smartretail-ingest-${env}`,
+  deliveryStreamType: 'DirectPut',
+  httpEndpointDestinationConfiguration: {
+    endpointConfiguration: {
+      url: `https://${apiGatewayDomain}/ingest/v1/ingest/events`,
+      accessKey: firehoseAccessKey.secretValue.unsafeUnwrap(),
+    },
+    retryOptions: { durationInSeconds: 86400 },
+    s3BackupMode: 'FailedDataOnly',
+    roleArn: firehoseDeliveryRole.roleArn,
+  },
+  extendedS3DestinationConfiguration: {
+    bucketArn: eventsBucket.bucketArn,
+    prefix: 'events/!{timestamp:yyyy/MM/dd}/',
+    errorOutputPrefix: 'firehose-backup/',
+    bufferingHints: { intervalInSeconds: 60, sizeInMBs: 5 },
+    roleArn: firehoseDeliveryRole.roleArn,
+  },
 });
 ```
- 
+
 ### EventBridge
  
 ```typescript
@@ -451,7 +464,7 @@ Creates:
 - IAM task roles (per service)
 - ECS Task Definitions (per service)
 - ECS Services (per service)
-- Kinesis Consumer Lambda
+> Kinesis Consumer Lambda removed — Firehose delivers directly to SIS via API Gateway
  
 ### ECS Cluster
  
@@ -523,34 +536,11 @@ const service = new ecs.FargateService(this, `${serviceName}Service`, {
 });
 ```
  
-### Kinesis Consumer Lambda
- 
-```typescript
-const kinesisConsumerFn = new lambda.Function(this, 'KinesisConsumer', {
-  functionName: `smartretail-kinesis-consumer-${env}`,
-  runtime: lambda.Runtime.JAVA_21,
-  handler: 'com.smartretail.lambda.kinesis.KinesisConsumerHandler::handleRequest',
-  code: lambda.Code.fromEcr(kinesisConsumerEcrRepo),
-  vpc,
-  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-  securityGroups: [sgEcsTasks],
-  timeout: cdk.Duration.seconds(300),
-  memorySize: 512,
-  environment: {
-    SIS_ENDPOINT: `http://${sisServiceDnsName}:8080`,
-    ENV: env,
-  },
-});
- 
-// Kinesis event source
-kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(kinesisStream, {
-  startingPosition: lambda.StartingPosition.LATEST,
-  batchSize: 100,
-  bisectBatchOnError: true,
-  retryAttempts: 3,
-}));
-```
- 
+### Kinesis Consumer Lambda — Removed
+
+> Eliminated. Firehose now delivers directly to SIS via API Gateway HTTP endpoint + VPC Link.
+> The `backend/adapters/kinesis-consumer/` directory and its ECR repository are removed.
+
 ### Batch Post-Processor Lambda
  
 ```typescript

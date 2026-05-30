@@ -17,7 +17,6 @@
     <name>SmartRetail Prototype - Lambda Aggregator</name>
 
     <modules>
-        <module>kinesis-consumer</module>
         <module>batch-post-processor</module>
     </modules>
 </project>

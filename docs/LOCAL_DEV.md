@@ -65,7 +65,7 @@ docker-compose up -d
  
 # This starts:
 #   postgres:15       → localhost:5432
-#   localstack        → localhost:4566 (Kinesis, EventBridge, SQS, DynamoDB, S3)
+#   localstack        → localhost:4566 (EventBridge, SQS, S3, SSM, Secrets Manager)
 #   localstack-init   → runs setup scripts after LocalStack is ready
  
 # 2. Wait for LocalStack to be ready
@@ -128,7 +128,7 @@ services:
     ports:
       - "4566:4566"
     environment:
-      SERVICES: kinesis,events,sqs,dynamodb,s3,ssm,secretsmanager,iam,sts
+      SERVICES: events,sqs,s3,ssm,secretsmanager,iam,sts
       DEBUG: 0
       PERSISTENCE: 1
       DATA_DIR: /tmp/localstack/data
@@ -137,7 +137,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./environments/local/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'"]
+      test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"sqs\": \"running\"'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -164,11 +164,8 @@ ACCOUNT="000000000000"  # LocalStack fake account ID
  
 echo "Creating LocalStack resources..."
  
-# Kinesis stream
-aws --endpoint-url=$ENDPOINT kinesis create-stream \
-    --stream-name "smartretail-events-${ENV}" \
-    --shard-count 1 \
-    --region $REGION
+# Firehose is not emulated locally — SIS accepts direct POST in LOCAL mode
+# (No Kinesis stream creation needed)
  
 # EventBridge bus
 aws --endpoint-url=$ENDPOINT events create-event-bus \
@@ -239,12 +236,8 @@ aws --endpoint-url=$ENDPOINT events put-targets \
     --targets "[{\"Id\":\"ars-target\",\"Arn\":\"${ARS_QUEUE_ARN}\"}]" \
     --region $REGION
  
-# DynamoDB idempotency table
-aws --endpoint-url=$ENDPOINT dynamodb create-table \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --attribute-definitions AttributeName=event_id,AttributeType=S \
-    --key-schema AttributeName=event_id,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST \
+# SIS idempotency is now RDS-based (sales.idempotency_keys)
+# No DynamoDB table creation needed — Flyway migration V1 creates the table
     --region $REGION
  
 # S3 bucket
@@ -257,7 +250,6 @@ PARAMS=(
     "/smartretail/local/rds/proxy-endpoint=localhost"
     "/smartretail/local/rds/database-name=smartretail"
     "/smartretail/local/eventbridge/bus-name=smartretail-events-local"
-    "/smartretail/local/kinesis/stream-name=smartretail-events-local"
     "/smartretail/local/sqs/ims-sales-queue-url=http://localhost:4566/000000000000/smartretail-ims-sales-local"
     "/smartretail/local/sqs/re-alert-queue-url=http://localhost:4566/000000000000/smartretail-re-alert-local.fifo"
     "/smartretail/local/sqs/ars-updates-queue-url=http://localhost:4566/000000000000/smartretail-ars-updates-local"
@@ -315,8 +307,7 @@ smartretail:
     ims-sales-queue-url: http://localhost:4566/000000000000/smartretail-ims-sales-local
     re-alert-queue-url: http://localhost:4566/000000000000/smartretail-re-alert-local.fifo
     ars-updates-queue-url: http://localhost:4566/000000000000/smartretail-ars-updates-local
-  kinesis:
-    stream-name: smartretail-events-local
+# kinesis config removed — Firehose delivers via HTTP endpoint; LOCAL mode uses direct POST to SIS
  
 logging:
   level:
@@ -530,7 +521,7 @@ local-up:
   docker-compose up -d
   @echo "Waiting for services to be ready..."
   @until docker-compose exec postgres pg_isready -U smartretail_admin; do sleep 2; done
-  @until curl -s http://localhost:4566/_localstack/health | grep '"kinesis": "running"'; do sleep 3; done
+  @until curl -s http://localhost:4566/_localstack/health | grep '"sqs": "running"'; do sleep 3; done
   @echo "✅ Local environment ready"
  
 local-migrate:
@@ -627,7 +618,7 @@ build-services:
     -am --no-transfer-progress
  
 build-lambda:
-  mvn clean package -pl backend/adapters/kinesis-consumer,backend/adapters/batch-post-processor --no-transfer-progress
+  mvn clean package -pl backend/adapters/batch-post-processor --no-transfer-progress
  
 build-mfes:
   cd mfe/store-manager && npm run build

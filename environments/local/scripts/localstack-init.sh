@@ -13,15 +13,33 @@ ACCOUNT="000000000000"  # LocalStack fake account ID
 
 echo "Creating LocalStack resources for env=${ENV}..."
 
-# ── Kinesis ──────────────────────────────────────────────────────────────────
-echo "Creating Kinesis stream..."
+# ── Firehose delivery stream ──────────────────────────────────────────────────
+echo "Creating Firehose delivery stream..."
 
-awslocal --endpoint-url=$ENDPOINT kinesis create-stream \
-    --stream-name "smartretail-events-${ENV}" \
-    --shard-count 1 \
+# SIS must be running on the host before Firehose can deliver records.
+# host.docker.internal resolves to the host machine on Mac/Linux with host-gateway.
+SIS_HOST="${LOCALSTACK_SIS_HOST:-host.docker.internal}"
+
+awslocal firehose create-delivery-stream \
+    --delivery-stream-name "smartretail-ingest-${ENV}" \
+    --delivery-stream-type DirectPut \
+    --http-endpoint-destination-configuration "{
+      \"EndpointConfiguration\": {
+        \"Url\": \"http://${SIS_HOST}:8080/v1/ingest/events\",
+        \"Name\": \"smartretail-sis-local\",
+        \"AccessKey\": \"local-dev-key\"
+      },
+      \"BufferingHints\": { \"SizeInMBs\": 1, \"IntervalInSeconds\": 0 },
+      \"RetryOptions\": { \"DurationInSeconds\": 60 },
+      \"S3BackupMode\": \"FailedDataOnly\",
+      \"S3Configuration\": {
+        \"BucketARN\": \"arn:aws:s3:::smartretail-events-${ENV}\",
+        \"RoleARN\": \"arn:aws:iam::${ACCOUNT}:role/firehose-local-role\"
+      }
+    }" \
     --region $REGION
 
-echo "✅ Kinesis stream created"
+echo "✅ Firehose delivery stream created"
 
 # ── EventBridge ───────────────────────────────────────────────────────────────
 echo "Creating EventBridge bus..."
@@ -141,24 +159,6 @@ awslocal --endpoint-url=$ENDPOINT sqs set-queue-attributes \
 
 echo "✅ SQS queue policies set"
 
-# ── DynamoDB ──────────────────────────────────────────────────────────────────
-echo "Creating DynamoDB table..."
-
-awslocal --endpoint-url=$ENDPOINT dynamodb create-table \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --attribute-definitions AttributeName=event_id,AttributeType=S \
-    --key-schema AttributeName=event_id,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST \
-    --region $REGION
-
-# Enable TTL on expires_at attribute
-awslocal --endpoint-url=$ENDPOINT dynamodb update-time-to-live \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --time-to-live-specification "Enabled=true,AttributeName=expires_at" \
-    --region $REGION
-
-echo "✅ DynamoDB table created"
-
 # ── S3 ────────────────────────────────────────────────────────────────────────
 echo "Creating S3 bucket..."
 awslocal --endpoint-url=$ENDPOINT s3 mb \
@@ -194,22 +194,8 @@ awslocal ssm put-parameter \
     --region $REGION || true
 
 awslocal ssm put-parameter \
-    --name "/smartretail/local/kinesis/stream-name" \
-    --value "smartretail-events-local" \
-    --type String \
-    --overwrite \
-    --region $REGION || true
-
-awslocal ssm put-parameter \
-    --name "/smartretail/local/s3/events-bucket" \
-    --value "smartretail-events-local" \
-    --type String \
-    --overwrite \
-    --region $REGION || true
-
-awslocal ssm put-parameter \
-    --name "/smartretail/local/dynamodb/idempotency-table" \
-    --value "smartretail-idempotency-keys-local" \
+    --name "/smartretail/local/firehose/stream-name" \
+    --value "smartretail-ingest-local" \
     --type String \
     --overwrite \
     --region $REGION || true

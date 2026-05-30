@@ -25,7 +25,7 @@ Six end-to-end flows on real AWS infrastructure (or LocalStack locally). Build i
 
 | Flow | Name                                                                                                                                                                                                                                                                     | Depends on |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| 1    | POS event → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                                                                                                  | —          |
+| 1    | POS event → Firehose → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                                                                                        | —          |
 | 2    | Inventory alert → RE auto-approve → RDS state transition                                                                                                                                                                                                                 | Flow 1     |
 | 3    | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                                                                                                   | Flow 2     |
 | 4    | ARS → Store Manager Dashboard MFE                                                                                                                                                                                                                                        | Flows 1–3  |
@@ -42,7 +42,7 @@ Flows 8 and 9 use pre-populated seed data. Flow 9 also exercises a write path fo
 | --- | ------------------------- | ----------------------------------------------------------- |
 | 1   | `CLAUDE.md`               | Overview, rules, repository structure                       |
 | 2   | `docs/ARCHITECTURE.md`    | Confirmed architecture decisions                            |
-| 3   | `docs/SCHEMAS.md`         | All 6 RDS schemas + DynamoDB table                          |
+| 3   | `docs/SCHEMAS.md`         | All 6 RDS schemas + idempotency_keys table (sales schema)   |
 | 4   | `docs/API_CONTRACTS.md`   | REST endpoints, request/response shapes, EventBridge events |
 | 5   | `docs/FLOWS.md`           | Flow specifications + observable evidence checklists        |
 | 6   | `docs/SEED_DATA.md`       | Reference data, test users, seed SQL                        |
@@ -100,12 +100,12 @@ smartretail/
 │  │  │  ├── run-flyway-aws-demo.sh
 │  │  │  └── destroy-infra.sh
 │  │  └── README.md
-│  ├── dev/                ← dev stack (Kinesis, 2-AZ VPC, RDS Proxy, CloudFront)
+│  ├── dev/                ← dev stack (Firehose, 2-AZ VPC, RDS Proxy, CloudFront)
 │  │  ├── infra/           ← CDK stack (Dev-* stacks)
 │  │  ├── scripts/
 │  │  │  └── deploy-cdk.sh
 │  │  └── README.md
-│  ├── prod/               ← production stack (Kinesis, 3-AZ VPC, Multi-AZ RDS) — manual deploys only
+│  ├── prod/               ← production stack (Firehose, 3-AZ VPC, Multi-AZ RDS) — manual deploys only
 │  │  ├── infra/           ← CDK stack (Prod-* stacks)
 │  │  └── README.md
 │  └── shared/
@@ -115,8 +115,8 @@ smartretail/
 │   │   ├── sis/  ims/  re/  ars/  dfs/  sup/  pps/
 │   │   │   └── src/main/resources/{svc}-api.yaml  ← OpenAPI spec (self-contained, components inlined)
 │   ├── adapters/
-│   │   ├── kinesis-consumer/      ← Kinesis → SIS inbound adapter Lambda
 │   │   └── batch-post-processor/  ← SageMaker S3 output → DFS inbound adapter Lambda
+│   │   ← Note: kinesis-consumer/ removed — Firehose delivers directly to SIS via API Gateway
 │   ├── migrations/
 │   │   └── src/main/resources/db/migration/
 │   │       ├── V1__create_sales_schema.sql

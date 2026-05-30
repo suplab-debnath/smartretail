@@ -354,32 +354,9 @@ COMMENT ON TABLE promotions.promotion_schedules IS
  
 ---
  
-## DynamoDB Table: idempotency-keys (owned by SIS)
- 
-```
-Table name:    smartretail-idempotency-keys-{env}
-Billing mode:  PAY_PER_REQUEST (On-Demand)
-Encryption:    AWS_OWNED_KMS
- 
-Attributes:
-  event_id    (S)   ← SHA-256 hex of transactionId   [Partition Key]
-  expires_at  (N)   ← Unix epoch seconds (TTL attribute)
- 
-TTL attribute name: expires_at
-TTL value:          current_time_epoch + (48 * 3600)
- 
-No GSIs. No sort key. Key-only lookup — GetItem and PutItem only.
-```
- 
-CDK definition:
-```typescript
-const idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
-  tableName: `smartretail-idempotency-keys-${env}`,
-  partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-  timeToLiveAttribute: 'expires_at',
-  removalPolicy: cdk.RemovalPolicy.DESTROY, // prototype only
-});
-```
- 
- 
+## DynamoDB — Removed
+
+> The `smartretail-idempotency-keys-{env}` DynamoDB table has been removed.
+> SIS idempotency deduplication now uses `sales.idempotency_keys` in RDS PostgreSQL (see Schema 1 above).
+> No DynamoDB resources are provisioned in any stack.
+

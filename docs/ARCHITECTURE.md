@@ -35,15 +35,13 @@ All follow Hexagonal Architecture (Ports & Adapters).
  
 ## Lambda Functions
  
-Three Lambda functions exist in the full production architecture. Two have source code in `backend/adapters/`.
+Two Lambda functions exist in the production architecture. One has source code in `backend/adapters/`.
  
 | Lambda | Directory | Trigger | Status |
 |--------|-----------|---------|--------|
-| Kinesis Consumer Lambda | `backend/adapters/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
 | Batch Post-Processor Lambda | `backend/adapters/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
 | SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
  
-**Kinesis Consumer Lambda** is a SIS inbound adapter: deduplicates POS events via DynamoDB and forwards to SIS via HTTP.
  
 **Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, and POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
  
@@ -96,18 +94,17 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
 - Connection pool: 10 connections per ECS task (HikariCP max-pool-size = 10)
 - Endpoint stored in Parameter Store at `/smartretail/{env}/rds/proxy-endpoint`
  
-### Secondary Store: Amazon DynamoDB
- 
-- Table name: `smartretail-idempotency-keys-{env}`
-- Purpose: SIS deduplication only
-- PK: `event_id` (SHA-256 of transactionId)
-- TTL attribute: `expires_at` (processed_at + 48 hours)
-- Capacity: On-Demand
-- No GSIs
- 
+### SIS Idempotency Table (RDS — sales schema)
+ 
+- Table: `sales.idempotency_keys`
+- Purpose: SIS deduplication — prevents reprocessing of duplicate Firehose-delivered events
+- PK: `event_id VARCHAR(64)` — SHA-256 of `transactionId`
+- Column: `received_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+- TTL mechanism: Spring `@Scheduled` job in SIS — `DELETE WHERE received_at < now() - INTERVAL '48 hours'` (runs hourly)
+- No DynamoDB. Dedup check and `sales_events` INSERT are in the same RDS transaction.
 ### S3
  
-- `smartretail-events-{env}`: raw POS JSON archive (SIS writes)
+- `smartretail-events-{env}`: raw POS JSON archive (Amazon Data Firehose writes natively — SIS does not write to S3 directly)
 - `smartretail-sagemaker-{env}`: SageMaker training data, model artefacts, and transform output (key prefix: `sagemaker/output/{run_id}/part-*.csv`)
 - `smartretail-mfe-{env}-{mfe-name}`: MFE static assets (4 buckets)
  
@@ -115,13 +112,16 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
  
 ## Messaging Architecture
  
-### Kinesis Data Streams
- 
-- Stream name: `smartretail-events-{env}`
-- Shard mode: On-Demand
-- Retention: 7 days
-- Consumer: Kinesis Consumer Lambda (SIS inbound adapter)
- 
+### Amazon Data Firehose (Ingest Path)
+ 
+- Delivery stream name: `smartretail-ingest-{env}`
+- Source: Store-edge aggregator (AWS IoT Greengrass or equivalent) authenticates via IAM SigV4
+- Destination 1 (primary): S3 `smartretail-events-{env}` — raw archive, SSE-KMS, prefix `events/{yyyy/MM/dd}/`
+- Destination 2 (processing): HTTP endpoint → API Gateway ingest stage → VPC Link → SIS `/v1/ingest/events`
+- Buffer: 5 MB or 60 s (configurable CDK context parameter)
+- API Gateway auth: static access key in Secrets Manager (`/smartretail/{env}/firehose/ingest-access-key`)
+- On HTTP delivery failure: Firehose retries, then writes to S3 backup prefix `firehose-backup/`
+- Encryption: SSE-KMS (`alias/smartretail-firehose-{env}`)
 ### EventBridge
  
 - Bus name: `smartretail-events-{env}`
@@ -182,8 +182,10 @@ Each ECS task role grants ONLY what that service needs:
  
 **SIS task role:**
 - `rds-db:connect` to RDS Proxy (sales schema user)
-- `dynamodb:GetItem`, `dynamodb:PutItem` on idempotency-keys table
-- `s3:PutObject` on smartretail-events bucket
+- `secretsmanager:GetSecretValue` on `/smartretail/{env}/firehose/ingest-access-key`
+- `sqs:SendMessage` on SIS DLQ only
+- No DynamoDB permissions — idempotency is RDS-based (sales.idempotency_keys table)
+- No S3 PutObject — Firehose delivers raw events to S3 natively
 - `events:PutEvents` on EventBridge bus
  
 **IMS task role:**
@@ -206,7 +208,6 @@ Each ECS task role grants ONLY what that service needs:
  
 Required for all services to reach AWS APIs without internet egress:
 - S3 Gateway endpoint
-- DynamoDB Gateway endpoint
 - SQS Interface endpoint
 - EventBridge Interface endpoint
 - KMS Interface endpoint

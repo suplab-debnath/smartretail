@@ -4,7 +4,7 @@ build-services:
 	    -am --no-transfer-progress
 
 build-lambda:
-	mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
+	mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
 
 build-mfes:
 	cd mfe/shared/auth   && npm run build
@@ -25,4 +25,4 @@ docker-build-all:
 	done
 
 docker-build-lambda:
-	docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/adapters/kinesis-consumer/
+	docker buildx build --platform linux/arm64 -t smartretail-batch-post-processor:local backend/adapters/batch-post-processor/

@@ -29,7 +29,7 @@ Base path: `/v1/ingest`
 ### POST /v1/ingest/events
  
 Ingest a single sales transaction event.
-Called by the Kinesis Consumer Lambda (not directly by MFEs).
+Called by Amazon Data Firehose via its HTTP endpoint destination (routed through API Gateway ingest stage and VPC Link). Also accepts direct POSTs from legacy systems or test scripts.
  
 **Request body:**
 ```json
@@ -60,17 +60,17 @@ Called by the Kinesis Consumer Lambda (not directly by MFEs).
   ```json
   { "transactionId": "uuid", "status": "ACCEPTED" }
   ```
-- `409 Conflict` — duplicate (idempotency check matched)
+- `409 Conflict` — duplicate (idempotency_keys RDS check matched; returns 200 to Firehose, 409 to direct callers)
   ```json
   { "errorCode": "DUPLICATE_EVENT", "transactionId": "uuid" }
   ```
 - `400 Bad Request` — validation failure
  
 **Processing steps (asynchronous after 202):**
-1. Dedup check: SHA-256(transactionId) → DynamoDB GetItem
+1. Dedup check: SHA-256(transactionId) → `sales.idempotency_keys` SELECT (RDS, same transaction)
 2. If not duplicate: write to RDS sales.sales_events
 3. Write to S3 raw archive
-4. Write dedup key to DynamoDB (TTL 48h)
+4. Write dedup key to `sales.idempotency_keys` (received_at; cleaned up by scheduled job after 48h)
 5. Publish sales transaction event to EventBridge
  
 **EventBridge event published:**

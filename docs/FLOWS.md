@@ -8,9 +8,10 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 ## Flow 1: POS Event → SIS → RDS → IMS → Stock Alert → EventBridge
  
 **What this proves:**
-- Kinesis inbound ingestion
-- Lambda-as-adapter pattern (no domain logic in Lambda)
-- SIS ECS hexagonal architecture
+- Amazon Data Firehose inbound ingestion (dual delivery: S3 archive + HTTP endpoint → API Gateway → SIS)
+- Edge aggregator pattern (store-edge → Firehose; no direct POS-to-cloud connectivity)
+- SIS ECS hexagonal architecture with Firehose batch envelope handling
+- RDS idempotency_keys dedup (transactional — same RDS transaction as sales_events INSERT)
 - RDS sales schema write
 - EventBridge domain event publish
 - IMS SQS consumption
@@ -19,11 +20,12 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 - IMS EventBridge publish
  
 **Components involved:**
-- Kinesis Data Stream: `smartretail-events-{env}`
-- Lambda: Kinesis Consumer (SIS inbound adapter)
-- ECS: SIS (writes to sales schema)
-- DynamoDB: idempotency-keys table
-- S3: smartretail-events bucket
+- Store-Edge Aggregator (outside AWS — simulated by `scripts/shared/publish-pos-event.py` in test)
+- Amazon Data Firehose: `smartretail-ingest-{env}` (dual delivery)
+- S3: `smartretail-events-{env}` (raw event archive — Firehose native delivery)
+- API Gateway (ingest stage, Firehose HTTP endpoint destination)
+- ECS: SIS (validates batch, deduplicates via RDS, writes to sales schema)
+- RDS: `sales.idempotency_keys` (deduplication table, 48h TTL)
 - EventBridge: `smartretail-events-{env}` bus
 - SQS: `smartretail-ims-sales-{env}` queue
 - ECS: IMS (writes to inventory schema, publishes alert)
@@ -31,17 +33,20 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
  
 **Trigger:**
 Run `scripts/shared/publish-pos-event.py` with a test transaction payload.
+In LOCAL mode, the script POSTs directly to SIS (`http://localhost:8080/v1/ingest/events`) with a single-record body.
+In AWS mode, the script uses `aws firehose put-record` to send through the full Firehose → API Gateway → SIS path.
  
 **Observable evidence — all must be true for Flow 1 to pass:**
  
 | # | Check | How to verify |
 |---|-------|--------------|
-| 1.1 | Kinesis record appears on stream | CloudWatch Metrics: GetRecords.IteratorAgeMilliseconds |
-| 1.2 | Lambda invoked | CloudWatch Logs: /aws/lambda/smartretail-kinesis-consumer |
-| 1.3 | DynamoDB idempotency key written | AWS CLI: `aws dynamodb get-item --table-name smartretail-idempotency-keys-dev --key '{"event_id":{"S":"<sha256>"}}'` |
+| 1.1 | Firehose receives record | CloudWatch Metrics: `DeliveryToHttpEndpoint.Success` on `smartretail-ingest-{env}` |
+| 1.2 | Firehose delivers to S3 raw archive | AWS CLI: `aws s3 ls s3://smartretail-events-dev/events/` — new object with today's prefix |
+| 1.3 | Firehose delivers to API Gateway → SIS | CloudWatch Logs: `/smartretail/sis/dev` — `X-Amz-Firehose-Request-Id` in log |
+| 1.3a | RDS idempotency key written | Query: `SELECT event_id, received_at FROM sales.idempotency_keys ORDER BY received_at DESC LIMIT 5` |
 | 1.4 | SIS processes event | CloudWatch Logs: /smartretail/sis/dev — look for "SalesTransactionEvent processed" |
 | 1.5 | RDS sales_events row created | Query: `SELECT * FROM sales.sales_events WHERE transaction_id = '<uuid>'` |
-| 1.6 | S3 raw event archived | AWS CLI: `aws s3 ls s3://smartretail-events-dev/` |
+| 1.6 | S3 raw event archived by Firehose | AWS CLI: `aws s3 ls s3://smartretail-events-dev/events/` — object present |
 | 1.7 | EventBridge SalesTransactionEvent published | CloudWatch Logs: IMS service — look for SQS message received |
 | 1.8 | IMS inventory_positions updated | Query: `SELECT on_hand FROM inventory.inventory_positions WHERE sku_id = '<skuId>' AND dc_id = '<dcId>'` — should decrease by quantity |
 | 1.9 | Stock alert raised (if ATP < reorder_point) | Query: `SELECT * FROM inventory.stock_alerts WHERE status = 'ACTIVE' ORDER BY raised_at DESC LIMIT 5` |
@@ -49,7 +54,9 @@ Run `scripts/shared/publish-pos-event.py` with a test transaction payload.
  
 **Duplicate test:**
 Run `scripts/shared/publish-pos-event.py` again with the SAME transactionId.
-SIS should return 409 Conflict. No new sales_events row. DynamoDB key already exists.
+SIS should return 409 Conflict (Firehose will interpret this as success — 2xx contract met).
+No new `sales_events` row. Verify: `SELECT COUNT(*) FROM sales.idempotency_keys WHERE event_id = '<sha256>'` returns 1 (not 2).
+The dedup check is transactional — the second attempt will find the key in `idempotency_keys` and skip.
  
 ---
  

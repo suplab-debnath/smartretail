@@ -28,12 +28,14 @@ services:
 
       DEFAULT_REGION: us-east-1
       DEBUG: ${DEBUG-0}
-      SERVICES: kinesis,events,sqs,dynamodb,s3,ssm,secretsmanager,iam,sts,cognito-idp,cognito-identity
+      SERVICES: firehose,events,sqs,s3,ssm,secretsmanager,iam,sts,cognito-idp,cognito-identity
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./environments/local/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     healthcheck:
-      test: [ "CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep '\"kinesis\": \"running\"'" ]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | python3 -c \"import sys,json; d=json.load(sys.stdin)['services']; exit(0 if all(d.get(s)=='running' for s in ['firehose','sqs','events','s3','ssm']) else 1)\""]
       interval: 10s
       timeout: 5s
       retries: 20

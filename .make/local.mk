@@ -2,8 +2,8 @@ local-up:
 	docker compose up -d
 	@echo "Waiting for Postgres..."
 	@until docker exec smartretail-postgres pg_isready -U smartretail_admin 2>/dev/null; do sleep 2; done
-	@echo "Waiting for LocalStack (kinesis)..."
-	@until curl -s http://localhost:4566/_localstack/health 2>/dev/null | grep -q '"kinesis": "running"'; do sleep 3; done
+	@echo "Waiting for LocalStack (firehose, sqs, events, s3, ssm)..."
+	@until curl -sf http://localhost:4566/_localstack/health 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin)['services']; exit(0 if all(d.get(s)=='running' for s in ['firehose','sqs','events','s3','ssm']) else 1)" 2>/dev/null; do sleep 3; done
 	@echo "✅ Local environment ready"
 
 local-migrate:
