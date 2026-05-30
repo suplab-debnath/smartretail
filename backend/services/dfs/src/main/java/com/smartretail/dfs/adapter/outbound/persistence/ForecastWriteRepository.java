@@ -20,6 +20,12 @@ import java.util.UUID;
 @Repository
 public class ForecastWriteRepository implements ForecastPersistencePort {
 
+    private static final String REGISTER_RUN_SQL = """
+            INSERT INTO forecasting.forecast_runs (triggered_by, status)
+            VALUES (:triggeredBy, 'TRIGGERED')
+            RETURNING run_id
+            """;
+
     private static final String RUN_EXISTS_SQL = """
             SELECT COUNT(1) FROM forecasting.forecast_runs WHERE run_id = :runId
             """;
@@ -44,6 +50,13 @@ public class ForecastWriteRepository implements ForecastPersistencePort {
 
     public ForecastWriteRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    @Override
+    public UUID registerRun(String triggeredBy) {
+        return jdbc.queryForObject(REGISTER_RUN_SQL,
+                Map.of("triggeredBy", triggeredBy),
+                UUID.class);
     }
 
     @Override

@@ -8,6 +8,8 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
 import { DataStack } from './data-stack';
@@ -270,6 +272,63 @@ export class ComputeStack extends cdk.Stack {
       events: [s3.EventType.OBJECT_CREATED],
       filters: [{ prefix: 'sagemaker/output/', suffix: '.csv' }],
     }));
+
+    // ML Trigger Lambda — EventBridge scheduled rule → SageMaker StartPipelineExecution
+    const mlTriggerRepo = new ecr.Repository(this, 'MlTriggerRepo', {
+      repositoryName: `smartretail-ml-trigger-${srEnv}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      emptyOnDelete: true,
+    });
+
+    const mlTriggerRole = new iam.Role(this, 'MlTriggerRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
+      ],
+    });
+
+    const sagemakerPipelineName = `smartretail-demand-forecast-${srEnv}`;
+    mlTriggerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sagemaker:StartPipelineExecution'],
+      resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}`],
+    }));
+
+    const sgMlTrigger = new ec2.SecurityGroup(this, 'SgMlTrigger', {
+      vpc: network.vpc,
+      description: 'ML Trigger Lambda',
+      allowAllOutbound: true,
+    });
+
+    const mlTriggerFn = new lambda.DockerImageFunction(this, 'MlTrigger', {
+      functionName: `smartretail-ml-trigger-${srEnv}`,
+      code: lambda.DockerImageCode.fromEcr(mlTriggerRepo),
+      architecture: lambda.Architecture.X86_64,
+      vpc: network.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [sgMlTrigger],
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 256,
+      role: mlTriggerRole,
+      environment: {
+        DFS_ENDPOINT: `http://smartretail-dfs-${srEnv}.smartretail.local:8084`,
+        SAGEMAKER_PIPELINE_NAME: sagemakerPipelineName,
+        ENV: srEnv,
+      },
+    });
+
+    // Daily at 02:00 UTC — trigger SageMaker demand forecast pipeline
+    const mlTriggerRule = new events.Rule(this, 'MlTriggerSchedule', {
+      ruleName: `smartretail-ml-trigger-daily-${srEnv}`,
+      schedule: events.Schedule.cron({ hour: '2', minute: '0' }),
+      description: 'Daily SageMaker demand forecast pipeline trigger',
+    });
+    mlTriggerRule.addTarget(new eventsTargets.LambdaFunction(mlTriggerFn));
+
+    new ssm.StringParameter(this, 'SageMakerPipelineNameParam', {
+      parameterName: `/smartretail/${srEnv}/sagemaker/pipeline-name`,
+      stringValue: sagemakerPipelineName,
+    });
 
     new ssm.StringParameter(this, 'ClusterNameParam', {
       parameterName: `/smartretail/${srEnv}/ecs/cluster-name`,

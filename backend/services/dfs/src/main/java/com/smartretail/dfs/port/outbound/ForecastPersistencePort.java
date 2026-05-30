@@ -13,6 +13,8 @@ import java.util.UUID;
  */
 public interface ForecastPersistencePort {
 
+    UUID registerRun(String triggeredBy);
+
     boolean forecastRunExists(UUID runId);
 
     /**

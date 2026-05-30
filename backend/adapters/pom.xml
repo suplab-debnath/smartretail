@@ -18,5 +18,6 @@
 
     <modules>
         <module>batch-post-processor</module>
+        <module>ml-trigger</module>
     </modules>
 </project>

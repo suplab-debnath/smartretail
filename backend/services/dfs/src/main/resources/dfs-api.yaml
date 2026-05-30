@@ -248,6 +248,39 @@ components:
           description: Timestamp when ingestion completed
           example: "2026-05-24T02:15:00Z"
 
+    TriggerForecastRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        triggeredBy:
+          type: string
+          enum: [SCHEDULED, MANUAL]
+          default: SCHEDULED
+          description: What initiated this forecast run
+
+    TriggerForecastRunResponse:
+      type: object
+      required:
+        - runId
+        - status
+        - triggeredBy
+      additionalProperties: false
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: Generated forecast run identifier; passed as SageMaker pipeline parameter
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          description: Initial status of the registered run
+          example: TRIGGERED
+        triggeredBy:
+          type: string
+          enum: [SCHEDULED, MANUAL]
+          description: What triggered this forecast run
+          example: SCHEDULED
+
   responses:
     Unauthorized:
       description: Missing or invalid authentication token
@@ -345,6 +378,37 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/forecast/runs:
+    post:
+      tags:
+        - forecast
+      operationId: triggerForecastRun
+      summary: Register a new forecast run (ML Trigger Lambda)
+      description: |
+        Called exclusively by the ML Trigger Lambda (EventBridge scheduled rule) to create a
+        forecast_runs row in TRIGGERED status. Returns the runId used as the SageMaker pipeline
+        parameter so output is written to sagemaker/output/{runId}/part-*.csv.
+        Internal-only — not exposed to MFE clients.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerForecastRunRequest'
+      responses:
+        '201':
+          description: Forecast run registered; runId ready to pass to SageMaker pipeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerForecastRunResponse'
+              example:
+                runId: "550e8400-e29b-41d4-a716-446655440000"
+                status: TRIGGERED
+                triggeredBy: SCHEDULED
         '500':
           $ref: '#/components/responses/InternalServerError'
 

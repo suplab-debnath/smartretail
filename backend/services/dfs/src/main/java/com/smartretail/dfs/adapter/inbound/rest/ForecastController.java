@@ -4,10 +4,13 @@ import com.smartretail.dfs.adapter.in.web.generated.api.ForecastApi;
 import com.smartretail.dfs.adapter.in.web.generated.model.ForecastDataResponse;
 import com.smartretail.dfs.adapter.in.web.generated.model.IngestForecastResultsRequest;
 import com.smartretail.dfs.adapter.in.web.generated.model.IngestForecastResultsResponse;
+import com.smartretail.dfs.adapter.in.web.generated.model.TriggerForecastRunRequest;
+import com.smartretail.dfs.adapter.in.web.generated.model.TriggerForecastRunResponse;
 import com.smartretail.dfs.domain.model.ForecastData;
 import com.smartretail.dfs.domain.model.ForecastIngestionResult;
 import com.smartretail.dfs.domain.model.ForecastRow;
 import com.smartretail.dfs.port.inbound.ForecastQueryPort;
+import com.smartretail.dfs.port.inbound.ForecastTriggerPort;
 import com.smartretail.dfs.port.inbound.ForecastWritePort;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +30,7 @@ import java.util.UUID;
  * Demand forecast endpoints — DFS service, port 8084.
  * Read path: getForecastBands (SC_PLANNER, ADMIN).
  * Write path: ingestForecastResults (Batch Post-Processor Lambda, internal-only).
+ * Trigger path: triggerForecastRun (ML Trigger Lambda, internal-only).
  */
 @RestController
 @Tag(name = "forecast", description = "Demand forecast bands per SKU × DC")
@@ -37,16 +41,19 @@ public class ForecastController implements ForecastApi {
     private final ForecastQueryPort forecastQueryPort;
     private final ForecastResponseMapper forecastResponseMapper;
     private final ForecastWritePort forecastWritePort;
+    private final ForecastTriggerPort forecastTriggerPort;
 
     @Autowired
     private HttpServletRequest httpRequest;
 
     public ForecastController(ForecastQueryPort forecastQueryPort,
                                ForecastResponseMapper forecastResponseMapper,
-                               ForecastWritePort forecastWritePort) {
+                               ForecastWritePort forecastWritePort,
+                               ForecastTriggerPort forecastTriggerPort) {
         this.forecastQueryPort = forecastQueryPort;
         this.forecastResponseMapper = forecastResponseMapper;
         this.forecastWritePort = forecastWritePort;
+        this.forecastTriggerPort = forecastTriggerPort;
     }
 
     @Override
@@ -64,6 +71,22 @@ public class ForecastController implements ForecastApi {
         }
 
         return ResponseEntity.ok(forecastResponseMapper.toResponse(data));
+    }
+
+    @Override
+    public ResponseEntity<TriggerForecastRunResponse> triggerForecastRun(
+            TriggerForecastRunRequest request) {
+
+        String triggeredBy = (request != null && request.getTriggeredBy() != null)
+                ? request.getTriggeredBy().getValue()
+                : "SCHEDULED";
+
+        UUID runId = forecastTriggerPort.registerRun(triggeredBy);
+
+        return ResponseEntity.status(201).body(new TriggerForecastRunResponse(
+                runId,
+                "TRIGGERED",
+                TriggerForecastRunResponse.TriggeredByEnum.fromValue(triggeredBy)));
     }
 
     @Override
