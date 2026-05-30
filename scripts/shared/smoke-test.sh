@@ -96,29 +96,18 @@ flow1() {
       WHERE sa.position_id = ip.position_id
         AND ip.sku_id = '$SKU' AND ip.dc_id = '$DC';" > /dev/null 2>&1
 
-  # 1. Publish POS event — direct to SIS in local mode (Lambda consumer not running locally),
-  #    via Kinesis in AWS mode.
+  # 1. Publish POS event via Firehose (both local and AWS modes).
+  #    LocalStack Firehose delivers to SIS FirehoseBatchFilter at http://host.docker.internal:8080
   echo "Publishing POS event: txId=$TXID, sku=$SKU, dc=$DC, qty=$QTY"
-  if [ "$ENV" = "local" ]; then
-    ${PYTHON_CMD} scripts/publish-pos-event.py \
-      --transaction-id "$TXID" \
-      --sku-id "$SKU" \
-      --dc-id "$DC" \
-      --store-id "STORE-001" \
-      --quantity "$QTY" \
-      --unit-price "8.50" \
-      --channel "POS" \
-      --direct-api "$API_ENDPOINT"
-  else
-    ${PYTHON_CMD} scripts/publish-pos-event.py \
-      --transaction-id "$TXID" \
-      --sku-id "$SKU" \
-      --dc-id "$DC" \
-      --store-id "STORE-001" \
-      --quantity "$QTY" \
-      --unit-price "8.50" \
-      --channel "POS"
-  fi
+  ${PYTHON_CMD} scripts/publish-pos-event.py \
+    --transaction-id "$TXID" \
+    --sku-id "$SKU" \
+    --dc-id "$DC" \
+    --store-id "STORE-001" \
+    --quantity "$QTY" \
+    --unit-price "8.50" \
+    --channel "POS" \
+    --env "$ENV"
 
   echo "Waiting 15s for processing..."
   sleep 15
@@ -127,14 +116,10 @@ flow1() {
   SALES_COUNT=$(${PSQL} -t -c "SELECT COUNT(*) FROM sales.sales_events WHERE transaction_id = '$TXID'::uuid" | tr -d ' ')
   check "1.5 RDS sales_events row created" "$SALES_COUNT" "1"
 
-  # 3. Check DynamoDB idempotency key
+  # 3. Check RDS idempotency key (sales.idempotency_keys — RDS, same transaction as sales_events)
   SHA=$(${PYTHON_CMD} -c "import hashlib; print(hashlib.sha256('$TXID'.encode()).hexdigest())")
-  DDB_RESULT=$(${AWS_CMD} dynamodb get-item \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --key "{\"event_id\":{\"S\":\"$SHA\"}}" \
-    --query 'Item.event_id.S' \
-    --output text 2>/dev/null || echo "NOT_FOUND")
-  check "1.3 DynamoDB idempotency key written" "$DDB_RESULT" "$SHA"
+  IDEM_COUNT=$(${PSQL} -t -c "SELECT COUNT(*) FROM sales.idempotency_keys WHERE event_id = '$SHA'" | tr -d ' ')
+  check "1.3 RDS idempotency key written" "$IDEM_COUNT" "1"
 
   # 4. Check inventory_positions updated (reset to 120, minus qty=30 = 90)
   ON_HAND=$(${PSQL} -t -c "SELECT on_hand FROM inventory.inventory_positions WHERE sku_id = '$SKU' AND dc_id = '$DC'" | tr -d ' ')
@@ -148,7 +133,7 @@ flow1() {
   check "1.9 Stock alert created" "$ALERT_COUNT" "1"
 
   # 6. Duplicate test
-  echo "Testing duplicate rejection..."
+  echo "Testing duplicate rejection (direct POST path — Firehose always returns 200 for duplicates)..."
   HTTP_STATUS=$(${PYTHON_CMD} scripts/publish-pos-event.py \
     --transaction-id "$TXID" \
     --sku-id "$SKU" --dc-id "$DC" \
@@ -156,7 +141,7 @@ flow1() {
     --quantity "$QTY" --unit-price "8.50" --channel "POS" \
     --direct-api "$API_ENDPOINT" \
     --return-status)
-  check "1.6 Duplicate event rejected with 409" "$HTTP_STATUS" "409"
+  check "1.6 Duplicate event rejected with 409 (direct POST path)" "$HTTP_STATUS" "409"
 }
 
 # ─────────────────────────────────────────

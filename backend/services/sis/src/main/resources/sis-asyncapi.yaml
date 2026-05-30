@@ -1,10 +1,18 @@
 asyncapi: 2.6.0
 info:
   title: Sales Ingestion Service — Async API
-  version: 1.0.0
+  version: 2.0.0
   description: |
-    SIS publishes a SalesTransactionEvent to the EventBridge bus after every
-    successfully ingested and deduplicated POS or e-commerce transaction.
+    SIS receives POS events from Amazon Data Firehose via an HTTPS endpoint and publishes
+    a SalesTransactionEvent to the EventBridge bus after every successfully ingested and
+    deduplicated transaction.
+
+    Inbound path:
+      Firehose (DirectPut) → API GW HTTPS → VPC Link → NLB → SIS /v1/ingest/events
+      SIS FirehoseBatchFilter intercepts X-Amz-Firehose-Request-Id, base64-decodes each
+      record, deduplicates against sales.idempotency_keys in RDS, and always returns HTTP 200
+      (Firehose contract). Non-Firehose callers fall through to the normal Spring MVC path
+      (202 on success, 409 on duplicate).
 
     EventBridge routing:
       - smartretail-ims-sales-{env}   (Standard SQS)  → IMS
@@ -30,6 +38,20 @@ servers:
         enum: [dev, demo, prod]
 
 channels:
+  smartretail/sis/firehose-http:
+    description: |
+      Inbound channel. Amazon Data Firehose delivers batches of POS records to
+      POST /v1/ingest/events when the X-Amz-Firehose-Request-Id header is present.
+      Each record is a base64-encoded SalesEventRequest JSON.
+      SIS always responds HTTP 200 to satisfy the Firehose retry contract.
+      Access is authenticated via X-Amz-Firehose-Access-Key (validated against
+      the Secrets Manager secret injected as SMARTRETAIL_FIREHOSE_ACCESSKEY).
+    subscribe:
+      operationId: receivePosEventBatch
+      summary: Firehose delivers a batch of base64-encoded POS events to SIS.
+      message:
+        $ref: '#/components/messages/FirehoseBatchRequest'
+
   smartretail/sis/SalesTransactionEvent:
     description: |
       Published to EventBridge bus `smartretail-events-{env}` with
@@ -43,6 +65,13 @@ channels:
 
 components:
   messages:
+    FirehoseBatchRequest:
+      name: FirehoseBatchRequest
+      title: Firehose Batch Delivery
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/FirehoseBatchRequest'
+
     SalesTransactionEvent:
       name: SalesTransactionEvent
       title: Sales Transaction Event
@@ -62,6 +91,32 @@ components:
         $ref: '#/components/schemas/SalesTransactionEventPayload'
 
   schemas:
+    FirehoseBatchRequest:
+      type: object
+      required: [requestId, timestamp, records]
+      properties:
+        requestId:
+          type: string
+          description: Unique ID assigned by Firehose for this delivery attempt.
+          example: "aae8a6d3-f4a2-4b6c-9f5e-1234567890ab"
+        timestamp:
+          type: integer
+          format: int64
+          description: Epoch milliseconds when Firehose created this batch.
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirehoseBatchRecord'
+
+    FirehoseBatchRecord:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded SalesEventRequest JSON.
+
     SalesTransactionEventPayload:
       type: object
       required:

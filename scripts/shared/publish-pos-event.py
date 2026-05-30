@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-publish-pos-event.py — Publish test POS events to Kinesis or directly to SIS REST API.
+publish-pos-event.py — Publish test POS events via Firehose or directly to SIS REST API.
 
 Usage:
-  # Publish to Kinesis (default — triggers full Flow 1)
-  python3 scripts/publish-pos-event.py \
+  # Publish via Firehose (default — triggers full Flow 1 including FirehoseBatchFilter)
+  python3 scripts/shared/publish-pos-event.py \
     --transaction-id <uuid> \
     --sku-id SKU-BEV-001 \
     --dc-id DC-LONDON \
@@ -13,8 +13,8 @@ Usage:
     --unit-price 8.50 \
     --channel POS
 
-  # Publish directly to SIS REST API (bypasses Kinesis — useful for isolated testing)
-  python3 scripts/publish-pos-event.py \
+  # Publish directly to SIS REST API (bypasses Firehose — useful for isolated testing, e.g. duplicate 409 check)
+  python3 scripts/shared/publish-pos-event.py \
     --transaction-id <uuid> \
     --sku-id SKU-BEV-001 \
     --dc-id DC-LONDON \
@@ -22,11 +22,11 @@ Usage:
     --quantity 30 \
     --unit-price 8.50 \
     --channel POS \
-    --direct-api https://{api-id}.execute-api.us-east-1.amazonaws.com/internal \
+    --direct-api http://localhost:8080 \
     --return-status
 
   # Publish Flow 2 alert directly to RE SQS FIFO queue
-  python3 scripts/publish-pos-event.py --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON
+  python3 scripts/shared/publish-pos-event.py --flow2-direct --sku-id SKU-BEV-003 --dc-id DC-LONDON
 """
 
 import argparse
@@ -52,9 +52,9 @@ def parse_args():
   parser.add_argument('--region', default='us-east-1')
   parser.add_argument('--env', default=os.environ.get('SMARTRETAIL_ENV', 'dev'))
   parser.add_argument('--direct-api', default=None,
-            help='If set, publish directly to SIS REST API instead of Kinesis')
+            help='If set, publish directly to SIS REST API instead of Firehose')
   parser.add_argument('--return-status', action='store_true',
-            help='Print HTTP status code and exit (for smoke test use)')
+            help='Print HTTP status code and exit (for smoke test duplicate check)')
   parser.add_argument('--flow2-direct', action='store_true',
             help='Inject InventoryAlertEvent directly into RE SQS FIFO queue')
   return parser.parse_args()
@@ -71,28 +71,36 @@ def build_pos_event(args):
     "eventTimestamp": datetime.now(timezone.utc).isoformat()
   }
 
-def publish_to_kinesis(event, args):
-  """Publish POS event to Kinesis Data Stream."""
-  ssm = boto3.client('ssm', region_name=args.region)
+def publish_to_firehose(event, args):
+  """Publish POS event to Firehose delivery stream (delivers to SIS via FirehoseBatchFilter)."""
+  is_local = args.env == 'local'
+  localstack_endpoint = 'http://localhost:4566'
+  boto_kwargs = {'region_name': args.region}
+  if is_local:
+    boto_kwargs['endpoint_url'] = localstack_endpoint
+    boto_kwargs['aws_access_key_id'] = 'test'
+    boto_kwargs['aws_secret_access_key'] = 'test'
+
+  ssm = boto3.client('ssm', **boto_kwargs)
   stream_name = ssm.get_parameter(
-    Name=f'/smartretail/{args.env}/kinesis/stream-name'
+    Name=f'/smartretail/{args.env}/firehose/stream-name'
   )['Parameter']['Value']
 
-  kinesis = boto3.client('kinesis', region_name=args.region)
-  response = kinesis.put_record(
-    StreamName=stream_name,
-    Data=json.dumps(event).encode('utf-8'),
-    PartitionKey=f"{event['dcId']}#{event['skuId']}"
+  firehose = boto3.client('firehose', **boto_kwargs)
+  record_data = base64.b64encode(json.dumps(event).encode('utf-8'))
+
+  response = firehose.put_record(
+    DeliveryStreamName=stream_name,
+    Record={'Data': record_data}
   )
 
-  print(f"[OK] Published to Kinesis stream: {stream_name}")
-  print(f"  Shard ID: {response['ShardId']}")
-  print(f"  Sequence: {response['SequenceNumber']}")
+  print(f"[OK] Published to Firehose stream: {stream_name}")
+  print(f"  Record ID: {response.get('RecordId', 'n/a')}")
   print(f"  Transaction ID: {event['transactionId']}")
   print(f"  SHA-256 (idempotency key): {hashlib.sha256(event['transactionId'].encode()).hexdigest()}")
 
 def publish_to_api(event, api_base_url, return_status):
-  """Publish directly to SIS REST API (bypasses Kinesis Consumer Lambda)."""
+  """Publish directly to SIS REST API (bypasses Firehose — single-record direct POST path)."""
   import urllib.request
   import urllib.error
 
@@ -185,11 +193,7 @@ def main():
   if args.direct_api:
     publish_to_api(event, args.direct_api, args.return_status)
   else:
-    publish_to_kinesis(event, args)
+    publish_to_firehose(event, args)
 
 if __name__ == '__main__':
   main()
-
-
-
- 

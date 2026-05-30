@@ -13,44 +13,28 @@ function resolve(flowId, stepId, body = {}) {
   switch (key) {
     // ── Flow 1 ─────────────────────────────────────────────────────────────
     case 'flow1.pos-event':
-      return ENV === 'local'
-        ? {
-          cmd: process.env.PYTHON_CMD ||
-            (process.platform === 'darwin'
-              ? '/opt/homebrew/opt/python@3.13/bin/python3'
-              : process.platform === 'win32'
-                ? 'python'
-                : 'python3'),
-          args: [
-            'scripts/shared/publish-pos-event.py',
-            '--transaction-id', body.transactionId || randomUuid(),
-            '--sku-id', body.skuId || 'SKU-BEV-001',
-            '--dc-id', body.dcId || 'DC-LONDON',
-            '--store-id', body.storeId || 'STORE-001',
-            '--quantity', String(body.quantity || 30),
-            '--unit-price', '8.50',
-            '--channel', 'POS',
-            '--direct-api', cfg.services.sis,
-          ],
-        }
-        : {
-          cmd: process.env.PYTHON_CMD ||
-            (process.platform === 'darwin'
-              ? '/opt/homebrew/opt/python@3.13/bin/python3'
-              : process.platform === 'win32'
-                ? 'python'
-                : 'python3'),
-          args: [
-            'scripts/shared/publish-pos-event.py',
-            '--transaction-id', body.transactionId || randomUuid(),
-            '--sku-id', body.skuId || 'SKU-BEV-001',
-            '--dc-id', body.dcId || 'DC-LONDON',
-            '--store-id', 'STORE-001',
-            '--quantity', String(body.quantity || 30),
-            '--unit-price', '8.50',
-            '--channel', 'POS',
-          ],
-        };
+      // Both local and AWS modes publish via Firehose.
+      // Local: boto3 → LocalStack at localhost:4566 → SIS FirehoseBatchFilter
+      // AWS: boto3 → real Firehose → API GW → SIS FirehoseBatchFilter
+      return {
+        cmd: process.env.PYTHON_CMD ||
+          (process.platform === 'darwin'
+            ? '/opt/homebrew/opt/python@3.13/bin/python3'
+            : process.platform === 'win32'
+              ? 'python'
+              : 'python3'),
+        args: [
+          'scripts/shared/publish-pos-event.py',
+          '--transaction-id', body.transactionId || randomUuid(),
+          '--sku-id', body.skuId || 'SKU-BEV-001',
+          '--dc-id', body.dcId || 'DC-LONDON',
+          '--store-id', body.storeId || 'STORE-001',
+          '--quantity', String(body.quantity || 30),
+          '--unit-price', '8.50',
+          '--channel', 'POS',
+          '--env', ENV,
+        ],
+      };
 
     case 'flow1.smoke':
       return {
