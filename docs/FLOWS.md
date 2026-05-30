@@ -8,10 +8,11 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 ## Flow 1: POS Event → SIS → RDS → IMS → Stock Alert → EventBridge
  
 **What this proves:**
-- Kinesis inbound ingestion
-- Lambda-as-adapter pattern (no domain logic in Lambda)
+- POS HTTP ingest via API Gateway → SIS (no Lambda, no Kinesis SDK on terminals)
+- PostgreSQL idempotency guard (`sales.processed_transactions`)
 - SIS ECS hexagonal architecture
 - RDS sales schema write
+- Kinesis Firehose archival (SIS outbound)
 - EventBridge domain event publish
 - IMS SQS consumption
 - Inventory position update with optimistic locking
@@ -19,23 +20,34 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 - IMS EventBridge publish
  
 **Components involved:**
-- Kinesis Data Stream: `smartretail-events-{env}`
-- Lambda: Kinesis Consumer (SIS inbound adapter)
-- ECS: SIS (writes to sales schema)
-- DynamoDB: idempotency-keys table
-- S3: smartretail-events bucket
+- API Gateway: single gateway, POS route `/v1/ingest/events` (API key auth)
+- ECS: SIS (writes to sales schema; archives to Firehose)
+- Firehose: `smartretail-pos-archive-{env}` → S3
 - EventBridge: `smartretail-events-{env}` bus
 - SQS: `smartretail-ims-sales-{env}` queue
 - ECS: IMS (writes to inventory schema, publishes alert)
 - SQS: `smartretail-re-alert-{env}` FIFO queue (receives IMS alert)
  
 **Trigger:**
-Run `scripts/shared/publish-pos-event.py` with a test transaction payload.
+Run `scripts/shared/publish-pos-event.py` (sends HTTP POST to API Gateway, not Kinesis PutRecord).
  
 **Observable evidence — all must be true for Flow 1 to pass:**
  
 | # | Check | How to verify |
-|---|-------|--------------|
+|---|-------|--------------------|
+| 1.1 | API Gateway receives POST | CloudWatch Metrics: API Gateway `Count` on `/v1/ingest/events` POST |
+| 1.2 | SIS processes event | CloudWatch Logs: /smartretail/sis/dev — look for "SalesTransactionEvent processed" |
+| 1.3 | PostgreSQL idempotency row written | Query: `SELECT * FROM sales.processed_transactions WHERE transaction_id = '<uuid>'` |
+| 1.4 | RDS sales_events row created | Query: `SELECT * FROM sales.sales_events WHERE transaction_id = '<uuid>'` |
+| 1.5 | Firehose archive delivered to S3 | AWS CLI: `aws s3 ls s3://smartretail-pos-archive-dev/pos-events/` (appears within ~60 s) |
+| 1.6 | EventBridge SalesTransactionEvent published | CloudWatch Logs: IMS service — look for SQS message received |
+| 1.7 | IMS inventory_positions updated | Query: `SELECT on_hand FROM inventory.inventory_positions WHERE sku_id = '<skuId>' AND dc_id = '<dcId>'` — should decrease by quantity |
+| 1.8 | Stock alert raised (if ATP < reorder_point) | Query: `SELECT * FROM inventory.stock_alerts WHERE status = 'ACTIVE' ORDER BY raised_at DESC LIMIT 5` |
+| 1.9 | IMS publishes InventoryAlertEvent | CloudWatch Logs: /smartretail/ims/dev — look for "InventoryAlertEvent published" |
+ 
+**Duplicate test:**
+Run `scripts/shared/publish-pos-event.py` again with the SAME transactionId.
+SIS should return 409 Conflict. No new `sales_events` row. Row already exists in `sales.processed_transactions`.---|-------|--------------|
 | 1.1 | Kinesis record appears on stream | CloudWatch Metrics: GetRecords.IteratorAgeMilliseconds |
 | 1.2 | Lambda invoked | CloudWatch Logs: /aws/lambda/smartretail-kinesis-consumer |
 | 1.3 | DynamoDB idempotency key written | AWS CLI: `aws dynamodb get-item --table-name smartretail-idempotency-keys-dev --key '{"event_id":{"S":"<sha256>"}}'` |

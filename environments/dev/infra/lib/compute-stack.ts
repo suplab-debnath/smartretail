@@ -36,7 +36,6 @@ export class ComputeStack extends cdk.Stack {
   public readonly dfsService: ecs.FargateService;
   public readonly supService: ecs.FargateService;
   public readonly ppsService: ecs.FargateService;
-  public readonly kinesisConsumerFn: lambda.DockerImageFunction;
   public readonly batchPostProcessorFn: lambda.DockerImageFunction;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
@@ -53,7 +52,6 @@ export class ComputeStack extends cdk.Stack {
       enableFargateCapacityProviders: true,
     });
 
-    // CloudMap for Lambda → SIS service discovery
     this.cluster.addDefaultCloudMapNamespace({ name: 'smartretail.local' });
 
     const ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
@@ -75,18 +73,13 @@ export class ComputeStack extends cdk.Stack {
         ...commonEnv,
         DB_SCHEMA: 'sales',
         DB_USERNAME: 'smartretail_admin',
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        EVENTS_BUCKET_NAME: data.eventsBucketName,
+        FIREHOSE_DELIVERY_STREAM_NAME: messaging.firehoseStream.ref,
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
       policies: [
         new iam.PolicyStatement({
-          actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-          resources: [data.idempotencyTable.tableArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['s3:PutObject'],
-          resources: [`arn:aws:s3:::${data.eventsBucketName}/*`],
+          actions: ['firehose:PutRecord', 'firehose:PutRecordBatch'],
+          resources: [`arn:aws:firehose:${this.region}:${this.account}:deliverystream/smartretail-pos-archive-${srEnv}`],
         }),
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
@@ -228,54 +221,7 @@ export class ComputeStack extends cdk.Stack {
     this.supService = this.createFargateService(supConfig, network, ecsExecutionRole, srEnv);
     this.ppsService = this.createFargateService(ppsConfig, network, ecsExecutionRole, srEnv);
 
-    // Kinesis consumer Lambda — X86_64, private app subnet
-    const kinesisConsumerRepo = new ecr.Repository(this, 'KinesisConsumerRepo', {
-      repositoryName: `smartretail-kinesis-consumer-${srEnv}`,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-    });
-
-    const lambdaRole = new iam.Role(this, 'KinesisConsumerRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-      ],
-    });
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['kinesis:GetRecords', 'kinesis:GetShardIterator', 'kinesis:DescribeStream', 'kinesis:ListShards'],
-      resources: [messaging.kinesisStream.streamArn],
-    }));
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['dynamodb:GetItem', 'dynamodb:PutItem'],
-      resources: [data.idempotencyTable.tableArn],
-    }));
-
-    this.kinesisConsumerFn = new lambda.DockerImageFunction(this, 'KinesisConsumer', {
-      functionName: `smartretail-kinesis-consumer-${srEnv}`,
-      code: lambda.DockerImageCode.fromEcr(kinesisConsumerRepo),
-      architecture: lambda.Architecture.X86_64,
-      vpc: network.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [network.sgLambda],
-      timeout: cdk.Duration.seconds(180),
-      memorySize: 512,
-      role: lambdaRole,
-      environment: {
-        SIS_ENDPOINT: `http://smartretail-sis-${srEnv}.smartretail.local:8080`,
-        IDEMPOTENCY_TABLE_NAME: data.idempotencyTable.tableName,
-        ENV: srEnv,
-      },
-    });
-
-    this.kinesisConsumerFn.addEventSource(new lambdaEventSources.KinesisEventSource(messaging.kinesisStream, {
-      startingPosition: lambda.StartingPosition.LATEST,
-      batchSize: 100,
-      bisectBatchOnError: true,
-      retryAttempts: 3,
-    }));
-
-    // Batch Post-Processor Lambda — reads SageMaker transform output CSV, POSTs to DFS
+    // Batch Post-Processor Lambda — reads SageMaker transform output CSV, POSTs to DFS, then deletes the S3 object
     const batchPostProcessorRepo = new ecr.Repository(this, 'BatchPostProcessorRepo', {
       repositoryName: `smartretail-batch-post-processor-${srEnv}`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -290,7 +236,7 @@ export class ComputeStack extends cdk.Stack {
       ],
     });
     batchPostProcessorRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
+      actions: ['s3:GetObject', 's3:DeleteObject'],
       resources: [data.sagemakerBucket.arnForObjects('sagemaker/output/*')],
     }));
 

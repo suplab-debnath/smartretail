@@ -67,6 +67,9 @@ public class BatchPostProcessorHandler implements RequestHandler<S3Event, Void> 
             // Throws RuntimeException on non-201 → Lambda retries the event
             dfsApiClient.postResults(runId, rows, logger);
 
+            // Best-effort cleanup — failure is logged as WARN and does not fail the invocation
+            s3CsvReader.deleteObject(bucket, key, logger);
+
             logger.log("Completed: runId=" + runId + " rows=" + rows.size());
         }
 

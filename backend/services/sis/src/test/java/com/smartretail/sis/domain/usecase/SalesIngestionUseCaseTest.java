@@ -39,28 +39,26 @@ class SalesIngestionUseCaseTest {
     @Test
     void ingest_newEvent_returnsAcceptedAndPublishes() {
         SalesTransaction tx = sampleTransaction(UUID.randomUUID());
-        when(idempotency.isDuplicate(anyString())).thenReturn(false);
-        when(rawArchive.archive(tx)).thenReturn("s3://bucket/key.json");
+        when(idempotency.tryMarkProcessed(anyString())).thenReturn(true);
+        when(rawArchive.archive(tx)).thenReturn("firehose://smartretail-pos-archive-dev/" + tx.transactionId());
 
         IngestionResult result = useCase.ingest(tx);
 
         assertThat(result).isInstanceOf(IngestionResult.Accepted.class);
         assertThat(((IngestionResult.Accepted) result).transactionId()).isEqualTo(tx.transactionId());
-        verify(eventStore).save(eq(tx), eq("s3://bucket/key.json"));
-        verify(idempotency).markProcessed(anyString());
+        verify(eventStore).save(eq(tx), anyString());
         verify(eventPublisher).publishSalesTransactionEvent(tx);
     }
 
     @Test
     void ingest_duplicateEvent_returnsDuplicateAndSkipsAllSideEffects() {
         SalesTransaction tx = sampleTransaction(UUID.randomUUID());
-        when(idempotency.isDuplicate(anyString())).thenReturn(true);
+        when(idempotency.tryMarkProcessed(anyString())).thenReturn(false);
 
         IngestionResult result = useCase.ingest(tx);
 
         assertThat(result).isInstanceOf(IngestionResult.Duplicate.class);
         verifyNoInteractions(eventStore, rawArchive, eventPublisher);
-        verify(idempotency, never()).markProcessed(anyString());
     }
 
     @Test
@@ -69,15 +67,14 @@ class SalesIngestionUseCaseTest {
         SalesTransaction tx1 = sampleTransaction(id);
         SalesTransaction tx2 = sampleTransaction(id);
 
-        when(idempotency.isDuplicate(anyString())).thenReturn(false);
-        when(rawArchive.archive(any())).thenReturn("s3://bucket/k.json");
+        when(idempotency.tryMarkProcessed(anyString())).thenReturn(true);
+        when(rawArchive.archive(any())).thenReturn("firehose://stream/key");
 
         useCase.ingest(tx1);
         useCase.ingest(tx2);
 
-        // Both calls must pass the same SHA-256 derived key to isDuplicate
-        verify(idempotency, times(2)).isDuplicate(
-                argThat(key -> key.length() == 64)); // SHA-256 hex = 64 chars
+        // Both calls must pass the same transactionId string to tryMarkProcessed
+        verify(idempotency, times(2)).tryMarkProcessed(id.toString());
     }
 
     private SalesTransaction sampleTransaction(UUID id) {

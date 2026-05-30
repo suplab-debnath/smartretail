@@ -1,17 +1,20 @@
 import * as cdk from 'aws-cdk-lib';
-import * as kinesis from 'aws-cdk-lib/aws-kinesis';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
+import * as firehose from 'aws-cdk-lib/aws-kinesisfirehose';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 export interface MessagingStackProps extends cdk.StackProps {
   srEnv: string;
+  posArchiveBucket: s3.Bucket;
 }
 
 export class MessagingStack extends cdk.Stack {
-  public readonly kinesisStream: kinesis.Stream;
+  public readonly firehoseStream: firehose.CfnDeliveryStream;
   public readonly eventBus: events.EventBus;
   public readonly imsSalesQueue: sqs.Queue;
   public readonly imsSalesDlq: sqs.Queue;
@@ -28,15 +31,34 @@ export class MessagingStack extends cdk.Stack {
 
     cdk.Tags.of(this).add('Name', 'smartretail-messaging');
 
-    const { srEnv } = props;
+    const { srEnv, posArchiveBucket } = props;
 
-    this.kinesisStream = new kinesis.Stream(this, 'SmartRetailStream', {
-      streamName: `smartretail-events-${srEnv}`,
-      streamMode: kinesis.StreamMode.ON_DEMAND,
-      retentionPeriod: cdk.Duration.days(1),
-      encryption: kinesis.StreamEncryption.UNENCRYPTED,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    // IAM role for Firehose to write to S3
+    const firehoseRole = new iam.Role(this, 'FirehoseRole', {
+      roleName: `smartretail-firehose-role-${srEnv}`,
+      assumedBy: new iam.ServicePrincipal('firehose.amazonaws.com'),
     });
+    firehoseRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:PutObject', 's3:PutObjectAcl', 's3:GetBucketLocation', 's3:ListBucket'],
+      resources: [posArchiveBucket.bucketArn, posArchiveBucket.arnForObjects('*')],
+    }));
+
+    // Kinesis Data Firehose — Direct PUT source, S3 destination
+    // SIS calls firehose.putRecord as an outbound archival adapter.
+    // No Lambda trigger on this stream — archival only.
+    this.firehoseStream = new firehose.CfnDeliveryStream(this, 'PosArchiveFirehose', {
+      deliveryStreamName: `smartretail-pos-archive-${srEnv}`,
+      deliveryStreamType: 'DirectPut',
+      s3DestinationConfiguration: {
+        bucketArn: posArchiveBucket.bucketArn,
+        roleArn: firehoseRole.roleArn,
+        prefix: 'pos-events/!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/!{timestamp:HH}/',
+        errorOutputPrefix: 'pos-events-errors/!{firehose:error-output-type}/!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/',
+        bufferingHints: { intervalInSeconds: 60, sizeInMBs: 1 },
+        compressionFormat: 'UNCOMPRESSED',
+      },
+    });
+    this.firehoseStream.node.addDependency(firehoseRole);
 
     this.eventBus = new events.EventBus(this, 'SmartRetailBus', {
       eventBusName: `smartretail-events-${srEnv}`,
@@ -105,12 +127,11 @@ export class MessagingStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('kinesis/stream-name',        this.kinesisStream.streamName);
-    put('kinesis/stream-arn',         this.kinesisStream.streamArn);
-    put('eventbridge/bus-name',       this.eventBus.eventBusName);
-    put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
-    put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
-    put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
+    put('firehose/delivery-stream-name', this.firehoseStream.ref);
+    put('eventbridge/bus-name',          this.eventBus.eventBusName);
+    put('eventbridge/bus-arn',           this.eventBus.eventBusArn);
+    put('sqs/ims-sales-queue-url',       this.imsSalesQueue.queueUrl);
+    put('sqs/re-alert-queue-url',        this.reAlertQueue.queueUrl);
+    put('sqs/ars-updates-queue-url',     this.arsUpdatesQueue.queueUrl);
   }
 }

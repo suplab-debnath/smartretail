@@ -12,10 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 
 @Service
 public class SalesIngestionUseCase implements SalesEventPort {
@@ -41,31 +37,20 @@ public class SalesIngestionUseCase implements SalesEventPort {
     @Override
     @Transactional
     public IngestionResult ingest(SalesTransaction transaction) {
-        String eventId = sha256Hex(transaction.transactionId().toString());
+        String transactionId = transaction.transactionId().toString();
 
-        if (idempotency.isDuplicate(eventId)) {
+        if (!idempotency.tryMarkProcessed(transactionId)) {
             log.warn("Duplicate event skipped: transactionId={}", transaction.transactionId());
             return new IngestionResult.Duplicate(transaction.transactionId());
         }
 
-        String s3Uri = rawArchive.archive(transaction);
-        eventStore.save(transaction, s3Uri);
-        idempotency.markProcessed(eventId);
+        String archiveRef = rawArchive.archive(transaction);
+        eventStore.save(transaction, archiveRef);
         eventPublisher.publishSalesTransactionEvent(transaction);
 
         log.info("SalesTransactionEvent processed: transactionId={} skuId={} dcId={}",
                 transaction.transactionId(), transaction.skuId(), transaction.dcId());
 
         return new IngestionResult.Accepted(transaction.transactionId());
-    }
-
-    private static String sha256Hex(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
     }
 }

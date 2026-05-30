@@ -2,6 +2,7 @@ package com.smartretail.lambda.batchpostprocessor;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 import java.io.BufferedReader;
@@ -82,5 +83,19 @@ public class S3CsvReader {
         logger.log("S3CsvReader: parsed " + rows.size() + " rows, skipped " + skipped
                 + " from " + key);
         return rows;
+    }
+
+    /**
+     * Deletes an S3 object. Best-effort: exceptions are logged as WARN and swallowed
+     * so that a delete failure does not fail the Lambda invocation.
+     */
+    public void deleteObject(String bucket, String key, LambdaLogger logger) {
+        try {
+            s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            logger.log("Deleted S3 object after successful DFS ingest: s3://" + bucket + "/" + key);
+        } catch (Exception e) {
+            logger.log("WARN Failed to delete S3 object s3://" + bucket + "/" + key
+                    + " — lifecycle rule will expire it. Reason: " + e.getMessage());
+        }
     }
 }

@@ -22,7 +22,7 @@ const cdkEnv  = { account, region };
 
 const network  = new NetworkStack (app, 'Prod-NetworkStack',  { env: cdkEnv, srEnv: env });
 const data     = new DataStack    (app, 'Prod-DataStack',     { env: cdkEnv, srEnv: env, network });
-const messaging = new MessagingStack(app, 'Prod-MessagingStack', { env: cdkEnv, srEnv: env });
+const messaging = new MessagingStack(app, 'Prod-MessagingStack', { env: cdkEnv, srEnv: env, posArchiveBucket: data.posArchiveBucket });
 const identity  = new IdentityStack (app, 'Prod-IdentityStack',  { env: cdkEnv, srEnv: env });
 const compute   = new ComputeStack  (app, 'Prod-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
 new ApiStack    (app, 'Prod-ApiStack',     { env: cdkEnv, srEnv: env, network, compute });

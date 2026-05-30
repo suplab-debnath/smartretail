@@ -25,7 +25,7 @@ cdk.Tags.of(app).add('Environment', env);
 
 const network   = new NetworkStack  (app, 'Dev-NetworkStack',   { env: cdkEnv, srEnv: env });
 const data      = new DataStack     (app, 'Dev-DataStack',      { env: cdkEnv, srEnv: env, network });
-const messaging = new MessagingStack(app, 'Dev-MessagingStack', { env: cdkEnv, srEnv: env });
+const messaging = new MessagingStack(app, 'Dev-MessagingStack', { env: cdkEnv, srEnv: env, posArchiveBucket: data.posArchiveBucket });
 const identity  = new IdentityStack (app, 'Dev-IdentityStack',  { env: cdkEnv, srEnv: env });
 const compute   = new ComputeStack  (app, 'Dev-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
 const api       = new ApiStack      (app, 'Dev-ApiStack',       { env: cdkEnv, srEnv: env, network, compute });

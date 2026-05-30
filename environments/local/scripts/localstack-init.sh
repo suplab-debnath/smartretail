@@ -13,15 +13,25 @@ ACCOUNT="000000000000"  # LocalStack fake account ID
 
 echo "Creating LocalStack resources for env=${ENV}..."
 
-# ── Kinesis ──────────────────────────────────────────────────────────────────
-echo "Creating Kinesis stream..."
+# ── S3 — POS archive (Firehose destination) ──────────────────────────────────
+echo "Creating S3 pos-archive bucket..."
 
-awslocal --endpoint-url=$ENDPOINT kinesis create-stream \
-    --stream-name "smartretail-events-${ENV}" \
-    --shard-count 1 \
+awslocal --endpoint-url=$ENDPOINT s3 mb \
+    "s3://smartretail-pos-archive-${ENV}" \
     --region $REGION
 
-echo "✅ Kinesis stream created"
+echo "✅ S3 pos-archive bucket created"
+
+# ── Kinesis Firehose ──────────────────────────────────────────────────────────
+echo "Creating Kinesis Firehose delivery stream..."
+
+awslocal --endpoint-url=$ENDPOINT firehose create-delivery-stream \
+    --delivery-stream-name "smartretail-pos-archive-${ENV}" \
+    --delivery-stream-type DirectPut \
+    --s3-destination-configuration "{\"RoleARN\":\"arn:aws:iam::${ACCOUNT}:role/firehose-role\",\"BucketARN\":\"arn:aws:s3:::smartretail-pos-archive-${ENV}\",\"Prefix\":\"pos-events/\",\"BufferingHints\":{\"SizeInMBs\":1,\"IntervalInSeconds\":60}}" \
+    --region $REGION
+
+echo "✅ Kinesis Firehose delivery stream created"
 
 # ── EventBridge ───────────────────────────────────────────────────────────────
 echo "Creating EventBridge bus..."
@@ -56,16 +66,6 @@ awslocal --endpoint-url=$ENDPOINT sqs create-queue \
 
 awslocal --endpoint-url=$ENDPOINT sqs create-queue \
     --queue-name "smartretail-ars-updates-${ENV}" \
-    --region $REGION
-
-# POS events ingestion queue — used by local-sqs profile (SIS @SqsListener)
-awslocal --endpoint-url=$ENDPOINT sqs create-queue \
-    --queue-name "smartretail-pos-events-${ENV}-dlq" \
-    --region $REGION
-
-awslocal --endpoint-url=$ENDPOINT sqs create-queue \
-    --queue-name "smartretail-pos-events-${ENV}" \
-    --attributes '{"RedrivePolicy":"{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:000000000000:smartretail-pos-events-local-dlq\",\"maxReceiveCount\":\"3\"}","VisibilityTimeout":"120"}' \
     --region $REGION
 
 echo "✅ SQS queues created"
@@ -141,31 +141,6 @@ awslocal --endpoint-url=$ENDPOINT sqs set-queue-attributes \
 
 echo "✅ SQS queue policies set"
 
-# ── DynamoDB ──────────────────────────────────────────────────────────────────
-echo "Creating DynamoDB table..."
-
-awslocal --endpoint-url=$ENDPOINT dynamodb create-table \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --attribute-definitions AttributeName=event_id,AttributeType=S \
-    --key-schema AttributeName=event_id,KeyType=HASH \
-    --billing-mode PAY_PER_REQUEST \
-    --region $REGION
-
-# Enable TTL on expires_at attribute
-awslocal --endpoint-url=$ENDPOINT dynamodb update-time-to-live \
-    --table-name "smartretail-idempotency-keys-${ENV}" \
-    --time-to-live-specification "Enabled=true,AttributeName=expires_at" \
-    --region $REGION
-
-echo "✅ DynamoDB table created"
-
-# ── S3 ────────────────────────────────────────────────────────────────────────
-echo "Creating S3 bucket..."
-awslocal --endpoint-url=$ENDPOINT s3 mb \
-    "s3://smartretail-events-${ENV}" \
-    --region $REGION
-
-echo "✅ S3 bucket created"
 
 # ── SSM Parameter Store ───────────────────────────────────────────────────────
 # Values read by Spring Boot services at startup in local mode
@@ -194,22 +169,8 @@ awslocal ssm put-parameter \
     --region $REGION || true
 
 awslocal ssm put-parameter \
-    --name "/smartretail/local/kinesis/stream-name" \
-    --value "smartretail-events-local" \
-    --type String \
-    --overwrite \
-    --region $REGION || true
-
-awslocal ssm put-parameter \
-    --name "/smartretail/local/s3/events-bucket" \
-    --value "smartretail-events-local" \
-    --type String \
-    --overwrite \
-    --region $REGION || true
-
-awslocal ssm put-parameter \
-    --name "/smartretail/local/dynamodb/idempotency-table" \
-    --value "smartretail-idempotency-keys-local" \
+    --name "/smartretail/local/firehose/delivery-stream-name" \
+    --value "smartretail-pos-archive-local" \
     --type String \
     --overwrite \
     --region $REGION || true
@@ -230,12 +191,7 @@ cat > /tmp/ars-queue.json << EOF
 EOF
 awslocal ssm put-parameter --cli-input-json file:///tmp/ars-queue.json --region $REGION || true
 
-cat > /tmp/pos-queue.json << EOF
-{"Name":"/smartretail/local/sqs/pos-events-queue-url","Value":"http://localhost:4566/000000000000/smartretail-pos-events-local","Type":"String","Overwrite":true}
-EOF
-awslocal ssm put-parameter --cli-input-json file:///tmp/pos-queue.json --region $REGION || true
-
-rm -f /tmp/ims-queue.json /tmp/re-queue.json /tmp/ars-queue.json /tmp/pos-queue.json
+rm -f /tmp/ims-queue.json /tmp/re-queue.json /tmp/ars-queue.json
 
 echo "✅ SSM parameters written"
 

@@ -12,15 +12,14 @@ SmartRetail uses three async channels:
 
 ```
 [POS Device]
-    │ Kinesis record (partition key = transactionId)
+    │ HTTPS POST /v1/ingest/events  (X-Api-Key header)
     ▼
-[Kinesis Data Stream: smartretail-events-{env}]     ← dev/prod only
-    │ Lambda trigger (batch 100, bisect-on-error)
+[API Gateway → VPC Link → SIS Service]
+    │ SIS: INSERT sales.processed_transactions ON CONFLICT DO NOTHING (idempotency)
+    │ SIS: INSERT sales.sales_events
+    │ SIS: firehose.putRecord (async archival)  →  [Firehose → S3: smartretail-pos-archive-{env}]
     ▼
-[Lambda: KinesisConsumerHandler]  →  DynamoDB (idempotency check)
-    │ HTTP POST /v1/ingest/events
-    ▼
-[SIS Service]  →  RDS (sales schema)  →  S3 (raw archive)  →  DynamoDB (mark processed)
+[SIS Service]  →  RDS (sales schema)
     │ EventBridge PutEvents
     ▼
 [EventBridge Custom Bus: smartretail-events-{env}]
@@ -74,35 +73,33 @@ All channels provide **at-least-once** delivery. There is **no exactly-once** gu
 | Resource | Type | Demo stack | Dev/Prod stack | Consumer |
 |----------|------|:----------:|:--------------:|----------|
 | `smartretail-events-{env}` (bus) | EventBridge Custom Bus | ✓ | ✓ | Rules → SQS targets |
-| `smartretail-events-{env}` (stream) | Kinesis Data Stream | ✗ | ✓ | Lambda Kinesis Consumer |
+| `smartretail-pos-archive-{env}` | Kinesis Data Firehose | ✗ | ✓ | S3 bucket (archival only) |
 | `smartretail-ims-sales-{env}` | SQS Standard | ✓ | ✓ | IMS `SalesSqsListener` |
 | `smartretail-ims-sales-{env}-dlq` | SQS Standard DLQ | ✓ | ✓ | Manual triage |
 | `smartretail-re-alert-{env}.fifo` | SQS FIFO | ✓ | ✓ | RE `AlertSqsListener` |
 | `smartretail-re-alert-{env}-dlq.fifo` | SQS FIFO DLQ | ✓ | ✓ | Manual triage |
 | `smartretail-ars-updates-{env}` | SQS Standard | ✓ | ✓ | ARS (analytics cache) |
 | `smartretail-ars-updates-{env}-dlq` | SQS Standard DLQ | ✓ | ✓ | Manual triage |
-| `smartretail-idempotency-keys-{env}` | DynamoDB table | ✓ | ✓ | SIS + Lambda (shared) |
 | `smartretail-sagemaker-{env}` | S3 Bucket | ✗ | ✓ | Lambda Batch Post-Processor |
 
-Queue URLs and stream names are resolved at runtime from AWS Parameter Store:
+Resource names are resolved at runtime from AWS Parameter Store:
 ```
 /smartretail/{env}/eventbridge/bus-name
 /smartretail/{env}/sqs/ims-sales-queue-url
 /smartretail/{env}/sqs/re-alert-queue-url
 /smartretail/{env}/sqs/ars-updates-queue-url
-/smartretail/{env}/kinesis/stream-name
-/smartretail/{env}/dynamodb/idempotency-table-name
+/smartretail/{env}/firehose/delivery-stream-name
 ```
 
 In LOCAL mode the Spring profile sets `spring.cloud.aws.endpoint=http://localhost:4566` and all resources use LocalStack.
 
 ---
 
-## 3. Kinesis Ingestion Channel
+## 3. POS HTTP Ingestion Channel
 
-### 3.1 POS Event payload (producer → Kinesis)
+### 3.1 POS Event payload (POS terminal → API Gateway → SIS)
 
-Kinesis producers write raw JSON as the record data. Partition key is `transactionId`.
+POS terminals call `POST /v1/ingest/events` with an API key (`X-Api-Key` header). The body is raw JSON:
 
 ```json
 {
@@ -119,37 +116,30 @@ Kinesis producers write raw JSON as the record data. Partition key is `transacti
 
 All fields required. No nullable fields.
 
-### 3.2 Lambda Kinesis Consumer — event source mapping
-
-| Parameter | Value |
-|-----------|-------|
-| Starting position | `LATEST` |
-| Batch size | 100 records |
-| Bisect on error | `true` — failed batch is halved and retried separately |
-| Retry attempts | 3 |
-| Function timeout | 300 s |
-| Memory | 512 MB |
-
-### 3.3 Lambda processing algorithm
+### 3.2 SIS processing algorithm
 
 ```
-for each record in batch:
-    1. Deserialise JSON → PosEventPayload
-    2. Compute idempotency_key = SHA-256(transactionId)
-    3. DynamoDB GetItem(event_id = idempotency_key)
-    4. If item found → duplicate; log DEBUG; skip record
-    5. POST /v1/ingest/events to SIS
-    6. HTTP 202 → DynamoDB PutItem(event_id, expires_at = now + 172800s); increment processed
-    7. HTTP 409 → SIS already has this event (race condition); skip; increment skipped
-    8. HTTP 4xx (not 409) or 5xx → throw RuntimeException
-         ↳ bisect-on-error retries; after 3 attempts the shard iterator advances (no Lambda DLQ)
+1. Compute eventId = SHA-256(transactionId)
+2. INSERT INTO sales.processed_transactions (transaction_id) VALUES (?) ON CONFLICT DO NOTHING
+3. If affected rows = 0 → duplicate; return 409 Conflict
+4. INSERT INTO sales.sales_events
+5. firehose.putRecord (async archival to smartretail-pos-archive-{env})
+6. eventBridge.putEvents (SalesTransactionEvent)
+7. Return 202 Accepted
 ```
 
-### 3.4 Producer obligations (Kinesis)
+### 3.3 Archival via Kinesis Data Firehose
 
-- Partition key **must** be `transactionId` to ensure per-transaction shard affinity.
-- Producers must not retry a Kinesis `PutRecord` on HTTP 200 — Kinesis acknowledged the record; retrying produces a duplicate that the Lambda idempotency check will catch, but it wastes capacity.
-- `eventTimestamp` must be the time the sale occurred, not the publish time.
+SIS writes the raw POS JSON to Firehose as an outbound adapter (`FirehoseArchiveAdapter` implements `RawArchivePort`). Firehose buffers records (60 s / 1 MB) and delivers to S3 `smartretail-pos-archive-{env}` with key prefix `pos-events/{yyyy}/{MM}/{dd}/{HH}/`. This replaces the previous direct-S3 archive (`S3RawArchiveAdapter`).
+
+Firehose failure does not fail the ingest — the `firehose.putRecord` call is best-effort (logged at WARN on failure). The source of truth is `sales.sales_events` in RDS.
+
+### 3.4 Producer obligations (POS terminals)
+
+- Set `X-Api-Key` header on every request. No Kinesis SDK required.
+- `transactionId` must be a stable UUID generated at point-of-sale. Do not regenerate on retry.
+- `eventTimestamp` must be the time the sale occurred, not the HTTP call time.
+- On HTTP 409 Conflict: do not retry — the event was already processed.
 
 ---
 
@@ -431,9 +421,11 @@ The Lambda skips rows that cannot be parsed (logs WARNING) and continues. An emp
 3. Parse rows; skip malformed rows (log WARNING)
 4. If no parseable rows → log WARNING; return success
 5. POST /v1/forecast/runs/{runId}/results to DFS
-6. HTTP 201 → success
-7. Any other HTTP status or network error → throw RuntimeException → Lambda retries
+6. HTTP 201 → delete S3 object (best-effort: catch exceptions, log WARN, do not fail Lambda)
+7. Any non-201 HTTP status or network error → throw RuntimeException → Lambda retries
 ```
+
+Idempotency on retry: DFS `ON CONFLICT DO NOTHING` makes re-POSTing safe. If the Lambda retried after a successful POST but before the S3 delete completed, the re-POST is a no-op and the S3 delete either succeeds or finds the object already gone — both safe.
 
 Lambda retries: default async invocation retry (2 attempts). S3 event source does not have a configurable DLQ in the prototype — monitor Lambda error metrics.
 
@@ -449,38 +441,26 @@ DFS uses `INSERT ... ON CONFLICT DO NOTHING` keyed on `(run_id, sku_id, dc_id, p
 
 | Surface | Mechanism | Key | TTL / Window |
 |---------|-----------|-----|-------------|
-| Kinesis → Lambda | DynamoDB `GetItem` before SIS call | `SHA-256(transactionId)` | 48 h (item TTL) |
-| Lambda → SIS | SIS `IdempotencyPort` DynamoDB `GetItem` | `SHA-256(transactionId)` | 48 h |
-| SIS internal (ingest) | DynamoDB `IdempotencyPort` | `SHA-256(transactionId)` | 48 h |
+| SIS ingest (HTTP) | PostgreSQL `INSERT ON CONFLICT DO NOTHING` on `sales.processed_transactions` | `SHA-256(transactionId)` | Permanent (prune >30 days post-prototype) |
 | RE approve/reject REST | `X-Idempotency-Key` request header | Client-supplied UUID | Per request |
 | DFS forecast results | `ON CONFLICT DO NOTHING` in INSERT | `(run_id, sku_id, dc_id, period_start)` | Permanent |
 | RE FIFO queue | Content-based deduplication | Payload SHA-256 | 5-min window |
 | IMS / RE SQS processing | Business key check + optimistic lock | `transactionId` / `alertId` | Bounded by DLQ TTL |
 
-### 7.2 DynamoDB idempotency table schema
+### 7.2 PostgreSQL idempotency table schema
 
-Table: `smartretail-idempotency-keys-{env}`
+Table: `sales.processed_transactions`
 
-| Attribute | Type | Role |
-|-----------|------|------|
-| `event_id` | String (PK) | SHA-256 hex of `transactionId` |
-| `expires_at` | Number | Unix epoch seconds; DynamoDB TTL attribute |
+| Column | Type | Role |
+|--------|------|------|
+| `transaction_id` | UUID (PK) | SHA-256 hex is no longer needed — raw `transactionId` UUID is the PK |
+| `processed_at` | TIMESTAMPTZ | First-seen timestamp; default `NOW()` |
 
-TTL is 48 hours from first successful processing. DynamoDB TTL deletion is eventually consistent (may persist a few minutes past expiry) — the application layer checks regardless.
+No TTL. Post-prototype maintenance: `DELETE FROM sales.processed_transactions WHERE processed_at < NOW() - INTERVAL '30 days'` (safe — any retry after 30 days on a real sale would be caught by the `sales.sales_events` UNIQUE constraint instead).
 
-### 7.3 Race condition between Lambda and SIS
+### 7.3 Concurrent ingest safety
 
-Both Lambda and SIS check the same DynamoDB table. The following race is handled:
-
-```
-Lambda: GetItem → not found
-SIS:    GetItem → not found  ← concurrent request
-SIS:    PutItem (mark processed)
-Lambda: POST /ingest/events → 409 Conflict from SIS
-Lambda: skips record (409 is treated as duplicate, not error)
-```
-
-Outcome: event is processed exactly once. The Lambda does not mark DynamoDB on a 409 — SIS already did.
+Two simultaneous HTTP POST requests for the same `transactionId` both attempt the INSERT. PostgreSQL serialises on the PK constraint — exactly one INSERT succeeds, the other gets `updateCount = 0` and SIS returns 409. No external lock required.
 
 ### 7.4 Rules
 
@@ -495,7 +475,7 @@ Outcome: event is processed exactly once. The Lambda does not mark DynamoDB on a
 
 | Channel | Delivery | Ordering | Notes |
 |---------|----------|----------|-------|
-| Kinesis → Lambda | At-least-once | Per-shard (partition = `transactionId`) | Retry via bisect-on-error |
+| API Gateway → SIS (HTTP) | Synchronous request-reply | N/A | POS terminal retries on 5xx; SIS idempotent on retry |
 | EventBridge → SQS Standard | At-least-once | None | May arrive out of order |
 | EventBridge → SQS FIFO | At-least-once | Strict per `dcId` group | 5-min dedup window |
 | SIS → EventBridge | At-least-once | None | EventBridge retries for 24 h on PutEvents failure |
@@ -513,14 +493,15 @@ Outcome: event is processed exactly once. The Lambda does not mark DynamoDB on a
 
 ```
 BEGIN
+  INSERT INTO sales.processed_transactions ON CONFLICT DO NOTHING  ← idempotency guard
+  If 0 rows → return DUPLICATE (no further work; transaction commits trivially)
   INSERT sales.sales_events
-  PUT S3 raw archive          ← best-effort; partial failure logged, not rolled back
-  DynamoDB PutItem            ← best-effort; same
-  EventBridge PutEvents       ← best-effort; SIS logs error on failure
+  firehose.putRecord (raw archive)  ← best-effort; partial failure logged, not rolled back
+  EventBridge PutEvents             ← best-effort; SIS logs error on failure
 COMMIT
 ```
 
-S3, DynamoDB, and EventBridge calls are outside the JDBC transaction. An exception on any of them does not roll back the RDS insert. The SIS will be in a state where RDS has the row but the event was not published — monitoring/alerting required.
+Firehose and EventBridge calls are outside the JDBC transaction. An exception on either does not roll back the RDS inserts. Monitor `/smartretail/sis/{env}` logs for `WARN firehose` or `WARN eventbridge` entries.
 
 ### IMS — `@Transactional` scope
 
@@ -618,12 +599,12 @@ Set CloudWatch alarms on:
 
 | Aspect | LOCAL (profile: `local`) | AWS (profile: `aws`) |
 |--------|--------------------------|----------------------|
-| Kinesis stream | Not used — demo data pre-seeded | `smartretail-events-{env}` real stream |
+| Firehose archive stream | LocalStack `:4566` (`smartretail-pos-archive-local`) | Real Firehose (`smartretail-pos-archive-{env}`) |
 | EventBridge | LocalStack `:4566` | Real EventBridge |
 | SQS | LocalStack `:4566` | Real SQS (queue URLs from Parameter Store) |
-| DynamoDB | LocalStack `:4566` | Real DynamoDB |
+| S3 archive bucket | LocalStack `:4566` | Real S3 (`smartretail-pos-archive-{env}`) |
 | S3 (SageMaker bucket) | Not used | Real S3 |
-| Idempotency checks | Active (LocalStack DynamoDB) | Active (real DynamoDB) |
+| Idempotency checks | Active (PostgreSQL `sales.processed_transactions`) | Active (PostgreSQL `sales.processed_transactions`) |
 | Auth | Mock bypass — JWT validation skipped | Cognito JWT validated at API Gateway + service layer |
 | Lambda functions | Not deployed locally | Deployed via CDK compute stack |
 
@@ -668,7 +649,7 @@ Each async channel maps to a named port and adapter. Domain code must only refer
 
 | Service | Port interface | Adapter class | Backend |
 |---------|---------------|---------------|---------|
-| SIS | `IdempotencyPort` | `DynamoDbIdempotencyAdapter` | DynamoDB |
+| SIS | `IdempotencyPort` | `PostgresIdempotencyAdapter` | PostgreSQL `sales.processed_transactions` |
 
 **Forbidden:** AWS SDK classes (`software.amazon.*`) must not appear in any `..domain..**` package. ArchUnit tests enforce this.
 
@@ -682,5 +663,5 @@ Each async channel maps to a named port and adapter. Domain code must only refer
 | `InventoryAlertEvent` | IMS | `EventBridgeAlertPublisher` | RE | `AlertSqsListener` | `re-alert-{env}.fifo` |
 | `InventoryAlertEvent` | IMS | `EventBridgeAlertPublisher` | ARS | _(future)_ | `ars-updates-{env}` |
 | `PurchaseOrderEvent` | RE | `EventBridgePurchaseOrderPublisher` | ARS | _(future)_ | `ars-updates-{env}` |
-| POS record | POS device | — | Lambda Kinesis Consumer | `KinesisConsumerHandler` | Kinesis stream |
+| POS record | POS terminal | HTTP POST `/v1/ingest/events` | SIS | `SalesIngestionController` | API Gateway |
 | SageMaker CSV | SageMaker job | — | Lambda Batch Post-Processor | `BatchPostProcessorHandler` | S3 event |

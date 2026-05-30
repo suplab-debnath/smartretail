@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
@@ -16,8 +15,7 @@ export interface DataStackProps extends cdk.StackProps {
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
   public readonly rdsInstance: rds.DatabaseInstance;
-  public readonly idempotencyTable: dynamodb.Table;
-  public readonly eventsBucketName: string;
+  public readonly posArchiveBucket: s3.Bucket;
   public readonly sagemakerBucket: s3.Bucket;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
@@ -65,26 +63,17 @@ export class DataStack extends cdk.Stack {
 
     this.dbEndpoint = proxy.endpoint;
 
-    // DynamoDB — on-demand, TTL for idempotency
-    this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyKeys', {
-      tableName: `smartretail-idempotency-keys-${srEnv}`,
-      partitionKey: { name: 'event_id', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: 'expires_at',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Events S3 bucket
-    const eventsBucket = new s3.Bucket(this, 'EventsBucket', {
-      bucketName: `smartretail-events-${srEnv}-${account}`,
+    // POS archive bucket — Firehose delivers raw POS events here (transit buffer, not long-term store)
+    // SIS writes to Firehose; Firehose writes here. Key prefix: pos-events/{yyyy}/{MM}/{dd}/{HH}/
+    this.posArchiveBucket = new s3.Bucket(this, 'PosArchiveBucket', {
+      bucketName: `smartretail-pos-archive-${srEnv}-${account}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: false,
-      lifecycleRules: [{ expiration: cdk.Duration.days(365 * 7) }],
+      lifecycleRules: [{ expiration: cdk.Duration.days(30) }],
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
-    this.eventsBucketName = eventsBucket.bucketName;
 
     // SageMaker S3 bucket — training data, model artefacts, transform output
     // Key prefix convention: sagemaker/output/{run_id}/part-*.csv  (read by Batch Post-Processor Lambda)
@@ -115,10 +104,9 @@ export class DataStack extends cdk.Stack {
         stringValue: value,
       });
 
-    put('rds/proxy-endpoint',              proxy.endpoint);
-    put('rds/secret-arn',                  this.rdsInstance.secret!.secretArn);
-    put('dynamodb/idempotency-table-name', this.idempotencyTable.tableName);
-    put('s3/events-bucket-name',           eventsBucket.bucketName);
-    put('s3/sagemaker-bucket-name',        this.sagemakerBucket.bucketName);
+    put('rds/proxy-endpoint',          proxy.endpoint);
+    put('rds/secret-arn',              this.rdsInstance.secret!.secretArn);
+    put('s3/pos-archive-bucket-name',  this.posArchiveBucket.bucketName);
+    put('s3/sagemaker-bucket-name',    this.sagemakerBucket.bucketName);
   }
 }

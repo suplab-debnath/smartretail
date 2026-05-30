@@ -37,8 +37,7 @@ export class NetworkStack extends cdk.Stack {
     });
 
     // Gateway endpoints — free, no data path through internet
-    this.vpc.addGatewayEndpoint('S3Endpoint',       { service: ec2.GatewayVpcEndpointAwsService.S3 });
-    this.vpc.addGatewayEndpoint('DynamoDBEndpoint', { service: ec2.GatewayVpcEndpointAwsService.DYNAMODB });
+    this.vpc.addGatewayEndpoint('S3Endpoint', { service: ec2.GatewayVpcEndpointAwsService.S3 });
 
     // Interface endpoints — allow private-subnet services to reach AWS APIs without NAT
     const ifaceEndpointSg = new ec2.SecurityGroup(this, 'SgVpcEndpoints', {
@@ -55,6 +54,7 @@ export class NetworkStack extends cdk.Stack {
       ec2.InterfaceVpcEndpointAwsService.EVENTBRIDGE,
       ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
       ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+      ec2.InterfaceVpcEndpointAwsService.KINESIS_FIREHOSE,
     ].forEach((svc, i) => {
       this.vpc.addInterfaceEndpoint(`IfaceEndpoint${i}`, {
         service: svc,
@@ -77,11 +77,11 @@ export class NetworkStack extends cdk.Stack {
     this.sgEcsTasks.addIngressRule(this.sgAlb,      ec2.Port.tcpRange(8080, 8086), 'ALB to ECS services');
     this.sgEcsTasks.addIngressRule(this.sgEcsTasks, ec2.Port.allTcp(),              'ECS service-to-service');
 
-    // Lambda — Kinesis consumer in public subnet, calls SIS via CloudMap
+    // Lambda — batch post-processor, calls DFS via CloudMap
     this.sgLambda = new ec2.SecurityGroup(this, 'SgLambda', {
-      vpc: this.vpc, description: 'Kinesis consumer Lambda', allowAllOutbound: true,
+      vpc: this.vpc, description: 'Batch post-processor Lambda', allowAllOutbound: true,
     });
-    this.sgEcsTasks.addIngressRule(this.sgLambda, ec2.Port.tcp(8080), 'Lambda to SIS');
+    this.sgEcsTasks.addIngressRule(this.sgLambda, ec2.Port.tcp(8084), 'Batch post-processor to DFS');
 
     // RDS Proxy — isolated subnet, only reachable from ECS tasks
     this.sgRdsProxy = new ec2.SecurityGroup(this, 'SgRdsProxy', {

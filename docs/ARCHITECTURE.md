@@ -35,17 +35,14 @@ All follow Hexagonal Architecture (Ports & Adapters).
  
 ## Lambda Functions
  
-Three Lambda functions exist in the full production architecture. Two have source code in `backend/adapters/`.
+Two Lambda functions exist in the production architecture. Both have source code in `backend/adapters/`.
  
 | Lambda | Directory | Trigger | Status |
 |--------|-----------|---------|--------|
-| Kinesis Consumer Lambda | `backend/adapters/kinesis-consumer/` | Kinesis Data Stream | Implemented — full prototype scope |
 | Batch Post-Processor Lambda | `backend/adapters/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
 | SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
  
-**Kinesis Consumer Lambda** is a SIS inbound adapter: deduplicates POS events via DynamoDB and forwards to SIS via HTTP.
- 
-**Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, and POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
+**Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`, then deletes the processed S3 object. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
  
 ---
  
@@ -96,31 +93,29 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
 - Connection pool: 10 connections per ECS task (HikariCP max-pool-size = 10)
 - Endpoint stored in Parameter Store at `/smartretail/{env}/rds/proxy-endpoint`
  
-### Secondary Store: Amazon DynamoDB
- 
-- Table name: `smartretail-idempotency-keys-{env}`
-- Purpose: SIS deduplication only
-- PK: `event_id` (SHA-256 of transactionId)
-- TTL attribute: `expires_at` (processed_at + 48 hours)
-- Capacity: On-Demand
-- No GSIs
- 
 ### S3
  
-- `smartretail-events-{env}`: raw POS JSON archive (SIS writes)
+- `smartretail-pos-archive-{env}`: raw POS JSON archive delivered by Kinesis Firehose (SIS writes to Firehose; Firehose delivers to S3). Key prefix: `pos-events/{yyyy}/{MM}/{dd}/{HH}/`
 - `smartretail-sagemaker-{env}`: SageMaker training data, model artefacts, and transform output (key prefix: `sagemaker/output/{run_id}/part-*.csv`)
 - `smartretail-mfe-{env}-{mfe-name}`: MFE static assets (4 buckets)
+ 
+### Idempotency
+ 
+SIS deduplication uses a PostgreSQL table `sales.processed_transactions` (PK: `transaction_id UUID`). On each ingest, SIS issues `INSERT ... ON CONFLICT DO NOTHING` and checks the affected row count: 0 rows = duplicate, 1 row = new event. No external store required.
+ 
+> **Decision record — Redis/DynamoDB:** DynamoDB was replaced by PostgreSQL idempotency (`sales.processed_transactions`). Redis/ElastiCache was evaluated and rejected — PostgreSQL `INSERT ON CONFLICT` provides equivalent atomicity at prototype scale with one fewer infrastructure component.
  
 ---
  
 ## Messaging Architecture
  
-### Kinesis Data Streams
+### POS Ingestion — API Gateway + Kinesis Data Firehose
  
-- Stream name: `smartretail-events-{env}`
-- Shard mode: On-Demand
-- Retention: 7 days
-- Consumer: Kinesis Consumer Lambda (SIS inbound adapter)
+POS terminals do not embed the Kinesis SDK. They send HTTPS POST requests to the API Gateway (`/v1/ingest/events`), which routes via VPC Link to SIS. SIS processes the event synchronously, then archives the raw payload to Kinesis Data Firehose (outbound adapter) for durable S3 delivery.
+ 
+- **API Gateway:** REST API with VPC Link. ACM certificate on custom domain `api.smartretail.{env}.example.com`. API key authentication for POS terminals (`X-Api-Key` header); Cognito JWT for MFE routes.
+- **Firehose delivery stream:** `smartretail-pos-archive-{env}` (Direct PUT source). Destination: S3 bucket `smartretail-pos-archive-{env}`. Buffer: 60 s / 1 MB.
+- **No Lambda in the POS ingest path.** Firehose is SIS-outbound only — it archives events after SIS processes them.
  
 ### EventBridge
  
@@ -145,10 +140,13 @@ FIFO queue message group ID for RE: `{dcId}#{skuId}` (ensures ordering per DC+SK
 ## API Gateway
  
 - Type: REST API (not HTTP API — REST API required for VPC Link)
-- Integration: VPC Link to ECS services on port 8080
-- Authoriser: Cognito JWT authoriser on all endpoints except /health
+- Integration: VPC Link to ECS services via NLB on port 8080
+- Authoriser: Cognito JWT authoriser on all MFE routes; API key (`X-Api-Key`) on `/v1/ingest/events` for POS terminals
 - Stages: `internal` (staff) and `supplier` (external supplier portal)
-- No ALB — API Gateway VPC Link is the sole ingress path to ECS
+- Custom domain: `api.smartretail.{env}.example.com` with ACM certificate (DNS-validated, `us-east-1`)
+- Single API Gateway handles both MFE traffic and POS ingestion — no separate gateway
+ 
+> **Implementation note:** `environments/dev/infra/lib/api-stack.ts` currently uses an ALB instead of API Gateway + VPC Link (cost optimisation noted in code comment). This document describes the target architecture. Migration to API Gateway + VPC Link is tracked as a post-prototype task.
  
 ---
  
@@ -182,8 +180,7 @@ Each ECS task role grants ONLY what that service needs:
  
 **SIS task role:**
 - `rds-db:connect` to RDS Proxy (sales schema user)
-- `dynamodb:GetItem`, `dynamodb:PutItem` on idempotency-keys table
-- `s3:PutObject` on smartretail-events bucket
+- `firehose:PutRecord` on `smartretail-pos-archive-{env}` delivery stream
 - `events:PutEvents` on EventBridge bus
  
 **IMS task role:**
@@ -202,13 +199,13 @@ Each ECS task role grants ONLY what that service needs:
 - `sqs:ReceiveMessage`, `sqs:DeleteMessage` on ars-updates queue
 - READ ONLY — no write permissions anywhere
  
-### VPC Endpoints (Interface)
+### VPC Endpoints
  
 Required for all services to reach AWS APIs without internet egress:
 - S3 Gateway endpoint
-- DynamoDB Gateway endpoint
 - SQS Interface endpoint
 - EventBridge Interface endpoint
+- Kinesis Firehose Interface endpoint
 - KMS Interface endpoint
 - Secrets Manager Interface endpoint
 - ECR Interface endpoints (api + dkr)

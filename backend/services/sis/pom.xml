@@ -40,22 +40,10 @@
             <artifactId>spring-cloud-aws-starter-parameter-store</artifactId>
         </dependency>
 
-        <!-- Spring Cloud AWS — SQS listener (dev-aws profile: POS event ingestion) -->
-        <dependency>
-            <groupId>io.awspring.cloud</groupId>
-            <artifactId>spring-cloud-aws-starter-sqs</artifactId>
-        </dependency>
-
-        <!-- AWS SDK — DynamoDB (idempotency store) -->
+        <!-- AWS SDK — Kinesis Firehose (raw event archive) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>dynamodb</artifactId>
-        </dependency>
-
-        <!-- AWS SDK — S3 (raw event archive) -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
+            <artifactId>firehose</artifactId>
         </dependency>
 
         <!-- AWS SDK — EventBridge (domain event publish) -->
