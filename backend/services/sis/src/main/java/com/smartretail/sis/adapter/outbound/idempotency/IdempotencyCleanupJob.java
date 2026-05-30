@@ -2,7 +2,7 @@ package com.smartretail.sis.adapter.outbound.idempotency;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +17,9 @@ public class IdempotencyCleanupJob {
     private static final String DELETE_SQL =
             "DELETE FROM sales.idempotency_keys WHERE received_at < NOW() - INTERVAL '48 hours'";
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final NamedParameterJdbcOperations jdbc;
 
-    public IdempotencyCleanupJob(NamedParameterJdbcTemplate jdbc) {
+    public IdempotencyCleanupJob(NamedParameterJdbcOperations jdbc) {
         this.jdbc = jdbc;
     }
 

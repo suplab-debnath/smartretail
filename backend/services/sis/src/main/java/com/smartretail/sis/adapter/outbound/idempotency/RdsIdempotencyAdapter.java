@@ -2,7 +2,7 @@ package com.smartretail.sis.adapter.outbound.idempotency;
 
 import com.smartretail.sis.port.outbound.IdempotencyPort;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -14,9 +14,9 @@ public class RdsIdempotencyAdapter implements IdempotencyPort {
     private static final String MARK_PROCESSED_SQL =
             "INSERT INTO sales.idempotency_keys (event_id) VALUES (:eventId) ON CONFLICT DO NOTHING";
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final NamedParameterJdbcOperations jdbc;
 
-    public RdsIdempotencyAdapter(NamedParameterJdbcTemplate jdbc) {
+    public RdsIdempotencyAdapter(NamedParameterJdbcOperations jdbc) {
         this.jdbc = jdbc;
     }
 
