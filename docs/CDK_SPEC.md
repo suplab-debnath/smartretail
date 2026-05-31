@@ -284,7 +284,7 @@ const deliveryStream = new firehose.CfnDeliveryStream(this, 'SmartRetailIngest',
       accessKey: firehoseAccessKey.secretValue.unsafeUnwrap(),
     },
     retryOptions: { durationInSeconds: 86400 },
-    s3BackupMode: 'FailedDataOnly',
+    s3BackupMode: 'AllData',
     roleArn: firehoseDeliveryRole.roleArn,
   },
   extendedS3DestinationConfiguration: {

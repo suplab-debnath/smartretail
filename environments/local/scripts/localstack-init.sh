@@ -31,7 +31,7 @@ awslocal firehose create-delivery-stream \
       },
       \"BufferingHints\": { \"SizeInMBs\": 1, \"IntervalInSeconds\": 0 },
       \"RetryOptions\": { \"DurationInSeconds\": 60 },
-      \"S3BackupMode\": \"FailedDataOnly\",
+      \"S3BackupMode\": \"AllData\",
       \"S3Configuration\": {
         \"BucketARN\": \"arn:aws:s3:::smartretail-events-${ENV}\",
         \"RoleARN\": \"arn:aws:iam::${ACCOUNT}:role/firehose-local-role\"
