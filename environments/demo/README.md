@@ -2,7 +2,7 @@
 
 Deploys the **SC Planner demo** on real AWS infrastructure. Intended lifespan: 1–2 days. All resources are tagged `Lifecycle=ephemeral` for easy cost tracking and cleanup.
 
-**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, SQS messaging (no Kinesis), single-AZ RDS, S3 static website hosting (no CloudFront). Uses `environments/demo/infra/` (Min-* stack names).
+**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, REST API Gateway + internal NLB, SQS + EventBridge messaging, single-AZ RDS, S3 static website hosting (no CloudFront). Uses `environments/demo/infra/` (Min-* stack names).
 
 > For the full CDK stack spec and resource table see `environments/demo/infra/README.md`.
 
@@ -106,6 +106,27 @@ All resources are tagged:
 - `Lifecycle=ephemeral`
 
 Find all demo resources in Cost Explorer or the Tag Editor by filtering on `Lifecycle=ephemeral`.
+
+### Monthly cost estimate (us-east-1, 30 days, no free tier)
+
+Here's the full breakdown pulled directly from all 7 demo CDK stacks:
+
+| Service | Config | $/month |
+|---------|--------|---------|
+| RDS | t4g.micro, PostgreSQL 16, 20 GB, single-AZ | ~$14 |
+| ECS Fargate | 5 tasks × 0.25 vCPU / 0.5 GB, ARM64, 80% SPOT | ~$17 |
+| NLB | 1 internal NLB, 5 listeners, low traffic | ~$7 |
+| CloudWatch | 1 dashboard, 6 alarms, 5 log groups | ~$4 |
+| Secrets Manager | 1 secret (RDS password) | ~$0.40 |
+| API Gateway (REST) | Low demo traffic (~100k calls) | ~$0.50 |
+| ECR | 5 repos, ~1 GB images | ~$0.05 |
+| S3 / SQS / EventBridge / Cognito / SNS / SSM | Minimal usage, within free tiers | ~$0.50 |
+| **Total** | | **~$44/month** |
+
+**Key points:**
+- RDS + Fargate = 70% of the bill. The 4:1 FARGATE_SPOT weight saves ~$19/month vs all on-demand.
+- No NAT Gateway — tasks use public IPs in the default VPC, saving ~$32/month vs a private-subnet setup.
+- At ~$1.47/day, a 2-day demo costs ~$3. **Run `make demo-destroy` after every demo session.**
 
 ---
 
