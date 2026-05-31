@@ -1,3 +1,7 @@
 spring:
   datasource:
     password: local_dev_password
+
+smartretail:
+  sqs:
+    pps-inbound-queue-url: http://localhost:4566/000000000000/smartretail-pps-inbound-local

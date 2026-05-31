@@ -63,18 +63,6 @@
             <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>com.smartretail</groupId>
-            <artifactId>smartretail-batch-post-processor</artifactId>
-            <version>${project.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.smartretail</groupId>
-            <artifactId>smartretail-ml-trigger</artifactId>
-            <version>${project.version}</version>
-            <scope>compile</scope>
-        </dependency>
     </dependencies>
 
     <build>

@@ -40,7 +40,7 @@ Two Lambda functions exist in the production architecture. One has source code i
 | Lambda | Directory | Trigger | Status |
 |--------|-----------|---------|--------|
 | Batch Post-Processor Lambda | `backend/adapters/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
-| SageMaker Trigger Lambda | — | EventBridge scheduled rule | Not in prototype scope — no source code |
+| SageMaker Trigger Lambda | `backend/adapters/ml-trigger/` | EventBridge scheduled rule | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
  
  
 **Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, and POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
@@ -143,13 +143,34 @@ FIFO queue message group ID for RE: `{dcId}#{skuId}` (ensures ordering per DC+SK
 ---
  
 ## API Gateway
- 
-- Type: REST API (not HTTP API — REST API required for VPC Link)
-- Integration: VPC Link to ECS services on port 8080
-- Authoriser: Cognito JWT authoriser on all endpoints except /health
-- Stages: `internal` (staff) and `supplier` (external supplier portal)
-- No ALB — API Gateway VPC Link is the sole ingress path to ECS
- 
+
+- Type: REST API (not HTTP API — REST API is required for both VPC Link and AWS service integrations)
+- Custom domains: `api.smartretail.com` (staff + ingest stages) · `supplier-api.smartretail.com` (supplier stage)
+- TLS: ACM certificates on both domains, DNS validation via Route 53, CloudWatch expiry alarm (L1, <30 days)
+- WAFv2 web ACL on both domains — OWASP Top 10, rate limiting, SQLi/XSS rules
+- No ALB — VPC Link is the only path into ECS services
+
+### Route groups — four independent integration types
+
+| Route group | Path prefix | Integration type | Backend | Auth |
+|---|---|---|---|---|
+| Staff APIs | `/v1/dashboard/**` `/v1/inventory/**` `/v1/forecast/**` `/v1/replenishment/**` | `HTTP_PROXY` → VPC Link | ARS · IMS · DFS · RE · SIS ECS `:8080` | Cognito JWT — Internal Pool |
+| Supplier APIs | `/v1/supplier/**` | `HTTP_PROXY` → VPC Link | SUP ECS `:8080` | Cognito JWT — Supplier Pool |
+| Firehose ingest | `/ingest/v1/ingest/events` | `HTTP_PROXY` → VPC Link | SIS ECS `:8080` | Static access key — `X-Amz-Firehose-Access-Key` header (Secrets Manager) |
+| External events | `/system/v1/events/**` | `AWS` service integration → `events:PutEvents` | EventBridge custom bus — no Lambda, no VPC Link | API key — `x-api-key` header (Usage Plan) |
+
+One VPC Link is shared across all `HTTP_PROXY` route groups. The external events route uses a direct AWS service integration with a mapping template; no Lambda or ECS service sits on that path.
+
+### Stages and throttling
+
+| Stage | Domain | Route groups | Default throttle | Burst |
+|---|---|---|---|---|
+| `internal` | api.smartretail.com | Staff APIs | 500 req/s | 1000 |
+| `supplier` | supplier-api.smartretail.com | Supplier APIs | 100 req/s | 200 |
+| `ingest` | api.smartretail.com | Firehose ingest | 1000 req/s | 2000 |
+| `system` | api.smartretail.com | External events | 50 req/s | 100 |
+
+Full routing table, VPC Link config, CDK definitions, EventBridge mapping template, and per-stage WAF rules: **LLD §6.8**.
 ---
  
 ## Identity

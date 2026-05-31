@@ -24,14 +24,26 @@ public class EventBridgeAlertPublisher implements AlertPublisherPort {
     private static final String EVENT_SOURCE = "smartretail.ims";
     private static final String DETAIL_TYPE  = "InventoryAlertEvent";
 
-    private final EventBridgeClient eventBridge;
+    /** Functional interface seam — allows tests to inject without mocking AWS SDK client. */
+    @FunctionalInterface
+    interface PutEventsExecutor {
+        software.amazon.awssdk.services.eventbridge.model.PutEventsResponse execute(PutEventsRequest request);
+    }
+
+    private final PutEventsExecutor executor;
     private final String busName;
     private final ObjectMapper objectMapper;
 
+    /** Production constructor — delegates to real EventBridgeClient. */
     public EventBridgeAlertPublisher(
             EventBridgeClient eventBridge,
             @Value("${smartretail.eventbridge.bus-name}") String busName) {
-        this.eventBridge = eventBridge;
+        this(eventBridge::putEvents, busName);
+    }
+
+    /** Test constructor — accepts injected executor. */
+    EventBridgeAlertPublisher(PutEventsExecutor executor, String busName) {
+        this.executor = executor;
         this.busName = busName;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
@@ -62,7 +74,7 @@ public class EventBridgeAlertPublisher implements AlertPublisherPort {
                     .time(Instant.now())
                     .build();
 
-            var response = eventBridge.putEvents(PutEventsRequest.builder()
+            var response = executor.execute(PutEventsRequest.builder()
                     .entries(entry)
                     .build());
 

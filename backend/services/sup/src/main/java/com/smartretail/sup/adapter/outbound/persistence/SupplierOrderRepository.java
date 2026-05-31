@@ -5,7 +5,7 @@ import com.smartretail.sup.port.outbound.SupplierOrderWritePort;
 import com.smartretail.sup.port.outbound.SupplierReadPort;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -72,9 +72,9 @@ public class SupplierOrderRepository implements SupplierOrderReadPort, SupplierO
             ORDER BY supplier_name
             """;
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final NamedParameterJdbcOperations jdbc;
 
-    public SupplierOrderRepository(NamedParameterJdbcTemplate jdbc) {
+    public SupplierOrderRepository(NamedParameterJdbcOperations jdbc) {
         this.jdbc = jdbc;
     }
 

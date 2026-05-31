@@ -14,6 +14,7 @@ export class MessagingStack extends cdk.Stack {
   public readonly imsSalesQueue: sqs.Queue;
   public readonly reAlertQueue: sqs.Queue;
   public readonly arsUpdatesQueue: sqs.Queue;
+  public readonly ppsInboundQueue: sqs.Queue;
 
   constructor(scope: Construct, id: string, props: MessagingStackProps) {
     super(scope, id, props);
@@ -83,16 +84,40 @@ export class MessagingStack extends cdk.Stack {
       targets: [new eventsTargets.SqsQueue(this.arsUpdatesQueue)],
     });
 
+    // PPS inbound queue — Campaign Management → EventBridge → PPS
+    const ppsInboundDlq = new sqs.Queue(this, 'PpsInboundDlq', {
+      queueName: `smartretail-pps-inbound-${srEnv}-dlq`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: cdk.Duration.days(14),
+    });
+    this.ppsInboundQueue = new sqs.Queue(this, 'PpsInboundQueue', {
+      queueName: `smartretail-pps-inbound-${srEnv}`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      deadLetterQueue: { queue: ppsInboundDlq, maxReceiveCount: 3 },
+      visibilityTimeout: cdk.Duration.seconds(120),
+    });
+
+    new events.Rule(this, 'PromotionToPps', {
+      eventBus: this.eventBus,
+      ruleName: `smartretail-promotion-to-pps-${srEnv}`,
+      eventPattern: {
+        source: ['external.campaign-management'],
+        detailType: ['PromotionActivated'],
+      },
+      targets: [new eventsTargets.SqsQueue(this.ppsInboundQueue)],
+    });
+
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {
         parameterName: `/smartretail/${srEnv}/${name}`,
         stringValue: value,
       });
 
-    put('eventbridge/bus-name',       this.eventBus.eventBusName);
-    put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
-    put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
-    put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
+    put('eventbridge/bus-name',          this.eventBus.eventBusName);
+    put('eventbridge/bus-arn',           this.eventBus.eventBusArn);
+    put('sqs/ims-sales-queue-url',       this.imsSalesQueue.queueUrl);
+    put('sqs/re-alert-queue-url',        this.reAlertQueue.queueUrl);
+    put('sqs/ars-updates-queue-url',     this.arsUpdatesQueue.queueUrl);
+    put('sqs/pps-inbound-queue-url',     this.ppsInboundQueue.queueUrl);
   }
 }

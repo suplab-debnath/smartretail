@@ -70,7 +70,7 @@ for MFE in $MFES; do
   # Generate runtime config.js from SSM — overwrites the empty placeholder
   # that ships with the build. Must happen after build, before S3 sync.
   echo "▶  Generating config.js from SSM"
-  ALB_URL=$(aws ssm get-parameter \
+  API_ENDPOINT=$(aws ssm get-parameter \
     --name "/smartretail/${ENV}/api/endpoint" \
     --query Parameter.Value --output text \
     --profile "$PROFILE" 2>/dev/null || true)
@@ -85,14 +85,14 @@ for MFE in $MFES; do
 
   cat > "mfe/${MFE}/dist/config.js" <<CONFIGEOF
 window.SMARTRETAIL_CONFIG = {
-  apiGatewayEndpoint: '${ALB_URL}',
+  apiGatewayEndpoint: '${API_ENDPOINT}',
   cognitoPoolId:      '${COGNITO_POOL_ID}',
   cognitoClientId:    '${COGNITO_CLIENT_ID}',
   cognitoDomain:      '',
   env:                '${ENV}',
 };
 CONFIGEOF
-  echo "   apiGatewayEndpoint: ${ALB_URL}"
+  echo "   apiGatewayEndpoint: ${API_ENDPOINT}"
 
   # S3 sync
   BUCKET="smartretail-mfe-${ENV}-${MFE}-${ACCOUNT}"

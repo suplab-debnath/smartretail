@@ -25,7 +25,7 @@ const data     = new DataStack    (app, 'Prod-DataStack',     { env: cdkEnv, srE
 const messaging = new MessagingStack(app, 'Prod-MessagingStack', { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Prod-IdentityStack',  { env: cdkEnv, srEnv: env });
 const compute   = new ComputeStack  (app, 'Prod-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging });
-new ApiStack    (app, 'Prod-ApiStack',     { env: cdkEnv, srEnv: env, network, data, compute });
+new ApiStack    (app, 'Prod-ApiStack',     { env: cdkEnv, srEnv: env, network, data, messaging, compute });
 new HostingStack(app, 'Prod-HostingStack', { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
 
 // Suppress unused variable warnings — identity exported for future JWT middleware use

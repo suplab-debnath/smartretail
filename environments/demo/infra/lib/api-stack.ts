@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
@@ -14,7 +15,9 @@ export interface ApiStackProps extends cdk.StackProps {
 }
 
 export class ApiStack extends cdk.Stack {
-  public readonly alb: elbv2.ApplicationLoadBalancer;
+  public readonly apiEndpoint: string;
+  /** REST API name — used by MonitoringStack for CloudWatch metric dimensions (ApiName + Stage) */
+  public readonly restApiName: string;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -23,57 +26,119 @@ export class ApiStack extends cdk.Stack {
 
     const { srEnv, network, compute } = props;
 
-    this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
-      loadBalancerName: `smartretail-alb-${srEnv}`,
+    // ── Internal NLB ─────────────────────────────────────────────────────────
+    // Demo uses the default VPC which has only public subnets — place NLB there.
+    // REST API VpcLink is backed by NLB; all HTTP_PROXY routes share one link.
+    const nlb = new elbv2.NetworkLoadBalancer(this, 'Nlb', {
+      loadBalancerName: `smartretail-nlb-${srEnv}`,
       vpc: network.vpc,
-      internetFacing: true,
-      securityGroup: network.sgAlb,
+      internetFacing: false,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
     });
 
-    const listener = this.alb.addListener('HttpListener', {
-      port: 80,
-      defaultAction: elbv2.ListenerAction.fixedResponse(404, {
-        contentType: 'application/json',
-        messageBody: '{"error":"no matching route"}',
-      }),
+    // ── VPC Link (REST API type — backed by NLB) ──────────────────────────────
+    const vpcLink = new apigw.VpcLink(this, 'VpcLink', {
+      targets: [nlb],
+      vpcLinkName: `smartretail-vpclink-${srEnv}`,
     });
 
-    const routes: Array<{ name: string; path: string; port: number; service: ecs.FargateService }> = [
-      { name: 'ims', path: '/v1/inventory/*',     port: 8081, service: compute.imsService },
-      { name: 're',  path: '/v1/replenishment/*', port: 8082, service: compute.reService  },
-      { name: 'ars', path: '/v1/dashboard/*',     port: 8083, service: compute.arsService },
-      { name: 'dfs', path: '/v1/forecast/*',      port: 8084, service: compute.dfsService },
-      { name: 'sup', path: '/v1/supplier/*',      port: 8085, service: compute.supService },
-    ];
-
-    routes.forEach(({ name, path, port, service }, i) => {
+    // ── NLB listeners + ECS target groups ────────────────────────────────────
+    const addNlbListener = (
+      name: string,
+      port: number,
+      service: ecs.FargateService,
+    ): void => {
       const pascal = name.charAt(0).toUpperCase() + name.slice(1);
-      listener.addTargets(`${pascal}Targets`, {
-        targetGroupName: `sr-${srEnv}-${name}`,
+      const listener = nlb.addListener(`${pascal}Listener`, {
         port,
-        protocol: elbv2.ApplicationProtocol.HTTP,
+        protocol: elbv2.Protocol.TCP,
+      });
+      listener.addTargets(`${pascal}Tg`, {
+        port,
+        protocol: elbv2.Protocol.TCP,
         targets: [service.loadBalancerTarget({ containerName: `${name}Container`, containerPort: port })],
         healthCheck: {
+          enabled: true,
+          protocol: elbv2.Protocol.HTTP,
           path: '/actuator/health',
+          port: String(port),
           interval: cdk.Duration.seconds(30),
           healthyThresholdCount: 2,
           unhealthyThresholdCount: 3,
-          healthyHttpCodes: '200',
         },
-        conditions: [elbv2.ListenerCondition.pathPatterns([path])],
-        priority: (i + 1) * 10,
+        deregistrationDelay: cdk.Duration.seconds(30),
       });
+    };
+
+    addNlbListener('ims', 8081, compute.imsService);
+    addNlbListener('re',  8082, compute.reService);
+    addNlbListener('ars', 8083, compute.arsService);
+    addNlbListener('dfs', 8084, compute.dfsService);
+    addNlbListener('sup', 8085, compute.supService);
+
+    // ── HTTP_PROXY integration helper ─────────────────────────────────────────
+    // URI: http://{nlb-dns}:{port}/{proxy} — NLB routes to the correct ECS TG
+    const nlbProxyIntegration = (port: number) =>
+      new apigw.Integration({
+        type: apigw.IntegrationType.HTTP_PROXY,
+        integrationHttpMethod: 'ANY',
+        uri: `http://${nlb.loadBalancerDnsName}:${port}/{proxy}`,
+        options: {
+          connectionType: apigw.ConnectionType.VPC_LINK,
+          vpcLink,
+          requestParameters: {
+            'integration.request.path.proxy': 'method.request.path.proxy',
+          },
+        },
+      });
+
+    // ── REST API ──────────────────────────────────────────────────────────────
+    const apiName = `smartretail-api-${srEnv}`;
+    const restApi = new apigw.RestApi(this, 'RestApi', {
+      restApiName: apiName,
+      description: 'SmartRetail Demo REST API — NLB VPC Link to ECS services',
+      endpointTypes: [apigw.EndpointType.REGIONAL],
+      deployOptions: { stageName: 'internal' },
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: ['Authorization', 'Content-Type', 'X-Correlation-ID'],
+        maxAge: cdk.Duration.hours(1),
+      },
     });
 
-    new ssm.StringParameter(this, 'AlbEndpointParam', {
+    // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY
+    const addProxyResource = (
+      parent: apigw.IResource,
+      pathPart: string,
+      port: number,
+    ): void => {
+      parent.addResource(pathPart).addProxy({
+        defaultIntegration: nlbProxyIntegration(port),
+        anyMethod: true,
+      });
+    };
+
+    // Staff APIs — five services, one proxy resource each
+    const v1 = restApi.root.addResource('v1');
+    addProxyResource(v1, 'dashboard',     8083); // ARS
+    addProxyResource(v1, 'inventory',     8081); // IMS
+    addProxyResource(v1, 'forecast',      8084); // DFS
+    addProxyResource(v1, 'replenishment', 8082); // RE
+    addProxyResource(v1, 'supplier',      8085); // SUP
+
+    this.apiEndpoint = restApi.url;
+    this.restApiName = restApi.restApiName;
+
+    // ── SSM outputs ───────────────────────────────────────────────────────────
+    new ssm.StringParameter(this, 'ApiEndpointParam', {
       parameterName: `/smartretail/${srEnv}/api/endpoint`,
-      stringValue: `http://${this.alb.loadBalancerDnsName}`,
+      stringValue: restApi.url,
     });
 
-    new cdk.CfnOutput(this, 'AlbEndpoint', {
-      value: `http://${this.alb.loadBalancerDnsName}`,
-      description: 'SmartRetail ALB Endpoint (HTTP)',
+    new cdk.CfnOutput(this, 'ApiEndpoint', {
+      value: restApi.url,
+      description: 'SmartRetail Demo REST API endpoint (internal stage)',
     });
   }
 }

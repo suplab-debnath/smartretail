@@ -3,7 +3,7 @@ package com.smartretail.dfs.adapter.outbound.persistence;
 import com.smartretail.dfs.domain.model.ForecastRow;
 import com.smartretail.dfs.port.outbound.ForecastPersistencePort;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
@@ -46,9 +46,9 @@ public class ForecastWriteRepository implements ForecastPersistencePort {
             WHERE run_id = :runId
             """;
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final NamedParameterJdbcOperations jdbc;
 
-    public ForecastWriteRepository(NamedParameterJdbcTemplate jdbc) {
+    public ForecastWriteRepository(NamedParameterJdbcOperations jdbc) {
         this.jdbc = jdbc;
     }
 

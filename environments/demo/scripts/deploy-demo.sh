@@ -99,7 +99,7 @@ npm install --silent
 npm run build
 
 # Generate runtime config.js with live SSM values — overwrites empty placeholder
-ALB_URL=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
+API_ENDPOINT=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
   --name "/smartretail/${DEMO_ENV}/api/endpoint" \
   --query Parameter.Value --output text 2>/dev/null || true)
 COGNITO_POOL_ID=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
@@ -111,14 +111,14 @@ COGNITO_CLIENT_ID=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
 
 cat > dist/config.js <<CONFIGEOF
 window.SMARTRETAIL_CONFIG = {
-  apiGatewayEndpoint: '${ALB_URL}',
+  apiGatewayEndpoint: '${API_ENDPOINT}',
   cognitoPoolId:      '${COGNITO_POOL_ID}',
   cognitoClientId:    '${COGNITO_CLIENT_ID}',
   cognitoDomain:      '',
   env:                '${DEMO_ENV}',
 };
 CONFIGEOF
-echo "  apiGatewayEndpoint: ${ALB_URL}"
+echo "  apiGatewayEndpoint: ${API_ENDPOINT}"
 
 BUCKET_NAME=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
   --name "/smartretail/${DEMO_ENV}/hosting/sc-planner-bucket-name" \
@@ -130,13 +130,13 @@ hr "Done"
 SC_URL=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
   --name "/smartretail/${DEMO_ENV}/hosting/sc-planner-url" \
   --query Parameter.Value --output text 2>/dev/null || echo "pending")
-ALB_URL=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
+API_ENDPOINT=$(AWS_PROFILE="$PROFILE" aws ssm get-parameter \
   --name "/smartretail/${DEMO_ENV}/api/endpoint" \
   --query Parameter.Value --output text 2>/dev/null || echo "pending")
 CW_URL="https://${REGION}.console.aws.amazon.com/cloudwatch/home?region=${REGION}#dashboards:name=SmartRetail-${DEMO_ENV}-Ops"
 
 echo "  ✅  SC Planner  : $SC_URL"
-echo "  ✅  API Endpoint: $ALB_URL"
+echo "  ✅  API Endpoint: $API_ENDPOINT"
 echo "  ✅  CW Dashboard: $CW_URL"
 echo ""
 echo "  Cognito users not yet created."

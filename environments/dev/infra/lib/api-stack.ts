@@ -2,20 +2,21 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
-import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
-import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as firehose from 'aws-cdk-lib/aws-kinesisfirehose';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
 import { DataStack } from './data-stack';
+import { MessagingStack } from './messaging-stack';
 import { ComputeStack } from './compute-stack';
 
 export interface ApiStackProps extends cdk.StackProps {
   srEnv: string;
   network: NetworkStack;
   data: DataStack;
+  messaging: MessagingStack;
   compute: ComputeStack;
 }
 
@@ -28,9 +29,10 @@ export class ApiStack extends cdk.Stack {
 
     cdk.Tags.of(this).add('Name', 'smartretail-api-dev');
 
-    const { srEnv, network, data, compute } = props;
+    const { srEnv, network, data, messaging, compute } = props;
 
-    // Internal NLB — routes API GW VPC Link traffic to ECS services
+    // ── Internal NLB ─────────────────────────────────────────────────────────
+    // REST API VPC Link is backed by NLB. All HTTP_PROXY route groups share it.
     const nlb = new elbv2.NetworkLoadBalancer(this, 'Nlb', {
       loadBalancerName: `smartretail-nlb-${srEnv}`,
       vpc: network.vpc,
@@ -38,38 +40,25 @@ export class ApiStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
 
-    const routes: Array<{ name: string; path: string; port: number; service: ecs.FargateService }> = [
-      { name: 'sis', path: '/v1/ingest/{proxy+}',        port: 8080, service: compute.sisService },
-      { name: 'ims', path: '/v1/inventory/{proxy+}',      port: 8081, service: compute.imsService },
-      { name: 're',  path: '/v1/replenishment/{proxy+}',  port: 8082, service: compute.reService  },
-      { name: 'ars', path: '/v1/dashboard/{proxy+}',      port: 8083, service: compute.arsService },
-      { name: 'dfs', path: '/v1/forecast/{proxy+}',       port: 8084, service: compute.dfsService },
-      { name: 'sup', path: '/v1/supplier/{proxy+}',       port: 8085, service: compute.supService },
-      { name: 'pps', path: '/v1/promotions/{proxy+}',     port: 8086, service: compute.ppsService },
-    ];
-
-    // VPC Link — connects API GW HTTP API to the internal NLB
-    const vpcLink = new apigatewayv2.VpcLink(this, 'VpcLink', {
-      vpc: network.vpc,
-      subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    // ── VPC Link (REST API type — backed by NLB) ──────────────────────────────
+    const vpcLink = new apigw.VpcLink(this, 'VpcLink', {
+      targets: [nlb],
       vpcLinkName: `smartretail-vpclink-${srEnv}`,
     });
 
-    // HTTP API
-    const httpApi = new apigatewayv2.HttpApi(this, 'HttpApi', {
-      apiName: `smartretail-api-${srEnv}`,
-      description: 'SmartRetail internal API — routes to ECS services via NLB VPC Link',
-    });
-
-    // Per-service: NLB listener → NLB target group → ECS service → API GW route
-    routes.forEach(({ name, path, port, service }) => {
+    // ── Per-service NLB listeners + target groups ─────────────────────────────
+    // Returns NLB listener so its loadBalancer.loadBalancerDnsName is available
+    // for the HTTP_PROXY integration URI.
+    const addNlbRoute = (
+      name: string,
+      port: number,
+      service: ecs.FargateService,
+    ): elbv2.NetworkListener => {
       const pascal = name.charAt(0).toUpperCase() + name.slice(1);
-
       const listener = nlb.addListener(`${pascal}Listener`, {
         port,
         protocol: elbv2.Protocol.TCP,
       });
-
       listener.addTargets(`${pascal}Tg`, {
         port,
         protocol: elbv2.Protocol.TCP,
@@ -85,30 +74,153 @@ export class ApiStack extends cdk.Stack {
         },
         deregistrationDelay: cdk.Duration.seconds(30),
       });
+      return listener;
+    };
 
-      const integration = new apigatewayv2Integrations.HttpNlbIntegration(
-        `${pascal}Integration`,
-        listener,
-        { vpcLink },
-      );
+    addNlbRoute('sis', 8080, compute.sisService);
+    addNlbRoute('ims', 8081, compute.imsService);
+    addNlbRoute('re',  8082, compute.reService);
+    addNlbRoute('ars', 8083, compute.arsService);
+    addNlbRoute('dfs', 8084, compute.dfsService);
+    addNlbRoute('sup', 8085, compute.supService);
+    addNlbRoute('pps', 8086, compute.ppsService);
 
-      httpApi.addRoutes({
-        path,
-        methods: [apigatewayv2.HttpMethod.ANY],
-        integration,
+    // ── HTTP_PROXY integration helper ─────────────────────────────────────────
+    // URI: http://{nlb-dns}:{port}/{proxy} — NLB listener routes to correct ECS TG
+    const nlbProxyIntegration = (port: number) =>
+      new apigw.Integration({
+        type: apigw.IntegrationType.HTTP_PROXY,
+        integrationHttpMethod: 'ANY',
+        uri: `http://${nlb.loadBalancerDnsName}:${port}/{proxy}`,
+        options: {
+          connectionType: apigw.ConnectionType.VPC_LINK,
+          vpcLink,
+          requestParameters: {
+            'integration.request.path.proxy': 'method.request.path.proxy',
+          },
+        },
       });
+
+    // ── REST API ──────────────────────────────────────────────────────────────
+    const restApi = new apigw.RestApi(this, 'RestApi', {
+      restApiName: `smartretail-api-${srEnv}`,
+      description: 'SmartRetail REST API — VPC Link + EventBridge service integrations',
+      endpointTypes: [apigw.EndpointType.REGIONAL],
+      deployOptions: { stageName: 'internal' },
+      defaultCorsPreflightOptions: {
+        allowOrigins: ['https://*.smartretail.com'],
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: ['Authorization', 'Content-Type', 'X-Correlation-ID'],
+        maxAge: cdk.Duration.hours(1),
+      },
     });
 
-    this.apiEndpoint = httpApi.apiEndpoint;
+    // Helper: add a {proxy+} resource under a path prefix with ANY → NLB integration
+    const addProxyResource = (
+      parent: apigw.IResource,
+      pathPart: string,
+      port: number,
+    ) => {
+      const resource = parent.addResource(pathPart);
+      const proxy = resource.addProxy({
+        defaultIntegration: nlbProxyIntegration(port),
+        anyMethod: true,
+      });
+      return proxy;
+    };
 
-    // Firehose IAM role — allowed to write S3 backup and call API GW
+    // Staff APIs — internal stage
+    const v1 = restApi.root.addResource('v1');
+    addProxyResource(v1, 'dashboard',      8083); // ARS
+    addProxyResource(v1, 'inventory',      8081); // IMS
+    addProxyResource(v1, 'forecast',       8084); // DFS
+    addProxyResource(v1, 'replenishment',  8082); // RE
+    addProxyResource(v1, 'supplier',       8085); // SUP
+    addProxyResource(v1, 'ingest',         8080); // SIS (also serves Firehose ingest)
+    addProxyResource(v1, 'promotions',     8086); // PPS (read-only queries)
+
+    // ── System stage — EventBridge AWS service integration ────────────────────
+    // POST /system/v1/events/promotions → EventBridge PutEvents (no VPC Link, no Lambda)
+    // Auth: API key (Usage Plan) — x-api-key header
+    const apiGwEventBridgeRole = new iam.Role(this, 'ApiGwEventBridgeRole', {
+      assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      inlinePolicies: {
+        PutEvents: new iam.PolicyDocument({
+          statements: [new iam.PolicyStatement({
+            actions: ['events:PutEvents'],
+            resources: [messaging.eventBus.eventBusArn],
+          })],
+        }),
+      },
+    });
+
+    const systemResource = restApi.root
+      .addResource('system')
+      .addResource('v1')
+      .addResource('events')
+      .addResource('promotions');
+
+    const eventBusArn = messaging.eventBus.eventBusArn;
+
+    systemResource.addMethod('POST',
+      new apigw.AwsIntegration({
+        service: 'events',
+        action: 'PutEvents',
+        options: {
+          credentialsRole: apiGwEventBridgeRole,
+          requestTemplates: {
+            'application/json': `{
+  "Entries": [{
+    "Source": "external.campaign-management",
+    "DetailType": "PromotionActivated",
+    "Detail": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
+    "EventBusName": "${eventBusArn}"
+  }]
+}`,
+          },
+          integrationResponses: [
+            {
+              statusCode: '200',
+              responseTemplates: {
+                'application/json': `#set($r=$input.path('$'))
+#if($r.FailedEntryCount==0)
+{"status":"accepted","eventId":"$r.Entries[0].EventId"}
+#else
+#set($context.responseOverride.status=500)
+{"status":"error","message":"EventBridge rejected the entry"}
+#end`,
+              },
+            },
+          ],
+        },
+      }),
+      {
+        apiKeyRequired: true,
+        methodResponses: [{ statusCode: '200' }],
+      },
+    );
+
+    const systemApiKey = restApi.addApiKey('SystemApiKey', {
+      apiKeyName: `smartretail-system-events-${srEnv}`,
+      description: 'Campaign Management System — external event ingestion',
+    });
+    const systemUsagePlan = restApi.addUsagePlan('SystemUsagePlan', {
+      name: `smartretail-system-usage-${srEnv}`,
+      throttle: { rateLimit: 50, burstLimit: 100 },
+      quota: { limit: 10000, period: apigw.Period.DAY },
+    });
+    systemUsagePlan.addApiKey(systemApiKey);
+    systemUsagePlan.addApiStage({ stage: restApi.deploymentStage });
+
+    this.apiEndpoint = restApi.url;
+
+    // ── Firehose delivery stream ───────────────────────────────────────────────
     const firehoseRole = new iam.Role(this, 'FirehoseRole', {
       roleName: `smartretail-firehose-${srEnv}`,
       assumedBy: new iam.ServicePrincipal('firehose.amazonaws.com'),
     });
     data.eventsBucket.grantWrite(firehoseRole);
 
-    // Firehose delivery stream — DirectPut → HTTP endpoint (API GW → SIS)
     this.firehoseStreamName = `smartretail-ingest-${srEnv}`;
 
     new firehose.CfnDeliveryStream(this, 'IngestStream', {
@@ -116,7 +228,8 @@ export class ApiStack extends cdk.Stack {
       deliveryStreamType: 'DirectPut',
       httpEndpointDestinationConfiguration: {
         endpointConfiguration: {
-          url: `${httpApi.apiEndpoint}/v1/ingest/events`,
+          // REST API URL: https://{apiId}.execute-api.{region}.amazonaws.com/internal/v1/ingest/events
+          url: `${restApi.url}v1/ingest/events`,
           name: `smartretail-ingest-${srEnv}`,
           accessKey: data.firehoseAccessKeySecret.secretValue.toString(),
         },
@@ -135,18 +248,24 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
+    // ── SSM outputs ───────────────────────────────────────────────────────────
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {
         parameterName: `/smartretail/${srEnv}/${name}`,
         stringValue: value,
       });
 
-    put('api/endpoint',            httpApi.apiEndpoint);
-    put('firehose/stream-name',    this.firehoseStreamName);
+    put('api/endpoint',           restApi.url);
+    put('firehose/stream-name',   this.firehoseStreamName);
+    put('apigw/system-endpoint',  `${restApi.url}system/v1/events`);
 
     new cdk.CfnOutput(this, 'ApiEndpoint', {
-      value: httpApi.apiEndpoint,
-      description: 'SmartRetail API Gateway HTTPS endpoint',
+      value: restApi.url,
+      description: 'SmartRetail REST API endpoint (internal stage)',
+    });
+    new cdk.CfnOutput(this, 'SystemStageEndpoint', {
+      value: `${restApi.url}system/v1/events/promotions`,
+      description: 'Campaign Management endpoint (x-api-key required)',
     });
   }
 }

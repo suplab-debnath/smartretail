@@ -1,5 +1,5 @@
 # ── Demo / SC Planner (cdk-demo, SC Planner only) ────────────────────────────
-# Deploys a trimmed SC Planner demo: 5 backend services (no SIS), 1 MFE, 1 ALB.
+# Deploys a trimmed SC Planner demo: 5 backend services (no SIS), 1 MFE, REST API + NLB.
 # Intended lifespan: 1-2 days. Tear down with `make demo-destroy`.
 # All resources tagged Lifecycle=ephemeral for easy cost tracking and cleanup.
 

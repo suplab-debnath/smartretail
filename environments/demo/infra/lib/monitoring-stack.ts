@@ -78,11 +78,13 @@ export class MonitoringStack extends cdk.Stack {
     const p5 = cdk.Duration.minutes(5);
     const p10 = cdk.Duration.minutes(10);
 
-    const albM = (name: string, stat: string, period: cdk.Duration) =>
+    // API Gateway REST API metrics — dimensions differ from HTTP API v2:
+    // REST API uses ApiName + Stage; HTTP API v2 uses ApiId.
+    const apigwM = (name: string, stat: string, period: cdk.Duration) =>
       new cloudwatch.Metric({
-        namespace: 'AWS/ApplicationELB',
+        namespace: 'AWS/ApiGateway',
         metricName: name,
-        dimensionsMap: { LoadBalancer: api.alb.loadBalancerFullName },
+        dimensionsMap: { ApiName: api.restApiName, Stage: 'internal' },
         statistic: stat,
         period,
         label: name,
@@ -154,15 +156,15 @@ export class MonitoringStack extends cdk.Stack {
       messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum' }),
       0, 1);
 
-    const albUnhealthyAlarm = alarm(
-      'AlbUnhealthyAlarm', 'ALB-UnhealthyHosts',
-      albM('UnHealthyHostCount', 'Maximum', p2),
-      0, 1);
-
-    const alb5xxAlarm = alarm(
-      'Alb5xxAlarm', 'ALB-5xxErrors',
-      albM('HTTPCode_ELB_5XX_Count', 'Sum', p5),
+    const apigw5xxAlarm = alarm(
+      'ApiGw5xxAlarm', 'APIGW-5xxErrors',
+      apigwM('5XXError', 'Sum', p5),
       10, 1);
+
+    const apigwLatencyAlarm = alarm(
+      'ApiGwLatencyAlarm', 'APIGW-p99Latency',
+      apigwM('Latency', 'p99', p5),
+      3000, 2);
 
     const rdsCpuAlarm = alarm(
       'RdsCpuAlarm', 'RDS-CPUHigh',
@@ -171,7 +173,7 @@ export class MonitoringStack extends cdk.Stack {
 
     const allAlarms = [
       dlqAlarmImsSales, dlqAlarmReAlert, dlqAlarmArsUpdates,
-      albUnhealthyAlarm, alb5xxAlarm, rdsCpuAlarm,
+      apigw5xxAlarm, apigwLatencyAlarm, rdsCpuAlarm,
     ];
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
@@ -191,29 +193,29 @@ export class MonitoringStack extends cdk.Stack {
       }),
     );
 
-    // Row 1 — ALB / API layer
+    // Row 1 — API Gateway layer
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
-        title: 'API Requests / min',
+        title: 'API Requests / 5 min',
         width: 6, height: 6,
-        left: [albM('RequestCount', 'Sum', p5)],
+        left: [apigwM('Count', 'Sum', p5)],
       }),
       new cloudwatch.GraphWidget({
         title: 'API 5xx Errors',
         width: 6, height: 6,
-        left: [albM('HTTPCode_ELB_5XX_Count', 'Sum', p5)],
+        left: [apigwM('5XXError', 'Sum', p5)],
         leftAnnotations: [{ value: 10, color: '#ff0000', label: 'Alert threshold' }],
       }),
       new cloudwatch.GraphWidget({
-        title: 'Target Response Time (avg s)',
+        title: 'API Latency p99 (ms)',
         width: 6, height: 6,
-        left: [albM('TargetResponseTime', 'Average', p5)],
+        left: [apigwM('Latency', 'p99', p5)],
+        leftAnnotations: [{ value: 3000, color: '#ff0000', label: 'Alert threshold' }],
       }),
-      new cloudwatch.SingleValueWidget({
-        title: 'Unhealthy Hosts',
+      new cloudwatch.GraphWidget({
+        title: 'API 4xx Errors',
         width: 6, height: 6,
-        metrics: [albM('UnHealthyHostCount', 'Maximum', p2)],
-        sparkline: true,
+        left: [apigwM('4XXError', 'Sum', p5)],
       }),
     );
 

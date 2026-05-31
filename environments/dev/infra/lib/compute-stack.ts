@@ -205,11 +205,16 @@ export class ComputeStack extends cdk.Stack {
         DB_SCHEMA: 'promotions',
         DB_USERNAME: 'smartretail_admin',
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+        PPS_INBOUND_QUEUE_URL: messaging.ppsInboundQueue.queueUrl,
       },
       policies: [
         new iam.PolicyStatement({
           actions: ['events:PutEvents'],
           resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
+          resources: [messaging.ppsInboundQueue.queueArn],
         }),
         new iam.PolicyStatement({
           actions: ['rds-db:connect'],

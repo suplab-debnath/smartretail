@@ -34,5 +34,9 @@ server:
   port: 8086
   shutdown: graceful
 
+smartretail:
+  sqs:
+    pps-inbound-queue-url: ${PPS_INBOUND_QUEUE_URL:}
+
 logging:
   config: classpath:logback-spring.xml
