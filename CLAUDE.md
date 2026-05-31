@@ -219,7 +219,7 @@ mvn spring-boot:run
 
 | Behaviour              | LOCAL (LocalStack)                        | AWS                              |
 |------------------------|-------------------------------------------|----------------------------------|
-| Firehose               | SQS queue used as stand-in                | Kinesis Data Firehose            |
+| Firehose               | LocalStack Firehose → SIS direct HTTP (`localhost:8080`) | Real Firehose → SIS via API Gateway + VPC Link |
 | Auth                   | Mock JWT bypass (`X-Mock-User` header)    | Cognito JWT validation           |
 | JDBC URL               | Direct Postgres `localhost:5432`          | RDS Proxy endpoint               |
 | EventBridge            | LocalStack EventBridge (no real targets)  | Real EventBridge with SQS targets|
@@ -418,7 +418,7 @@ Agents are defined in `.claude/settings.json`. Load the relevant one before star
 | 409 on replenishment approve                | Order not in `PENDING_APPROVAL` state                   | Check state transition logic; do not approve from `DRAFT`|
 | Optimistic lock exception on PO update      | `WHERE version = :v` missing from UPDATE                | Add version predicate; check rows-updated count = 1      |
 | Generated TS client out of sync             | YAML edited but `npm run generate-api` not re-run       | Re-run generator; never edit generated files manually    |
-| LocalStack Firehose behaves differently     | LocalStack uses SQS as Firehose stand-in                | Verify with SQS consumer in LOCAL mode; Firehose in AWS  |
+| LocalStack Firehose behaves differently     | LocalStack Firehose targets SIS directly at `localhost:8080`; AWS Firehose routes via API Gateway + VPC Link | Ensure SIS is running before LocalStack init; check `localstack-init.sh` endpoint URL |
 | Flyway checksum error after migration edit  | Existing migration file was modified                    | Revert the edit; add a new migration instead             |
 | Correlation ID missing in logs              | `X-Correlation-ID` header not propagated through chain  | Use `CorrelationIdFilter` and MDC in every service       |
 
