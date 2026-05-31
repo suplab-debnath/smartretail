@@ -1,5 +1,55 @@
 # GitHub Copilot Instructions — SmartRetail Platform
 
+## Reusable Prompts (Copilot Chat)
+
+Open Copilot Chat and type `/` to use any of these prompt files from `.github/prompts/`:
+
+### Persona agents (embody a specific role)
+| Prompt | Role |
+|---|---|
+| `/agent-aws-architect` | Senior AWS Solutions Architect -- CDK, IAM, ECS/RDS/SQS/Firehose review |
+| `/agent-java-developer` | Senior Java 21 Developer -- hexagonal, contract-first, Spring Boot 3.3 |
+| `/agent-tester` | QA Engineer -- JUnit 5/Mockito/Testcontainers/ArchUnit/Vitest |
+| `/agent-code-reviewer` | Code Reviewer -- 8 architecture rules, security, test coverage |
+| `/agent-ops-engineer` | Platform Engineer -- Makefile, Flyway, LocalStack, CDK deploy |
+| `/agent-enterprise-architect` | Enterprise Architect -- bounded contexts, event contracts, schema governance |
+| `/agent-react-developer` | React Developer -- MFEs, Tailwind, data-freshness, accessibility |
+| `/agent-ml-engineer` | ML Engineer -- SageMaker pipeline, DFS, MAPE, forecast accuracy |
+| `/agent-retail-sme` | Supply Chain SME -- domain expert, KPIs, replenishment rules |
+
+### Task prompts (specific coding tasks)
+| Prompt | What it does |
+|---|---|
+| `/task-new-service` | Scaffold a new Spring Boot service with full hexagonal structure |
+| `/task-new-migration` | Create the next Flyway versioned migration correctly |
+| `/task-new-endpoint` | Add a REST endpoint contract-first (YAML -> generate -> implement) |
+| `/task-new-mfe-component` | Create a typed React component with tests and accessibility |
+| `/task-generate-tests` | Generate comprehensive unit, IT, ArchUnit, and MFE tests |
+| `/task-debug-flow` | Diagnose a failing flow assertion via logs and DB queries |
+
+### Workflow prompts (multi-step processes)
+| Prompt | What it does |
+|---|---|
+| `/workflow-implement-flow` | End-to-end flow implementation: schema -> services -> MFE -> smoke test |
+| `/workflow-review-pr` | Structured PR review with architecture + security + test checklist |
+| `/workflow-deploy-demo` | Full demo AWS deployment: CDK -> migrations -> services -> MFEs -> smoke |
+| `/workflow-onboard-developer` | Guided onboarding walkthrough for new team members |
+
+---
+
+## Scoped Instruction Files (`.github/instructions/`)
+
+These apply automatically when editing matching file types:
+- `java.instructions.md` -- `**/*.java` -- hexagonal rules, constructor injection, records
+- `typescript.instructions.md` -- `**/*.{ts,tsx}` -- functional components, typed props, hooks
+- `sql.instructions.md` -- `**/db/migration/**.sql` -- schema qualification, immutability
+- `openapi.instructions.md` -- `**/*-api.yaml` -- contract-first rules, response codes
+- `cdk.instructions.md` -- `environments/**/*.ts` -- CDK conventions, IAM, naming
+- `maven.instructions.md` -- `**/pom.xml` -- module layout, plugin config, versions
+- `testing.instructions.md` -- `**/*Test.java, **/*IT.java, **/*.test.ts` -- test patterns
+
+---
+
 ## Project Overview
 
 SmartRetail is a demand forecasting and supply chain platform built on AWS. The codebase has six
