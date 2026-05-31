@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -17,6 +18,7 @@ export class DataStack extends cdk.Stack {
   public readonly eventsBucket: s3.Bucket;
   public readonly eventsBucketName: string;
   public readonly sagemakerBucket: s3.Bucket;
+  public readonly sagemakerExecutionRole: iam.Role;
   public readonly firehoseAccessKeySecret: secretsmanager.Secret;
   public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
@@ -93,6 +95,16 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // SageMaker execution role — assumed by training and batch transform jobs
+    this.sagemakerExecutionRole = new iam.Role(this, 'SageMakerExecutionRole', {
+      roleName: `smartretail-sagemaker-execution-${srEnv}`,
+      assumedBy: new iam.ServicePrincipal('sagemaker.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSageMakerFullAccess'),
+      ],
+    });
+    this.sagemakerBucket.grantReadWrite(this.sagemakerExecutionRole);
+
     // MFE S3 buckets — private, served via CloudFront
     ['store-manager', 'sc-planner', 'executive', 'supplier'].forEach(mfe => {
       const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
@@ -114,5 +126,6 @@ export class DataStack extends cdk.Stack {
     put('firehose/access-key-secret-arn', this.firehoseAccessKeySecret.secretArn);
     put('s3/events-bucket-name',         this.eventsBucket.bucketName);
     put('s3/sagemaker-bucket-name',      this.sagemakerBucket.bucketName);
+    put('sagemaker/execution-role-arn',  this.sagemakerExecutionRole.roleArn);
   }
 }

@@ -4,7 +4,9 @@ build-services:
 	    -am --no-transfer-progress
 
 build-lambda:
-	mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
+	mvn clean package -DskipTests \
+	    -pl backend/adapters/batch-post-processor,backend/adapters/ml-trigger \
+	    --no-transfer-progress
 
 build-mfes:
 	cd mfe/shared/auth   && npm run build
@@ -24,5 +26,10 @@ docker-build-all:
 	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
 	done
 
-docker-build-lambda:
+docker-build-batch-post-processor:
 	docker buildx build --platform linux/arm64 -t smartretail-batch-post-processor:local backend/adapters/batch-post-processor/
+
+docker-build-ml-trigger:
+	docker buildx build --platform linux/arm64 -t smartretail-ml-trigger:local backend/adapters/ml-trigger/
+
+docker-build-lambda: docker-build-batch-post-processor docker-build-ml-trigger
