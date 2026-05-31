@@ -162,6 +162,17 @@
         "docs/API_CONTRACTS.md",
         "docs/MFE_SPECS.md"
       ]
+    },
+    {
+      "name": "aws-finops-analyst",
+      "description": "AWS FinOps Analyst. Evaluates and optimises infrastructure cost across poc, dev, stg, and prod environments. Right-sizes ECS/RDS, designs tagging strategies, recommends Savings Plans, and identifies waste.",
+      "contextFiles": [
+        ".claude/agents/aws-finops-analyst.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/aws-infrastructure.md",
+        "docs/CDK_SPEC.md",
+        "docs/ARCHITECTURE.md"
+      ]
     }
   ],
 

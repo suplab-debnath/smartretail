@@ -16,6 +16,7 @@ Open Copilot Chat and type `/` to use any of these prompt files from `.github/pr
 | `/agent-react-developer` | React Developer -- MFEs, Tailwind, data-freshness, accessibility |
 | `/agent-ml-engineer` | ML Engineer -- SageMaker pipeline, DFS, MAPE, forecast accuracy |
 | `/agent-retail-sme` | Supply Chain SME -- domain expert, KPIs, replenishment rules |
+| `/agent-aws-finops-analyst` | AWS FinOps Analyst -- cost evaluation for poc/dev/stg/prod, right-sizing, Savings Plans |
 
 ### Task prompts (specific coding tasks)
 | Prompt | What it does |
