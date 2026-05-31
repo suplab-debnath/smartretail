@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Build DeepAR training data from raw POS events stored in S3 by Firehose.
+Ad-hoc utility: build DeepAR training data from raw POS events stored in S3 by Firehose.
+
+NOTE: In production this step runs automatically inside the ML Trigger Lambda
+(S3TrainingDataPreparer) as part of the daily 02:00 UTC flow. Use this script
+for one-off backfills, debugging, or seeding a fresh environment.
 
 Firehose delivers every POS event to two destinations simultaneously:
   1. HTTP endpoint → SIS (ingestion into RDS)
   2. S3 events bucket (raw JSON, prefix firehose/{yyyy/MM/dd}/)
 
-This script reads the raw S3 events, aggregates daily demand per SKU × DC,
-and writes DeepAR JSON Lines files to the SageMaker training prefix.
+Reads the raw S3 events, aggregates daily demand per SKU × DC, and writes
+DeepAR JSON Lines files to the SageMaker training prefix.
 
 Requires:
   pip install boto3
@@ -17,8 +21,6 @@ Usage:
   python3 scripts/shared/export-training-data.py --env dev --since 2025-01-01
   python3 scripts/shared/export-training-data.py --env dev --run-id <uuid> --predict-only
   python3 scripts/shared/export-training-data.py --env dev --dry-run
-
-Schedule: Run nightly at 01:00 UTC (one hour before the 02:00 UTC ML Trigger Lambda).
 """
 
 import argparse
