@@ -1,0 +1,51 @@
+{
+  "recommendations": [
+    // ── GitHub Copilot ────────────────────────────────────────────────────────
+    "github.copilot",
+    "github.copilot-chat",
+
+    // ── Java / Spring Boot ────────────────────────────────────────────────────
+    "redhat.java",
+    "vscjava.vscode-java-debug",
+    "vscjava.vscode-java-test",
+    "vscjava.vscode-maven",
+    "vscjava.vscode-java-dependency",
+    "vmware.vscode-spring-boot",
+    "vscjava.vscode-spring-initializr",
+    "vscjava.vscode-spring-boot-dashboard",
+
+    // ── TypeScript / React ────────────────────────────────────────────────────
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "styled-components.vscode-styled-components",
+
+    // ── OpenAPI / YAML ────────────────────────────────────────────────────────
+    "redhat.vscode-yaml",
+    "42crunch.vscode-openapi",
+    "arjun.swagger-viewer",
+
+    // ── SQL / PostgreSQL ──────────────────────────────────────────────────────
+    "cweijan.vscode-postgresql-client2",
+
+    // ── XML (pom.xml) ─────────────────────────────────────────────────────────
+    "redhat.vscode-xml",
+
+    // ── Docker / AWS ──────────────────────────────────────────────────────────
+    "ms-azuretools.vscode-docker",
+    "amazonwebservices.aws-toolkit-vscode",
+    "amazonwebservices.amazon-q-vscode",
+
+    // ── Infrastructure as Code ────────────────────────────────────────────────
+    "hashicorp.terraform",
+
+    // ── General productivity ──────────────────────────────────────────────────
+    "EditorConfig.EditorConfig",
+    "streetsidesoftware.code-spell-checker",
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "usernamehw.errorlens",
+    "gruntfuggly.todo-tree"
+  ],
+  "unwantedRecommendations": []
+}

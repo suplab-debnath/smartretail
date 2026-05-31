@@ -1,0 +1,169 @@
+{
+  //  Editor 
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.rulers": [120],
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  //  Java 
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java",
+    "editor.tabSize": 4,
+    "editor.rulers": [120]
+  },
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.debug.settings.enableRunDebugCodeLens": true,
+  "java.maven.downloadSources": true,
+  "java.test.config": {
+    "workingDirectory": "${workspaceFolder}"
+  },
+  "spring-boot.ls.java.home": "",
+  "java.jdt.ls.java.home": "",
+  // Exclude generated sources from file watching (they are regenerated on mvn compile)
+  "java.project.excludes": [
+    "**/target/generated-sources/**"
+  ],
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/node_modules/**": true
+  },
+
+  //  TypeScript / JavaScript 
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.suggest.autoImports": true,
+
+  //  YAML 
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.tabSize": 2
+  },
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/schemas/v3.1/schema.json": [
+      "**/resources/*-api.yaml"
+    ]
+  },
+  "yaml.validate": true,
+  "yaml.hover": true,
+  "yaml.completion": true,
+
+  //  SQL 
+  "[sql]": {
+    "editor.tabSize": 2,
+    "editor.rulers": [100]
+  },
+
+  //  XML (pom.xml) 
+  "[xml]": {
+    "editor.defaultFormatter": "redhat.vscode-xml",
+    "editor.tabSize": 4
+  },
+
+  //  JSON 
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+
+  //  Tailwind CSS 
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "tailwindCSS.experimental.classRegex": [
+    ["cn\\(([^)]*)\\)", "\"([^\"]*)\""],
+    ["clsx\\(([^)]*)\\)", "\"([^\"]*)\""]
+  ],
+  "css.validate": false,
+
+  //  ESLint 
+  "eslint.workingDirectories": [
+    "mfe/store-manager",
+    "mfe/sc-planner",
+    "mfe/executive",
+    "mfe/supplier",
+    "mfe/shared/auth",
+    "mfe/shared/api-client"
+  ],
+  "eslint.validate": ["javascript", "typescript", "typescriptreact"],
+
+  //  Search excludes 
+  "search.exclude": {
+    "**/target/**": true,
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.git/**": true,
+    "**/target/generated-sources/**": true,
+    "**/mfe/shared/api-client/src/generated/**": true
+  },
+
+  //  File nesting 
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "pom.xml": "*.xml",
+    "package.json": "package-lock.json, .eslintrc*, .prettierrc*, tsconfig*.json, tailwind.config*, postcss.config*, vite.config*",
+    "*.ts": "${capture}.test.ts, ${capture}.spec.ts",
+    "*.tsx": "${capture}.test.tsx, ${capture}.spec.tsx"
+  },
+
+  //  GitHub Copilot 
+  "github.copilot.enable": {
+    "*": true,
+    "yaml": true,
+    "markdown": true,
+    "sql": true,
+    "xml": true
+  },
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": ".github/copilot-instructions.md"
+    }
+  ],
+  "github.copilot.chat.testGeneration.instructions": [
+    {
+      "text": "Use JUnit 5 + Mockito for Java. Use Vitest + React Testing Library for TypeScript/TSX. Follow the testing standards in .claude/standards/testing.md. Test method names: should{Outcome}When{Condition}. No Spring context in unit tests."
+    }
+  ],
+  "github.copilot.chat.reviewSelection.instructions": [
+    {
+      "text": "Check for: 1) @Autowired field injection (forbidden -- use constructor injection). 2) Missing version check in UPDATE purchase_orders SQL. 3) AWS SDK imports in domain/ packages. 4) Hand-written DTO classes duplicating openapi-generator output. 5) Cross-schema SQL JOINs. 6) Approve endpoint allowing status other than PENDING_APPROVAL."
+    }
+  ],
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Use conventional commits format: feat|fix|refactor|test|docs|chore(scope): description. Scope is the service name (sis, ims, re, ars, dfs, sup, pps) or mfe name (store-manager, sc-planner, executive, supplier). Keep the subject line under 72 characters."
+    }
+  ],
+
+  //  Docker 
+  "docker.defaultRegistryPath": "",
+
+  //  Spring Boot 
+  "spring-boot.ls.checkJVM": false,
+
+  //  Git 
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": false
+}

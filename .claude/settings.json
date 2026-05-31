@@ -42,5 +42,128 @@
         ".claude/standards/testing.md"
       ]
     }
-  ]
+  ],
+
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(git fetch*)",
+      "Bash(git stash list*)",
+      "Bash(git remote*)",
+      "Bash(ls*)",
+      "Bash(find . *)",
+      "Bash(find src *)",
+      "Bash(find backend *)",
+      "Bash(find mfe *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(java --version)",
+      "Bash(mvn --version)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(mvn clean*)",
+      "Bash(mvn compile*)",
+      "Bash(mvn test*)",
+      "Bash(mvn verify*)",
+      "Bash(mvn generate-sources*)",
+      "Bash(mvn package*)",
+      "Bash(mvn spring-boot:run*)",
+      "Bash(mvn dependency:tree*)",
+      "Bash(mvn help:effective-pom*)",
+      "Bash(npm install*)",
+      "Bash(npm ci*)",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run type-check*)",
+      "Bash(npm run test*)",
+      "Bash(npm run generate-api*)",
+      "Bash(npm run dev*)",
+      "Bash(docker-compose up*)",
+      "Bash(docker-compose down*)",
+      "Bash(docker-compose ps*)",
+      "Bash(docker-compose logs*)",
+      "Bash(docker ps*)",
+      "Bash(docker logs*)",
+      "Bash(make local-up*)",
+      "Bash(make local-down*)",
+      "Bash(make local-migrate*)",
+      "Bash(make local-seed*)",
+      "Bash(make test-flow*)",
+      "Bash(make build-all*)",
+      "Bash(make build-service*)",
+      "Bash(make local-sis*)",
+      "Bash(make local-ims*)",
+      "Bash(make local-re*)",
+      "Bash(make local-ars*)",
+      "Bash(make local-dfs*)",
+      "Bash(make local-sup*)",
+      "Bash(make local-pps*)",
+      "Bash(make coverage*)",
+      "Read(*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore .)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/*)",
+      "Bash(drop database*)",
+      "Bash(DROP DATABASE*)",
+      "Bash(DROP TABLE*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-bash-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-write-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-write-guard.sh"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "SPRING_PROFILES_ACTIVE": "local",
+    "SMARTRETAIL_ENV": "local",
+    "AWS_ENDPOINT_URL": "http://localhost:4566",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "AWS_ACCESS_KEY_ID": "test",
+    "AWS_SECRET_ACCESS_KEY": "test"
+  }
 }

@@ -1,0 +1,204 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Local Stack ───────────────────────────────────────────────────────────
+    {
+      "label": "local: start (postgres + localstack)",
+      "type": "shell",
+      "command": "make local-up",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "local: stop",
+      "type": "shell",
+      "command": "make local-down",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "local: run migrations",
+      "type": "shell",
+      "command": "make local-migrate",
+      "group": "build",
+      "dependsOn": "local: start (postgres + localstack)",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "local: seed data",
+      "type": "shell",
+      "command": "make local-seed",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Build ─────────────────────────────────────────────────────────────────
+    {
+      "label": "build: all services",
+      "type": "shell",
+      "command": "mvn clean package -DskipTests --no-transfer-progress",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build: generate OpenAPI stubs (all services)",
+      "type": "shell",
+      "command": "mvn generate-sources --no-transfer-progress",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build: generate TypeScript API client",
+      "type": "shell",
+      "command": "npm run generate-api",
+      "options": { "cwd": "${workspaceFolder}/mfe/shared/api-client" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": ["$eslint-compact"]
+    },
+
+    // ── Services (local mode) ─────────────────────────────────────────────────
+    {
+      "label": "service: SIS (8080)",
+      "type": "shell",
+      "command": "make local-sis",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: IMS (8081)",
+      "type": "shell",
+      "command": "make local-ims",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: RE (8082)",
+      "type": "shell",
+      "command": "make local-re",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: ARS (8083)",
+      "type": "shell",
+      "command": "make local-ars",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: DFS (8084)",
+      "type": "shell",
+      "command": "make local-dfs",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: SUP (8085)",
+      "type": "shell",
+      "command": "make local-sup",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+    {
+      "label": "service: PPS (8086)",
+      "type": "shell",
+      "command": "make local-pps",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "services" },
+      "problemMatcher": []
+    },
+
+    // ── MFEs (local mode) ─────────────────────────────────────────────────────
+    {
+      "label": "mfe: store-manager (5173)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/mfe/store-manager" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "mfes" },
+      "problemMatcher": ["$eslint-compact"]
+    },
+    {
+      "label": "mfe: sc-planner (5174)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/mfe/sc-planner" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "mfes" },
+      "problemMatcher": ["$eslint-compact"]
+    },
+    {
+      "label": "mfe: executive (5175)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/mfe/executive" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "mfes" },
+      "problemMatcher": ["$eslint-compact"]
+    },
+    {
+      "label": "mfe: supplier (5177)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/mfe/supplier" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "new", "group": "mfes" },
+      "problemMatcher": ["$eslint-compact"]
+    },
+
+    // ── Tests ─────────────────────────────────────────────────────────────────
+    {
+      "label": "test: all backend services",
+      "type": "shell",
+      "command": "mvn test -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/services/pps --no-transfer-progress",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "test: flow 1 (smoke)",
+      "type": "shell",
+      "command": "make test-flow1",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: flow 2 (smoke)",
+      "type": "shell",
+      "command": "make test-flow2",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: all flows (smoke)",
+      "type": "shell",
+      "command": "make test-flow1 && make test-flow2 && make test-flow3 && make test-flow4",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: coverage (JaCoCo aggregate)",
+      "type": "shell",
+      "command": "mvn verify -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup,backend/services/pps,backend/coverage --also-make --no-transfer-progress",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": ["$msCompile"]
+    }
+  ]
+}
