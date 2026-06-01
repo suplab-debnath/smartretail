@@ -32,14 +32,24 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- AWS SDK v2 — SageMaker StartPipelineExecution -->
+        <!-- AWS SDK v2 — SageMaker StartPipelineExecution + S3 training data prep -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sagemaker</artifactId>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
             <artifactId>url-connection-client</artifactId>
+        </dependency>
+
+        <!-- Jackson datatype for java.time in DeepAR JSON Lines serialisation -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <!-- SLF4J + Lambda logging -->

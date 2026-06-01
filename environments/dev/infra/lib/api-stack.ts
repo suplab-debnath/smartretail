@@ -235,7 +235,7 @@ export class ApiStack extends cdk.Stack {
         },
         bufferingHints: { sizeInMBs: 1, intervalInSeconds: 60 },
         retryOptions: { durationInSeconds: 86400 },
-        s3BackupMode: 'FailedDataOnly',
+        s3BackupMode: 'AllData',
         s3Configuration: {
           bucketArn: data.eventsBucket.bucketArn,
           roleArn: firehoseRole.roleArn,

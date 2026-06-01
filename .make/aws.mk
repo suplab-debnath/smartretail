@@ -20,9 +20,12 @@ aws-push-all: aws-ecr-login
 	done
 
 aws-push-lambda: docker-build-lambda aws-ecr-login
-	docker tag smartretail-kinesis-consumer:local \
-	    $(ECR_PREFIX)/smartretail-kinesis-consumer-$(ENV):latest
-	docker push $(ECR_PREFIX)/smartretail-kinesis-consumer-$(ENV):latest
+	docker tag smartretail-batch-post-processor:local \
+	    $(ECR_PREFIX)/smartretail-batch-post-processor-$(ENV):latest
+	docker push $(ECR_PREFIX)/smartretail-batch-post-processor-$(ENV):latest
+	docker tag smartretail-ml-trigger:local \
+	    $(ECR_PREFIX)/smartretail-ml-trigger-$(ENV):latest
+	docker push $(ECR_PREFIX)/smartretail-ml-trigger-$(ENV):latest
 
 aws-deploy-mfe-%:
 	cd mfe/$* && npm run build

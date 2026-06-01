@@ -72,9 +72,9 @@ if [[ "$SKIP_BUILD" == false ]]; then
     -am --no-transfer-progress
 
   if [[ "$DEPLOY_LAMBDA" == true ]]; then
-    echo "▶  Building Lambda JAR (Maven)…"
+    echo "▶  Building Lambda JARs (Maven)…"
     mvn clean package -DskipTests \
-      -pl backend/adapters/kinesis-consumer \
+      -pl backend/adapters/batch-post-processor,backend/adapters/ml-trigger \
       --no-transfer-progress
   fi
 else
@@ -114,26 +114,29 @@ for SVC in $SERVICES; do
   fi
 done
 
-# ── 4. Lambda: build image → push → update function code ─────────────────────
+# ── 4. Lambda: build images → push → update function code ────────────────────
 if [[ "$DEPLOY_LAMBDA" == true && "$SKIP_PUSH" == false ]]; then
-  echo ""
-  echo "── kinesis-consumer Lambda ─────────────────────────"
+  for ADAPTER in batch-post-processor ml-trigger; do
+    echo ""
+    echo "── ${ADAPTER} Lambda ─────────────────────────"
 
-  echo "▶  docker build backend/adapters/kinesis-consumer/ (linux/arm64)"
-  docker buildx build --platform linux/arm64 -t smartretail-kinesis-consumer:local backend/adapters/kinesis-consumer/
+    echo "▶  docker build backend/adapters/${ADAPTER}/ (linux/arm64)"
+    docker buildx build --platform linux/arm64 \
+      -t "smartretail-${ADAPTER}:local" "backend/adapters/${ADAPTER}/"
 
-  LAMBDA_URI="${ECR_PREFIX}/smartretail-kinesis-consumer-${ENV}:latest"
-  echo "▶  Pushing → ${LAMBDA_URI}"
-  docker tag smartretail-kinesis-consumer:local "$LAMBDA_URI"
-  docker push "$LAMBDA_URI"
+    LAMBDA_URI="${ECR_PREFIX}/smartretail-${ADAPTER}-${ENV}:latest"
+    echo "▶  Pushing → ${LAMBDA_URI}"
+    docker tag "smartretail-${ADAPTER}:local" "$LAMBDA_URI"
+    docker push "$LAMBDA_URI"
 
-  echo "▶  Updating Lambda function code…"
-  aws lambda update-function-code \
-    --function-name "smartretail-kinesis-consumer-${ENV}" \
-    --image-uri     "$LAMBDA_URI" \
-    --profile       "$PROFILE" \
-    --output        text > /dev/null
-  echo "   ✅ Lambda updated"
+    echo "▶  Updating Lambda function code…"
+    aws lambda update-function-code \
+      --function-name "smartretail-${ADAPTER}-${ENV}" \
+      --image-uri     "$LAMBDA_URI" \
+      --profile       "$PROFILE" \
+      --output        text > /dev/null
+    echo "   ✅ ${ADAPTER} Lambda updated"
+  done
 fi
 
 # ── 5. Wait for ECS steady state (optional) ───────────────────────────────────

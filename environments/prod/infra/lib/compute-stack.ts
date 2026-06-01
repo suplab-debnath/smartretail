@@ -295,6 +295,9 @@ export class ComputeStack extends cdk.Stack {
       actions: ['sagemaker:StartPipelineExecution'],
       resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}`],
     }));
+    // Read raw POS events (Firehose AllData) → write DeepAR training files
+    data.eventsBucket.grantRead(mlTriggerRole);
+    data.sagemakerBucket.grantWrite(mlTriggerRole);
 
     const sgMlTrigger = new ec2.SecurityGroup(this, 'SgMlTrigger', {
       vpc: network.vpc,
@@ -309,13 +312,15 @@ export class ComputeStack extends cdk.Stack {
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [sgMlTrigger],
-      timeout: cdk.Duration.seconds(60),
-      memorySize: 256,
+      timeout: cdk.Duration.seconds(300),
+      memorySize: 512,
       role: mlTriggerRole,
       environment: {
-        DFS_ENDPOINT: `http://smartretail-dfs-${srEnv}.smartretail.local:8084`,
+        DFS_ENDPOINT:           `http://smartretail-dfs-${srEnv}.smartretail.local:8084`,
         SAGEMAKER_PIPELINE_NAME: sagemakerPipelineName,
-        ENV: srEnv,
+        EVENTS_BUCKET:          data.eventsBucket.bucketName,
+        SAGEMAKER_BUCKET:       data.sagemakerBucket.bucketName,
+        ENV:                    srEnv,
       },
     });
 

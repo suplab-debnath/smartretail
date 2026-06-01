@@ -6,6 +6,7 @@ import com.amazonaws.services.lambda.runtime.events.ScheduledEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,41 +21,51 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MlTriggerHandlerTest {
 
-    // Mock the interfaces — Mockito can always mock interfaces regardless of Java version
     @Mock private ForecastRunRegistrar registrar;
-    @Mock private PipelineStarter starter;
-    @Mock private Context context;
-    @Mock private LambdaLogger logger;
+    @Mock private TrainingDataPreparer trainingDataPreparer;
+    @Mock private PipelineStarter      starter;
+    @Mock private Context              context;
+    @Mock private LambdaLogger         logger;
 
     private MlTriggerHandler handler;
-    private ScheduledEvent event;
+    private ScheduledEvent    event;
 
     @BeforeEach
     void setUp() {
         when(context.getLogger()).thenReturn(logger);
-        handler = new MlTriggerHandler(registrar, starter);
-        event = new ScheduledEvent();
+        handler = new MlTriggerHandler(registrar, trainingDataPreparer, starter);
+        event   = new ScheduledEvent();
         event.setSource("aws.events");
     }
 
     @Test
-    void handleRequest_registersRunThenStartsPipeline() {
+    void handleRequest_executesStepsInOrder() {
         UUID runId = UUID.randomUUID();
-        String executionArn = "arn:aws:sagemaker:us-east-1:123:pipeline/test/execution/abc";
-
         when(registrar.registerRun(eq("SCHEDULED"), any())).thenReturn(runId);
-        when(starter.startExecution(eq(runId), any())).thenReturn(executionArn);
+        when(starter.startExecution(eq(runId), any())).thenReturn("arn:test");
 
         handler.handleRequest(event, context);
 
-        verify(registrar).registerRun(eq("SCHEDULED"), any());
-        verify(starter).startExecution(eq(runId), any());
+        InOrder order = inOrder(registrar, trainingDataPreparer, starter);
+        order.verify(registrar).registerRun(eq("SCHEDULED"), any());
+        order.verify(trainingDataPreparer).prepare(eq(runId), any());
+        order.verify(starter).startExecution(eq(runId), any());
     }
 
     @Test
     void handleRequest_propagatesExceptionWhenRegistrarFails() {
         when(registrar.registerRun(any(), any()))
                 .thenThrow(new RuntimeException("DFS unavailable"));
+
+        assertThrows(RuntimeException.class, () -> handler.handleRequest(event, context));
+        verifyNoInteractions(trainingDataPreparer, starter);
+    }
+
+    @Test
+    void handleRequest_propagatesExceptionWhenPreparerFails() {
+        UUID runId = UUID.randomUUID();
+        when(registrar.registerRun(any(), any())).thenReturn(runId);
+        doThrow(new RuntimeException("S3 error")).when(trainingDataPreparer).prepare(any(), any());
 
         assertThrows(RuntimeException.class, () -> handler.handleRequest(event, context));
         verifyNoInteractions(starter);

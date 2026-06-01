@@ -97,9 +97,9 @@ make aws-smoke-test ENV=dev PROFILE=smartretail-dev
 ## After deployment
 
 ```bash
-# ALB endpoint
+# API Gateway endpoint (backed by internal NLB via VPC Link)
 aws cloudformation describe-stacks --stack-name Dev-ApiStack \
-  --query 'Stacks[0].Outputs[?OutputKey==`AlbEndpoint`].OutputValue' --output text
+  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text
 
 # MFE CloudFront URLs
 aws ssm get-parameters-by-path --path /smartretail/dev/hosting/ --output table

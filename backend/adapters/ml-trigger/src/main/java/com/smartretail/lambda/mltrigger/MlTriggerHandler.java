@@ -4,6 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.ScheduledEvent;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sagemaker.SageMakerClient;
 
 import java.util.UUID;
@@ -13,7 +14,10 @@ import java.util.UUID;
  *
  * Sequence:
  *   1. POST /v1/forecast/runs to DFS → receives runId
- *   2. StartPipelineExecution on SageMaker, passing RunId as pipeline parameter
+ *   2. Read raw POS events from S3 events bucket (Firehose AllData backup),
+ *      aggregate daily demand per SKU × DC, write DeepAR JSON Lines to the
+ *      SageMaker bucket (train.jsonl, test.jsonl, predict.jsonl)
+ *   3. StartPipelineExecution on SageMaker, passing RunId as pipeline parameter
  *
  * SageMaker pipeline writes transform output to:
  *   sagemaker/output/{runId}/part-*.csv
@@ -24,19 +28,29 @@ import java.util.UUID;
 public class MlTriggerHandler implements RequestHandler<ScheduledEvent, Void> {
 
     private final ForecastRunRegistrar registrar;
-    private final PipelineStarter starter;
+    private final TrainingDataPreparer trainingDataPreparer;
+    private final PipelineStarter      starter;
 
     /** Production constructor — reads env vars, builds clients. */
     public MlTriggerHandler() {
+        S3Client s3 = S3Client.create();
         this.registrar = new DfsRunClient(requireEnv("DFS_ENDPOINT"));
-        this.starter   = new SageMakerPipelineClient(
+        this.trainingDataPreparer = new S3TrainingDataPreparer(
+                s3,
+                requireEnv("EVENTS_BUCKET"),
+                requireEnv("SAGEMAKER_BUCKET")
+        );
+        this.starter = new SageMakerPipelineClient(
                 SageMakerClient.create(), requireEnv("SAGEMAKER_PIPELINE_NAME"));
     }
 
     /** Test constructor — accepts injected collaborators via interfaces. */
-    MlTriggerHandler(ForecastRunRegistrar registrar, PipelineStarter starter) {
-        this.registrar = registrar;
-        this.starter   = starter;
+    MlTriggerHandler(ForecastRunRegistrar registrar,
+                     TrainingDataPreparer trainingDataPreparer,
+                     PipelineStarter starter) {
+        this.registrar            = registrar;
+        this.trainingDataPreparer = trainingDataPreparer;
+        this.starter              = starter;
     }
 
     @Override
@@ -46,6 +60,9 @@ public class MlTriggerHandler implements RequestHandler<ScheduledEvent, Void> {
 
         UUID runId = registrar.registerRun("SCHEDULED", logger);
         logger.log("Registered forecast run: runId=" + runId);
+
+        trainingDataPreparer.prepare(runId, logger);
+        logger.log("Training data prepared for runId=" + runId);
 
         String executionArn = starter.startExecution(runId, logger);
         logger.log("SageMaker pipeline execution started: arn=" + executionArn);
