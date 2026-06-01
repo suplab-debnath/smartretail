@@ -20,7 +20,6 @@ export class DataStack extends cdk.Stack {
   public readonly sagemakerBucket: s3.Bucket;
   public readonly sagemakerExecutionRole: iam.Role;
   public readonly firehoseAccessKeySecret: secretsmanager.Secret;
-  public readonly mfeBuckets: Record<string, s3.Bucket> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props);
@@ -53,7 +52,7 @@ export class DataStack extends cdk.Stack {
 
     // RDS Proxy — Secrets Manager auth, isolated subnet
     const proxy = rdsInstance.addProxy('RdsProxy', {
-      proxyName: `smartretail-rds-proxy-${srEnv}`,
+      dbProxyName: `smartretail-rds-proxy-${srEnv}`,
       secrets: [rdsInstance.secret!],
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
@@ -104,16 +103,6 @@ export class DataStack extends cdk.Stack {
       ],
     });
     this.sagemakerBucket.grantReadWrite(this.sagemakerExecutionRole);
-
-    // MFE S3 buckets — private, served via CloudFront
-    ['store-manager', 'sc-planner', 'executive', 'supplier'].forEach(mfe => {
-      const id = mfe.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
-      this.mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
-        bucketName: `smartretail-mfe-${srEnv}-${mfe}-${account}`,
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-      });
-    });
 
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {

@@ -108,6 +108,8 @@ export class ApiStack extends cdk.Stack {
     });
 
     // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY
+    // defaultMethodOptions must declare the proxy path parameter so that
+    // method.request.path.proxy is a valid mapping expression source.
     const addProxyResource = (
       parent: apigw.IResource,
       pathPart: string,
@@ -116,6 +118,9 @@ export class ApiStack extends cdk.Stack {
       parent.addResource(pathPart).addProxy({
         defaultIntegration: nlbProxyIntegration(port),
         anyMethod: true,
+        defaultMethodOptions: {
+          requestParameters: { 'method.request.path.proxy': true },
+        },
       });
     };
 

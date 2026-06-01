@@ -2,7 +2,7 @@
 
 Deploys the **SC Planner demo** on real AWS infrastructure. Intended lifespan: 1–2 days. All resources are tagged `Lifecycle=ephemeral` for easy cost tracking and cleanup.
 
-**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, REST API Gateway + internal NLB, SQS + EventBridge messaging, single-AZ RDS, S3 static website hosting (no CloudFront). Uses `environments/demo/infra/` (Min-* stack names).
+**What's deployed:** 5 backend services (IMS, RE, ARS, DFS, SUP — no SIS, no Lambda), SC Planner MFE only, REST API Gateway + internal NLB, SQS + EventBridge messaging, single-AZ RDS, CloudFront + S3 (OAC) for MFE hosting, Cognito for auth. Uses `environments/demo/infra/` (Min-* stack names).
 
 > For the full CDK stack spec and resource table see `environments/demo/infra/README.md`.
 
@@ -78,6 +78,36 @@ make demo-create-users DEMO_ENV=demo
 
 ---
 
+## Overnight cost saving — stop and start
+
+Scale ECS to zero and stop RDS without destroying any infrastructure or data.
+
+```bash
+# Stop everything before you leave (saves ~$0.90/night for 9 hours)
+make demo-stop
+
+# Resume the next morning
+make demo-start
+```
+
+**What gets stopped:**
+
+| Resource | Action | Resumes in |
+|----------|--------|------------|
+| ECS Fargate tasks (×5) | Desired count → 0 | ~30 s |
+| RDS `t4g.micro` | `stop-db-instance` | ~2 min |
+
+**What keeps running (serverless / no idle cost):**
+
+| Resource | Idle cost |
+|----------|-----------|
+| NLB | ~$0.008/hr — unavoidable without destroying it |
+| CloudFront, API Gateway, SQS, Cognito, S3 | $0 at idle |
+
+> RDS will auto-start after 7 days if you forget — AWS enforces this limit on stopped instances.
+
+---
+
 ## After deployment
 
 **SC Planner URL:**
@@ -127,6 +157,7 @@ Here's the full breakdown pulled directly from all 7 demo CDK stacks:
 - RDS + Fargate = 70% of the bill. The 4:1 FARGATE_SPOT weight saves ~$19/month vs all on-demand.
 - No NAT Gateway — tasks use public IPs in the default VPC, saving ~$32/month vs a private-subnet setup.
 - At ~$1.47/day, a 2-day demo costs ~$3. **Run `make demo-destroy` after every demo session.**
+- Running `make demo-stop` each evening (9 h off) cuts RDS + Fargate cost by ~37%, saving ~$0.55/night.
 
 ---
 

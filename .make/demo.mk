@@ -67,6 +67,48 @@ demo-full-deploy: ## Full demo deployment: CDK → images → migrate → MFE �
 	@echo "✅  SC Planner demo ready (env: $(DEMO_ENV))"
 	@echo "    Dashboard: https://$(REGION).console.aws.amazon.com/cloudwatch/home?region=$(REGION)#dashboards:name=SmartRetail-$(DEMO_ENV)-Ops"
 
+demo-stop: ## Scale all ECS services to 0 and stop RDS (keeps infra, saves cost overnight)
+	@echo "Stopping ECS services ($(DEMO_ENV))…"
+	@for svc in $(DEMO_SERVICES); do \
+	    AWS_PROFILE=$(DEMO_PROFILE) aws ecs update-service \
+	        --cluster smartretail-$(DEMO_ENV) \
+	        --service smartretail-$$svc-$(DEMO_ENV) \
+	        --desired-count 0 \
+	        --no-cli-pager \
+	        --query 'service.serviceName' --output text; \
+	done
+	@echo "Stopping RDS (smartretail-rds-$(DEMO_ENV))…"
+	@AWS_PROFILE=$(DEMO_PROFILE) aws rds stop-db-instance \
+	    --db-instance-identifier smartretail-rds-$(DEMO_ENV) \
+	    --no-cli-pager \
+	    --query 'DBInstance.DBInstanceStatus' --output text
+	@echo "✅  Demo stopped. Resume with: make demo-start"
+
+demo-start: ## Scale ECS services back to 1 and start RDS
+	@echo "Starting RDS (smartretail-rds-$(DEMO_ENV))…"
+	@STATUS=$$(AWS_PROFILE=$(DEMO_PROFILE) aws rds describe-db-instances \
+	    --db-instance-identifier smartretail-rds-$(DEMO_ENV) \
+	    --query 'DBInstances[0].DBInstanceStatus' --output text); \
+	if [ "$$STATUS" = "stopped" ]; then \
+	    AWS_PROFILE=$(DEMO_PROFILE) aws rds start-db-instance \
+	        --db-instance-identifier smartretail-rds-$(DEMO_ENV) \
+	        --no-cli-pager \
+	        --query 'DBInstance.DBInstanceStatus' --output text; \
+	    echo "  RDS starting — wait ~2 min before services can connect"; \
+	else \
+	    echo "  RDS status: $$STATUS (no action needed)"; \
+	fi
+	@echo "Scaling ECS services to 1 ($(DEMO_ENV))…"
+	@for svc in $(DEMO_SERVICES); do \
+	    AWS_PROFILE=$(DEMO_PROFILE) aws ecs update-service \
+	        --cluster smartretail-$(DEMO_ENV) \
+	        --service smartretail-$$svc-$(DEMO_ENV) \
+	        --desired-count 1 \
+	        --no-cli-pager \
+	        --query 'service.serviceName' --output text; \
+	done
+	@echo "✅  Demo started. Services will be healthy once RDS is available (~2 min)."
+
 demo-destroy: ## Destroy all Min-* CDK stacks for the demo environment
 	cd environments/demo/infra && \
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \

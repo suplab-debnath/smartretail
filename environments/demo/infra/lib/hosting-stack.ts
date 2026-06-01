@@ -7,7 +7,6 @@ import { Construct } from 'constructs';
 
 export interface HostingStackProps extends cdk.StackProps {
   srEnv: string;
-  mfeBuckets: Record<string, s3.Bucket>;
 }
 
 // Strips /{prefix} from URI; rewrites extensionless paths to /index.html for SPA routing.
@@ -34,10 +33,15 @@ export class HostingStack extends cdk.Stack {
 
     cdk.Tags.of(this).add('Name', 'smartretail-hosting-demo');
 
-    const { srEnv, mfeBuckets } = props;
+    const { srEnv } = props;
+    const account = this.account;
 
-    const bucket = mfeBuckets['sc-planner'];
-    if (!bucket) throw new Error("MFE bucket for 'sc-planner' not found");
+    const bucket = new s3.Bucket(this, 'MfeBucketScPlanner', {
+      bucketName: `smartretail-mfe-${srEnv}-sc-planner-${account}`,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
 
     // Default behavior: redirect root to /sc-planner/
     const defaultRedirectFn = new cloudfront.Function(this, 'DefaultRedirectFn', {

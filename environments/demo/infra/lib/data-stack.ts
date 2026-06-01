@@ -3,7 +3,6 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { NetworkStack } from './network-stack';
@@ -19,7 +18,6 @@ const DEMO_SERVICES = ['ims', 're', 'ars', 'dfs', 'sup'] as const;
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
   public readonly rdsInstance: rds.DatabaseInstance;
-  public readonly mfeBuckets: Record<string, s3.Bucket> = {};
   public readonly ecrRepos: Record<string, ecr.Repository> = {};
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
@@ -28,7 +26,6 @@ export class DataStack extends cdk.Stack {
     cdk.Tags.of(this).add('Name', 'smartretail-data-demo');
 
     const { srEnv, network } = props;
-    const account = this.account;
 
     // RDS — public subnet (default VPC has no isolated subnets); access restricted to ECS SG only
     this.rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
@@ -67,14 +64,6 @@ export class DataStack extends cdk.Stack {
         lifecycleRules: [{ maxImageCount: 5 }],
       });
     }
-
-    // SC Planner MFE bucket — private, served via CloudFront with OAC
-    this.mfeBuckets['sc-planner'] = new s3.Bucket(this, 'MfeBucketScPlanner', {
-      bucketName: `smartretail-mfe-${srEnv}-sc-planner-${account}`,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-    });
 
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {

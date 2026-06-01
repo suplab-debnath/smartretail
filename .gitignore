@@ -37,6 +37,10 @@ infra/cdk-dev/cdk.out/
 infra/cdk-dev/**/*.js
 infra/cdk-dev/**/*.d.ts
 !infra/cdk-dev/jest.config.js
+environments/*/infra/cdk.out/
+environments/*/infra/*.js
+environments/*/infra/*.d.ts
+environments/*/infra/*.json
 
 # ── Python scripts ────────────────────────────────────────────────────────────
 __pycache__/
@@ -83,6 +87,3 @@ temp/
 
 # -- Claude
 .claude/worktrees/*
-
-
-

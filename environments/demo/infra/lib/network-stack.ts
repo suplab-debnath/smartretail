@@ -26,7 +26,7 @@ export class NetworkStack extends cdk.Stack {
     this.vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
 
     this.sgEcsTasks = new ec2.SecurityGroup(this, 'SgEcsTasks', {
-      vpc: this.vpc, description: 'ECS tasks — allow NLB (VPC CIDR) and service-to-service', allowAllOutbound: true,
+      vpc: this.vpc, description: 'ECS tasks - allow NLB (VPC CIDR) and service-to-service', allowAllOutbound: true,
     });
     // NLB does not have security groups; allow traffic from VPC CIDR so NLB can reach ECS tasks
     this.sgEcsTasks.addIngressRule(

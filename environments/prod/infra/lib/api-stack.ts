@@ -119,6 +119,9 @@ export class ApiStack extends cdk.Stack {
       resource.addProxy({
         defaultIntegration: nlbProxyIntegration(port),
         anyMethod: true,
+        defaultMethodOptions: {
+          requestParameters: { 'method.request.path.proxy': true },
+        },
       });
     };
 

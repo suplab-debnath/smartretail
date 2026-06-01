@@ -7,7 +7,8 @@ import { Construct } from 'constructs';
 
 export interface HostingStackProps extends cdk.StackProps {
   srEnv: string;
-  mfeBuckets: Record<string, s3.Bucket>;
+  bucketRemovalPolicy?: cdk.RemovalPolicy;
+  autoDeleteObjects?: boolean;
 }
 
 const MFE_NAMES = ['store-manager', 'sc-planner', 'executive', 'supplier'] as const;
@@ -41,7 +42,19 @@ export class HostingStack extends cdk.Stack {
 
     cdk.Tags.of(this).add('Name', 'smartretail-hosting-dev');
 
-    const { srEnv, mfeBuckets } = props;
+    const { srEnv, bucketRemovalPolicy = cdk.RemovalPolicy.DESTROY, autoDeleteObjects = true } = props;
+    const account = this.account;
+
+    const mfeBuckets: Record<string, s3.Bucket> = {};
+    for (const mfe of MFE_NAMES) {
+      const id = toPascal(mfe);
+      mfeBuckets[mfe] = new s3.Bucket(this, `MfeBucket${id}`, {
+        bucketName: `smartretail-mfe-${srEnv}-${mfe}-${account}`,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        removalPolicy: bucketRemovalPolicy,
+        autoDeleteObjects,
+      });
+    }
 
     // Default behavior: redirect root to /sc-planner/
     const defaultRedirectFn = new cloudfront.Function(this, 'DefaultRedirectFn', {

@@ -11,7 +11,8 @@
         dev-bootstrap dev-deploy-messaging dev-deploy-compute dev-deploy-all \
         dev-push-all dev-deploy-services dev-migrate dev-create-users dev-destroy \
         demo-bootstrap demo-cdk-deploy demo-build-services demo-push-services \
-        demo-migrate demo-deploy-mfe demo-create-users demo-full-deploy demo-destroy \
+        demo-migrate demo-deploy-mfe demo-create-users demo-full-deploy \
+        demo-stop demo-start demo-destroy \
         build-services build-lambda build-mfes build-all \
         docker-build-sis docker-build-all docker-build-lambda \
         coverage-backend coverage-frontend coverage-all coverage-artifacts

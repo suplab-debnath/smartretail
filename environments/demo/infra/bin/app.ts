@@ -27,7 +27,7 @@ const network   = new NetworkStack  (app, 'Min-NetworkStack',   { env: cdkEnv, s
 const data      = new DataStack     (app, 'Min-DataStack',      { env: cdkEnv, srEnv: env, network });
 const messaging = new MessagingStack(app, 'Min-MessagingStack', { env: cdkEnv, srEnv: env });
 // Hosting before Identity — Identity needs the CloudFront URL for Cognito callback URLs
-const hosting   = new HostingStack  (app, 'Min-HostingStack',   { env: cdkEnv, srEnv: env, mfeBuckets: data.mfeBuckets });
+const hosting   = new HostingStack  (app, 'Min-HostingStack',   { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Min-IdentityStack',  { env: cdkEnv, srEnv: env, mfeBaseUrl: hosting.distributionUrl });
 const compute   = new ComputeStack  (app, 'Min-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging, identity });
 const api       = new ApiStack      (app, 'Min-ApiStack',       { env: cdkEnv, srEnv: env, network, compute });
