@@ -103,7 +103,7 @@ com.smartretail.sis/
         │   └── EventBridgePublisher.java  ← implements EventPublisherPort
         ├── archive/
         └── idempotency/
-            └── DynamoDbIdempotencyAdapter.java ← implements IdempotencyPort
+            └── RdsIdempotencyAdapter.java      ← implements IdempotencyPort (sales.idempotency_keys)
 ```
  
 ### Domain Model

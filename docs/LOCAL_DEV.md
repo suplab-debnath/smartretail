@@ -238,7 +238,6 @@ aws --endpoint-url=$ENDPOINT events put-targets \
  
 # SIS idempotency is now RDS-based (sales.idempotency_keys)
 # No DynamoDB table creation needed — Flyway migration V1 creates the table
-    --region $REGION
  
 # S3 bucket
 aws --endpoint-url=$ENDPOINT s3 mb \
