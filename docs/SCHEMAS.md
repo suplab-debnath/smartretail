@@ -112,6 +112,7 @@ CREATE TABLE forecasting.demand_forecasts (
     p10            INTEGER       NOT NULL CHECK (p10 >= 0),
     p50            INTEGER       NOT NULL CHECK (p50 >= 0),
     p90            INTEGER       NOT NULL CHECK (p90 >= 0),
+    actual_units   INTEGER,                             -- added by V9 migration
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     CONSTRAINT demand_forecasts_pk PRIMARY KEY (forecast_id),
     CONSTRAINT demand_forecasts_unique UNIQUE (run_id, sku_id, dc_id, forecast_date, horizon_days)
@@ -294,6 +295,9 @@ CREATE TABLE supplier.supplier_pos (
     eta             DATE,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    sku_id           VARCHAR(50),                         -- added by V9 migration
+    dc_id            VARCHAR(50),                         -- added by V9 migration
+    quantity        INTEGER,                               -- added by V9 migration
     CONSTRAINT supplier_pos_pk PRIMARY KEY (supplier_po_id)
 );
  

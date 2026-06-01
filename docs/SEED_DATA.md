@@ -1,9 +1,12 @@
 # Seed Data Specification
  
-File: `backend/migrations/src/main/resources/db/migration/V7__seed_data.sql`
+Seed data spans three migration files applied in order by `make local-migrate` (Flyway V7–V9):
  
-This file populates all schemas with realistic prototype data.
-Run after V1–V6 schema creation scripts.
+| File | Purpose |
+|------|---------|
+| `V7__seed_data.sql` | Core reference + operational data for Flows 1–4 |
+| `V8__seed_flow8_charts.sql` | Additional `stock_alerts` rows spread over 30 days (required for Executive Dashboard stockout-frequency chart) |
+| `V9__seed_data_flow9.sql` | Schema additions (`actual_units`, `sku_id`, `dc_id`, `quantity` columns) plus historical data for SC Planner Console (Flow 9) |
  
 The seed data is designed to ensure:
 - Flow 1 triggers a stock alert (ATP will fall below reorder_point after the test event)

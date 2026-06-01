@@ -332,6 +332,8 @@ Target: smartretail-re-alert-{env}.fifo (FIFO SQS)
   MessageGroupId: $.detail.dcId
 ```
 
+> **LOCAL mode caveat**: LocalStack does not support JSON-path expressions in EventBridge FIFO `MessageGroupId`. `localstack-init.sh` uses the hardcoded value `"inventory-alert"`, meaning all DCs share one FIFO group locally. Per-DC ordering is enforced in AWS only.
+
 `dcId` must never be null — it is the FIFO partition key. A null `dcId` sends all messages to a single group, destroying ordering guarantees for other DCs.
 
 #### Producer contract (IMS)
