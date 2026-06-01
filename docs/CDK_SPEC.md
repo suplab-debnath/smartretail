@@ -395,74 +395,67 @@ new events.Rule(this, 'AllEventsToArs', {
 ---
  
 ## Stack 4: IdentityStack
- 
+
 File: `environments/demo/infra/lib/identity-stack.ts`
- 
-Creates Cognito user pools.
- 
+
+**Deploy order: after HostingStack** — receives `mfeBaseUrl` (CloudFront URL) to register Cognito callback URLs.
+
+Creates Cognito user pools with hosted UI domains and PKCE OAuth app clients.
+
 ```typescript
-// Internal User Pool
-const internalPool = new cognito.UserPool(this, 'InternalPool', {
-  userPoolName: `smartretail-internal-${env}`,
-  selfSignUpEnabled: false,
-  signInAliases: { email: true },
-  autoVerify: { email: true },
-  passwordPolicy: {
-    minLength: 8,
-    requireLowercase: true,
-    requireUppercase: true,
-    requireDigits: true,
-    requireSymbols: true,
-  },
-  accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-  removalPolicy: cdk.RemovalPolicy.DESTROY,
+// Props — mfeBaseUrl comes from HostingStack.distributionUrl
+// { srEnv: string; mfeBaseUrl: string }
+
+// Hosted UI domain (free AWS subdomain, required for PKCE redirect)
+new cognito.UserPoolDomain(this, 'InternalDomain', {
+  userPool: internalPool,
+  cognitoDomain: { domainPrefix: `smartretail-${env}-internal` },
 });
- 
-// Internal groups
-['STORE_MANAGER', 'SC_PLANNER', 'EXECUTIVE', 'ADMIN'].forEach(group => {
-  new cognito.CfnUserPoolGroup(this, `Group${group}`, {
-    userPoolId: internalPool.userPoolId,
-    groupName: group,
-  });
+
+// Internal App Client — demo: sc-planner only; dev/prod: all three internal MFEs
+internalPool.addClient('InternalAppClient', {
+  authFlows: { userSrp: true },
+  oAuth: {
+    flows: { authorizationCodeGrant: true },
+    scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
+    callbackUrls: [
+      `${mfeBaseUrl}/sc-planner/callback`,
+      `${mfeBaseUrl}/store-manager/callback`,   // dev/prod only
+      `${mfeBaseUrl}/executive/callback`,        // dev/prod only
+    ],
+    logoutUrls: [
+      `${mfeBaseUrl}/sc-planner/logout`,
+      `${mfeBaseUrl}/store-manager/logout`,      // dev/prod only
+      `${mfeBaseUrl}/executive/logout`,           // dev/prod only
+    ],
+  },
+  generateSecret: false,
 });
- 
-// Internal App Client
-const internalClient = internalPool.addClient('InternalAppClient', {
-  userPoolClientName: `smartretail-internal-client-${env}`,
-  authFlows: { userSrp: true },
-  oAuth: {
-    flows: { authorizationCodeGrant: true },
-    scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
-    callbackUrls: [`https://${mfeInternalDomain}/callback`],
-    logoutUrls: [`https://${mfeInternalDomain}/logout`],
-  },
-  accessTokenValidity: cdk.Duration.hours(1),
-  refreshTokenValidity: cdk.Duration.hours(8),
-  preventUserExistenceErrors: true,
+
+// Supplier pool domain + client (dev/prod only)
+new cognito.UserPoolDomain(this, 'SupplierDomain', {
+  userPool: supplierPool,
+  cognitoDomain: { domainPrefix: `smartretail-${env}-supplier` },
 });
- 
-// Supplier User Pool
-const supplierPool = new cognito.UserPool(this, 'SupplierPool', {
-  userPoolName: `smartretail-supplier-${env}`,
-  selfSignUpEnabled: false,
-  signInAliases: { email: true },
-  mfa: cognito.Mfa.REQUIRED,
-  mfaSecondFactor: { totp: true, otp: false },
-  customAttributes: {
-    supplierId: new cognito.StringAttribute({ mutable: false }),
-  },
-  removalPolicy: cdk.RemovalPolicy.DESTROY,
+supplierPool.addClient('SupplierAppClient', {
+  oAuth: {
+    flows: { authorizationCodeGrant: true },
+    callbackUrls: [`${mfeBaseUrl}/supplier/callback`],
+    logoutUrls:   [`${mfeBaseUrl}/supplier/logout`],
+  },
+  generateSecret: false,
 });
 ```
- 
+
 ### Outputs
 ```
 /smartretail/{env}/cognito/internal-pool-id
 /smartretail/{env}/cognito/internal-client-id
+/smartretail/{env}/cognito/internal-domain     (e.g. smartretail-dev-internal.auth.us-east-1.amazoncognito.com)
 /smartretail/{env}/cognito/supplier-pool-id
 /smartretail/{env}/cognito/supplier-client-id
+/smartretail/{env}/cognito/supplier-domain
 ```
- 
 ---
  
 ## Stack 5: ComputeStack
@@ -652,16 +645,30 @@ const authoriser = new apigateway.CognitoUserPoolsAuthorizer(this, 'InternalAuth
 
 File: `environments/demo/infra/lib/hosting-stack.ts`
 
-Creates:
-- CloudFront distribution fronting the SC Planner MFE S3 bucket (demo stack serves sc-planner only)
-- Origin Access Identity so the S3 bucket is private
-- SSM Parameter with the CloudFront URL
+**Deploy order: after DataStack, before IdentityStack** — IdentityStack needs the CloudFront URL for Cognito callback URLs.
 
-Deploy after DataStack (needs `mfeBuckets` from DataStack output).
+Creates:
+- **Single CloudFront distribution** fronting all deployed MFE S3 buckets via path-based routing
+- **OAC** (Origin Access Control) per MFE bucket — buckets are private, CloudFront authenticates with SigV4
+- **CloudFront Function** per MFE behavior — strips `/{mfe}` prefix, rewrites extensionless paths to `/index.html` (SPA routing)
+- **Default behavior** — CloudFront Function returns 302 redirect to `/sc-planner/`
+- **Price class**: PRICE_CLASS_100 (US/Europe, lowest cost)
+
+**Demo** serves `sc-planner` only. **Dev/prod** serve all four MFEs:
+
+| Path | MFE | Cognito pool |
+|------|-----|-------------|
+| `/sc-planner/*` | SC Planner Console | Internal |
+| `/store-manager/*` | Store Manager Dashboard | Internal |
+| `/executive/*` | Executive Dashboard | Internal |
+| `/supplier/*` | Supplier Portal | Supplier |
 
 ### Outputs
 ```
-/smartretail/{env}/hosting/sc-planner-url
+/smartretail/{env}/hosting/cloudfront-url
+/smartretail/{env}/hosting/cloudfront-distribution-id
+/smartretail/{env}/hosting/{mfe}-url          (e.g. https://xyz.cloudfront.net/sc-planner)
+/smartretail/{env}/hosting/{mfe}-bucket-name
 ```
 
 ---

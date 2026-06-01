@@ -11,13 +11,29 @@ export interface HostingStackProps extends cdk.StackProps {
 }
 
 const MFE_NAMES = ['store-manager', 'sc-planner', 'executive', 'supplier'] as const;
-type MfeName = typeof MFE_NAMES[number];
 
 function toPascal(kebab: string): string {
   return kebab.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
 }
 
+// Strips /{prefix} from URI; rewrites extensionless paths to /index.html for SPA routing.
+function spaRewriteCode(prefix: string): string {
+  const len = prefix.length;
+  return [
+    'function handler(event) {',
+    '  var req = event.request;',
+    '  var uri = req.uri;',
+    `  uri = uri.substring(${len}) || '/';`,
+    "  var seg = uri.slice(uri.lastIndexOf('/') + 1);",
+    "  if (!seg || !seg.includes('.')) uri = '/index.html';",
+    '  req.uri = uri;',
+    '  return req;',
+    '}',
+  ].join('\n');
+}
+
 export class HostingStack extends cdk.Stack {
+  public readonly distributionUrl: string;
   public readonly websiteUrls: Record<string, string> = {};
 
   constructor(scope: Construct, id: string, props: HostingStackProps) {
@@ -27,64 +43,96 @@ export class HostingStack extends cdk.Stack {
 
     const { srEnv, mfeBuckets } = props;
 
+    // Default behavior: redirect root to /sc-planner/
+    const defaultRedirectFn = new cloudfront.Function(this, 'DefaultRedirectFn', {
+      functionName: `smartretail-${srEnv}-default-redirect`,
+      code: cloudfront.FunctionCode.fromInline(
+        "function handler(event) { return { statusCode: 302, statusDescription: 'Found', headers: { location: { value: '/sc-planner/' } } }; }"
+      ),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
+    const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> = {};
+
     for (const mfe of MFE_NAMES) {
       const bucket = mfeBuckets[mfe];
       if (!bucket) throw new Error(`MFE bucket for '${mfe}' not found`);
 
-      // OAC — same pattern as prod; keeps architecture consistent
       const oac = new cloudfront.S3OriginAccessControl(this, `${toPascal(mfe)}Oac`, {
         originAccessControlName: `smartretail-${srEnv}-${mfe}-oac`,
         signing: cloudfront.Signing.SIGV4_ALWAYS,
       });
 
-      const distribution = new cloudfront.Distribution(this, `${toPascal(mfe)}Distribution`, {
-        defaultRootObject: 'index.html',
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, { originAccessControl: oac }),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-          compress: true,
-        },
-        errorResponses: [
-          {
-            httpStatus: 403,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.seconds(0),
-          },
-          {
-            httpStatus: 404,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.seconds(0),
-          },
-        ],
-        comment: `SmartRetail ${mfe} MFE (${srEnv})`,
+      const rewriteFn = new cloudfront.Function(this, `${toPascal(mfe)}RewriteFn`, {
+        functionName: `smartretail-${srEnv}-${mfe}-rewrite`,
+        code: cloudfront.FunctionCode.fromInline(spaRewriteCode(`/${mfe}`)),
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
       });
 
-      const url = `https://${distribution.distributionDomainName}`;
-      this.websiteUrls[mfe] = url;
+      additionalBehaviors[`/${mfe}/*`] = {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, { originAccessControl: oac }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        compress: true,
+        functionAssociations: [{
+          function: rewriteFn,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
+      };
+    }
+
+    // Default behavior uses sc-planner bucket; CF Function intercepts before S3 is reached
+    const defaultOac = new cloudfront.S3OriginAccessControl(this, 'DefaultOac', {
+      originAccessControlName: `smartretail-${srEnv}-default-oac`,
+      signing: cloudfront.Signing.SIGV4_ALWAYS,
+    });
+
+    const distribution = new cloudfront.Distribution(this, 'Distribution', {
+      comment: `SmartRetail MFE portal (${srEnv})`,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(mfeBuckets['sc-planner'], { originAccessControl: defaultOac }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        functionAssociations: [{
+          function: defaultRedirectFn,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
+      },
+      additionalBehaviors,
+    });
+
+    this.distributionUrl = `https://${distribution.distributionDomainName}`;
+
+    new ssm.StringParameter(this, 'CloudFrontUrlParam', {
+      parameterName: `/smartretail/${srEnv}/hosting/cloudfront-url`,
+      stringValue: this.distributionUrl,
+    });
+
+    new ssm.StringParameter(this, 'DistributionIdParam', {
+      parameterName: `/smartretail/${srEnv}/hosting/cloudfront-distribution-id`,
+      stringValue: distribution.distributionId,
+    });
+
+    for (const mfe of MFE_NAMES) {
+      const mfeUrl = `${this.distributionUrl}/${mfe}`;
+      this.websiteUrls[mfe] = mfeUrl;
 
       new ssm.StringParameter(this, `${toPascal(mfe)}UrlParam`, {
         parameterName: `/smartretail/${srEnv}/hosting/${mfe}-url`,
-        stringValue: url,
+        stringValue: mfeUrl,
       });
 
       new ssm.StringParameter(this, `${toPascal(mfe)}BucketNameParam`, {
         parameterName: `/smartretail/${srEnv}/hosting/${mfe}-bucket-name`,
-        stringValue: bucket.bucketName,
-      });
-
-      new ssm.StringParameter(this, `${toPascal(mfe)}DistributionIdParam`, {
-        parameterName: `/smartretail/${srEnv}/hosting/${mfe}-distribution-id`,
-        stringValue: distribution.distributionId,
-      });
-
-      new cdk.CfnOutput(this, `${toPascal(mfe)}Url`, {
-        value: url,
-        description: `${mfe} MFE CloudFront URL (HTTPS)`,
-        exportName: `smartretail-${srEnv}-${mfe}-url`,
+        stringValue: mfeBuckets[mfe].bucketName,
       });
     }
+
+    new cdk.CfnOutput(this, 'CloudFrontUrl', {
+      value: this.distributionUrl,
+      description: 'SmartRetail MFE portal CloudFront URL (HTTPS)',
+      exportName: `smartretail-${srEnv}-cloudfront-url`,
+    });
   }
 }

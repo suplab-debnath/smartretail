@@ -569,20 +569,42 @@ window.SMARTRETAIL_CONFIG = {
 ---
  
 ## MFE Build and Deploy
- 
-Each MFE is built independently:
- 
-```bash
-cd mfe/store-manager
-npm install
-npm run build       # Vite build → dist/
-aws s3 sync dist/ s3://smartretail-mfe-dev-store-manager-{account}/ --delete
-aws cloudfront create-invalidation --distribution-id {CF_ID} --paths "/*"
-```
- 
-CDK creates a CloudFront distribution with OAC for each MFE bucket.
-The `config.js` file must be uploaded to S3 before the app bundle.
 
+All MFEs are served from a **single CloudFront distribution** with path-based routing.
+Each MFE lives at `/{mfe-name}/*` under the shared CloudFront URL.
+
+**Local dev** — base path is `/` (no CloudFront, no Cognito):
+```bash
+cd mfe/sc-planner && npm run dev    # http://localhost:5174  (mock auth)
+cd mfe/store-manager && npm run dev # http://localhost:5173
+cd mfe/executive && npm run dev     # http://localhost:5175
+cd mfe/supplier && npm run dev      # http://localhost:5177
+```
+
+**AWS deploy** — `VITE_BASE_PATH` sets the asset base path; `deploy-mfes.sh` handles everything:
+```bash
+# Deploy all MFEs (dev/prod)
+./scripts/shared/deploy-mfes.sh --env dev
+
+# Deploy single MFE
+./scripts/shared/deploy-mfes.sh --env dev --mfes sc-planner
+
+# Demo (sc-planner only)
+./environments/demo/scripts/deploy-mfes-demo.sh --env demo
+```
+
+The deploy script:
+1. Builds each MFE with `VITE_BASE_PATH=/{mfe}/` so Vite emits correct asset paths
+2. Generates `config.js` from SSM (API endpoint, Cognito pool/client/domain)
+3. Syncs `dist/` to the MFE's private S3 bucket
+4. Runs **one CloudFront invalidation** for the shared distribution after all syncs
+
+**Cognito pool per MFE:**
+- `store-manager`, `sc-planner`, `executive` → internal pool (SSM: `cognito/internal-*`)
+- `supplier` → supplier pool (SSM: `cognito/supplier-*`)
+
+CDK creates **one CloudFront distribution** with OAC per S3 origin. Distribution ID is stored at:
+`/smartretail/{env}/hosting/cloudfront-distribution-id`
 ---
 
 ## Supplier Portal MFE

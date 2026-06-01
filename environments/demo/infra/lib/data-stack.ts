@@ -68,13 +68,10 @@ export class DataStack extends cdk.Stack {
       });
     }
 
-    // SC Planner MFE bucket only — demo stack serves one portal
+    // SC Planner MFE bucket — private, served via CloudFront with OAC
     this.mfeBuckets['sc-planner'] = new s3.Bucket(this, 'MfeBucketScPlanner', {
       bucketName: `smartretail-mfe-${srEnv}-sc-planner-${account}`,
-      websiteIndexDocument: 'index.html',
-      websiteErrorDocument: 'index.html',
-      publicReadAccess: true,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });

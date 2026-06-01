@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Build React MFEs, sync dist/ to S3, and invalidate CloudFront.
+# Build React MFEs, sync dist/ to S3, and invalidate the shared CloudFront distribution.
 #
 # Usage:
 #   ./scripts/deploy-mfes.sh [OPTIONS]
 #
 # Options:
-#   --env       <dev|prod>                    Environment name (default: $SMARTRETAIL_ENV or dev)
-#   --profile   <aws-profile>                 AWS CLI profile (default: smartretail-dev)
-#   --mfes      <store-manager,sc-planner,…>  Comma-separated MFEs to deploy
-#                                             (default: all three)
-#   --skip-build                              Skip npm build (use existing dist/)
+#   --env       <dev|prod>                              Environment name (default: $SMARTRETAIL_ENV or dev)
+#   --profile   <aws-profile>                           AWS CLI profile (default: smartretail-dev)
+#   --mfes      <store-manager,sc-planner,executive,…>  Comma-separated MFEs to deploy (default: all four)
+#   --skip-build                                        Skip npm build (use existing dist/)
 #
 # Examples:
 #   ./scripts/deploy-mfes.sh --env dev
@@ -20,7 +19,7 @@ set -euo pipefail
 # ── Defaults ──────────────────────────────────────────────────────────────────
 ENV="${SMARTRETAIL_ENV:-dev}"
 PROFILE="${AWS_PROFILE:-smartretail-dev}"
-MFES="store-manager sc-planner executive"
+MFES="store-manager sc-planner executive supplier"
 SKIP_BUILD=false
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -40,6 +39,40 @@ cd "$REPO_ROOT"
 ACCOUNT=$(aws sts get-caller-identity \
   --query Account --output text --profile "$PROFILE" 2>/dev/null)
 
+# ── Shared SSM lookups ────────────────────────────────────────────────────────
+API_ENDPOINT=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/api/endpoint" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+
+# Internal pool — used by sc-planner, store-manager, executive
+INTERNAL_POOL_ID=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/internal-pool-id" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+INTERNAL_CLIENT_ID=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/internal-client-id" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+INTERNAL_DOMAIN=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/internal-domain" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+
+# Supplier pool — used by supplier MFE only
+SUPPLIER_POOL_ID=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/supplier-pool-id" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+SUPPLIER_CLIENT_ID=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/supplier-client-id" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+SUPPLIER_DOMAIN=$(aws ssm get-parameter \
+  --name "/smartretail/${ENV}/cognito/supplier-domain" \
+  --query Parameter.Value --output text \
+  --profile "$PROFILE" 2>/dev/null || true)
+
 echo "=================================================="
 echo " SmartRetail — Deploy MFEs"
 echo " env:    ${ENV}"
@@ -52,20 +85,44 @@ for MFE in $MFES; do
   echo ""
   echo "── ${MFE} ──────────────────────────────────────────"
 
-  # Build
+  # Build with path-based base so assets reference /{mfe}/ correctly
   if [[ "$SKIP_BUILD" == false ]]; then
-    echo "▶  npm install + build  (mfe/${MFE})"
-    (cd "mfe/${MFE}" && npm install --silent && npm run build)
+    echo "▶  npm install + build  (mfe/${MFE})  base=/${MFE}/"
+    (cd "mfe/${MFE}" && npm install --silent && VITE_BASE_PATH="/${MFE}/" npm run build)
   else
     echo "▶  Skipping build (--skip-build)"
   fi
 
-  # Verify dist/ exists
   if [[ ! -d "mfe/${MFE}/dist" ]]; then
-    echo "   ❌  mfe/${MFE}/dist not found — was the build skipped or did it fail?" >&2
+    echo "   ❌  mfe/${MFE}/dist not found — build failed?" >&2
     FAILED+=("$MFE")
     continue
   fi
+
+  # Select Cognito pool: supplier MFE uses supplier pool, all others use internal pool
+  if [[ "$MFE" == "supplier" ]]; then
+    COGNITO_POOL_ID="$SUPPLIER_POOL_ID"
+    COGNITO_CLIENT_ID="$SUPPLIER_CLIENT_ID"
+    COGNITO_DOMAIN="$SUPPLIER_DOMAIN"
+  else
+    COGNITO_POOL_ID="$INTERNAL_POOL_ID"
+    COGNITO_CLIENT_ID="$INTERNAL_CLIENT_ID"
+    COGNITO_DOMAIN="$INTERNAL_DOMAIN"
+  fi
+
+  # Generate runtime config.js from SSM — overwrites the empty placeholder
+  echo "▶  Generating config.js from SSM"
+  cat > "mfe/${MFE}/dist/config.js" <<CONFIGEOF
+window.SMARTRETAIL_CONFIG = {
+  apiGatewayEndpoint: '${API_ENDPOINT}',
+  cognitoPoolId:      '${COGNITO_POOL_ID}',
+  cognitoClientId:    '${COGNITO_CLIENT_ID}',
+  cognitoDomain:      '${COGNITO_DOMAIN}',
+  env:                '${ENV}',
+};
+CONFIGEOF
+  echo "   apiGatewayEndpoint: ${API_ENDPOINT}"
+  echo "   cognitoDomain:      ${COGNITO_DOMAIN}"
 
   # S3 sync
   BUCKET="smartretail-mfe-${ENV}-${MFE}-${ACCOUNT}"
@@ -74,32 +131,35 @@ for MFE in $MFES; do
     --delete \
     --profile "$PROFILE"
 
-  # CloudFront invalidation
+  echo "   ✅ ${MFE} synced"
+done
+
+# ── CloudFront invalidation (single distribution covers all MFEs) ─────────────
+if [[ ${#FAILED[@]} -eq 0 ]]; then
   CF_ID=$(aws ssm get-parameter \
-    --name "/smartretail/${ENV}/cloudfront/${MFE}-distribution-id" \
+    --name "/smartretail/${ENV}/hosting/cloudfront-distribution-id" \
     --query Parameter.Value --output text \
     --profile "$PROFILE" 2>/dev/null || true)
 
   if [[ -n "$CF_ID" && "$CF_ID" != "None" ]]; then
+    echo ""
     echo "▶  Invalidating CloudFront distribution ${CF_ID}…"
     INVALIDATION_ID=$(aws cloudfront create-invalidation \
       --distribution-id "$CF_ID" \
       --paths "/*" \
       --profile "$PROFILE" \
       --query Invalidation.Id --output text)
-    echo "   ✅ ${MFE} deployed  (invalidation: ${INVALIDATION_ID})"
+    echo "   ✅ Invalidation created: ${INVALIDATION_ID}"
 
     CF_URL=$(aws ssm get-parameter \
-      --name "/smartretail/${ENV}/cloudfront/${MFE}-url" \
+      --name "/smartretail/${ENV}/hosting/cloudfront-url" \
       --query Parameter.Value --output text \
       --profile "$PROFILE" 2>/dev/null || true)
-    [[ -n "$CF_URL" ]] && echo "   🌐 ${CF_URL}"
+    [[ -n "$CF_URL" ]] && echo "   🌐  ${CF_URL}"
   else
-    echo "   ⚠️   No CloudFront distribution found in SSM for '${MFE}'"
-    echo "        Run 'make aws-deploy-hosting' to create distributions first."
-    echo "   ✅ ${MFE} synced to S3 (no invalidation)"
+    echo "   ⚠️   No CloudFront distribution found in SSM — run 'make aws-deploy-infra' first."
   fi
-done
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
