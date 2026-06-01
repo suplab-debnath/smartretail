@@ -554,6 +554,9 @@ local-mfe-scp:
 local-mfe-exec:
   cd mfe/executive && npm run dev -- --port 5175
  
+local-mfe-supplier:
+  cd mfe/supplier && npm run dev -- --port 5177
+ 
 local-down:
   docker-compose down
  
@@ -653,6 +656,9 @@ docker-build-all:
 | Store Manager MFE | 5173 |
 | SC Planner MFE | 5174 |
 | Executive MFE | 5175 |
+| Supplier MFE | 5177 |
+| Demo Control Center MFE | 5176 |
+| Demo Control Server | 3099 |
  
  
  

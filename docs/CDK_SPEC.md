@@ -156,48 +156,57 @@ const endpointServices = [
 File: `environments/demo/infra/lib/data-stack.ts`
  
 Creates:
-- RDS PostgreSQL Multi-AZ
-- RDS Proxy
+- RDS PostgreSQL (single-AZ in demo; Multi-AZ in prod)
 - S3 buckets
 - Secrets Manager secret for Firehose ingest access key
 > Note: DynamoDB idempotency table removed — idempotency uses `sales.idempotency_keys` in RDS (Flyway V1).
+> Note: demo stack has no RDS Proxy — ECS tasks connect directly to the RDS instance endpoint. RDS Proxy is only in cdk-dev and cdk-prod.
  
 ### RDS PostgreSQL
  
 ```typescript
-const rdsInstance = new rds.DatabaseInstance(this, 'SmartRetailRds', {
-  engine: rds.DatabaseInstanceEngine.postgres({
-    version: rds.PostgresEngineVersion.VER_15_4,
-  }),
-  instanceType: ec2.InstanceType.of(
-    ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM
-  ),
-  vpc,
-  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-  securityGroups: [sgRds],
-  multiAz: true,
-  databaseName: 'smartretail',
-  credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin'),
-  backupRetention: cdk.Duration.days(7),
-  deletionProtection: false,  // prototype only
-  removalPolicy: cdk.RemovalPolicy.DESTROY,  // prototype only
-  enablePerformanceInsights: true,
-  storageEncrypted: true,
+// Demo stack: t4g.micro, single-AZ, public subnet (default VPC has no isolated subnets)
+// cdk-dev: t4g.small; cdk-prod: r6g.large, multiAz: true, PRIVATE_ISOLATED subnet
+const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+  instanceIdentifier: `smartretail-rds-${srEnv}`,
+  engine: rds.DatabaseInstanceEngine.postgres({
+    version: rds.PostgresEngineVersion.VER_16_13,
+  }),
+  instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
+  allocatedStorage: 20,
+  vpc: network.vpc,
+  vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+  securityGroups: [network.sgRds],
+  multiAz: false,
+  databaseName: 'smartretail',
+  credentials: rds.Credentials.fromGeneratedSecret('smartretail_admin', {
+    secretName: `smartretail-rds-secret-${srEnv}`,
+  }),
+  backupRetention: cdk.Duration.days(1),
+  deletionProtection: false,
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
+  enablePerformanceInsights: false,
+  storageEncrypted: true,
+  cloudwatchLogsExports: ['postgresql'],
+  cloudwatchLogsRetention: logs.RetentionDays.TWO_WEEKS,
 });
 ```
  
-### RDS Proxy
+### RDS Proxy (cdk-dev and cdk-prod only)
+ 
+The demo stack connects directly to the RDS instance endpoint. cdk-dev and cdk-prod
+deploy an RDS Proxy so ECS tasks use IAM auth and connection pooling.
  
 ```typescript
 const rdsProxy = new rds.DatabaseProxy(this, 'SmartRetailRdsProxy', {
-  proxyTarget: rds.ProxyTarget.fromInstance(rdsInstance),
-  vpc,
-  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-  securityGroups: [sgRdsProxy],
-  iamAuth: true,
-  requireTLS: true,
-  idleClientTimeout: cdk.Duration.minutes(30),
-  dbProxyName: `smartretail-proxy-${env}`,
+  proxyTarget: rds.ProxyTarget.fromInstance(rdsInstance),
+  vpc,
+  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+  securityGroups: [sgRdsProxy],
+  iamAuth: true,
+  requireTLS: true,
+  idleClientTimeout: cdk.Duration.minutes(30),
+  dbProxyName: `smartretail-proxy-${env}`,
 });
 ```
  
@@ -235,7 +244,9 @@ new s3.Bucket(this, 'SageMakerBucket', {
   removalPolicy: cdk.RemovalPolicy.RETAIN,
 });
  
-// MFE static assets (4 buckets)
+// MFE static assets
+// Demo stack: sc-planner bucket only (HostingStack serves it via CloudFront)
+// cdk-dev / cdk-prod: all 4 buckets (store-manager, sc-planner, executive, supplier-portal)
 ['store-manager', 'sc-planner', 'executive', 'supplier-portal'].forEach(mfe => {
   new s3.Bucket(this, `MfeBucket${mfe}`, {
     bucketName: `smartretail-mfe-${env}-${mfe}-${account}`,
@@ -327,7 +338,7 @@ const reAlertDlq = new sqs.Queue(this, 'ReAlertDlq', {
 const reAlertQueue = new sqs.Queue(this, 'ReAlertQueue', {
   queueName: `smartretail-re-alert-${env}.fifo`,
   fifo: true,
-  contentBasedDeduplication: false,
+  contentBasedDeduplication: true,
   deadLetterQueue: { queue: reAlertDlq, maxReceiveCount: 3 },
   visibilityTimeout: cdk.Duration.seconds(120),
 });
@@ -635,5 +646,39 @@ const authoriser = new apigateway.CognitoUserPoolsAuthorizer(this, 'InternalAuth
 /smartretail/{env}/api-gateway/id
 ```
 
- 
- 
+---
+
+## Stack 7: HostingStack
+
+File: `environments/demo/infra/lib/hosting-stack.ts`
+
+Creates:
+- CloudFront distribution fronting the SC Planner MFE S3 bucket (demo stack serves sc-planner only)
+- Origin Access Identity so the S3 bucket is private
+- SSM Parameter with the CloudFront URL
+
+Deploy after DataStack (needs `mfeBuckets` from DataStack output).
+
+### Outputs
+```
+/smartretail/{env}/hosting/sc-planner-url
+```
+
+---
+
+## Stack 8: MonitoringStack
+
+File: `environments/demo/infra/lib/monitoring-stack.ts`
+
+Creates:
+- SNS topic for operational alerts (`smartretail-alerts-{env}`)
+- CloudWatch alarms on ECS service CPU/memory, SQS DLQ depth, and RDS CPU
+- Log metric filters for ERROR-level log lines from each service
+- Optional email subscription via `alertEmail` stack prop
+
+Deploy last — depends on ComputeStack, MessagingStack, DataStack, and ApiStack.
+
+### Outputs
+```
+/smartretail/{env}/monitoring/alerts-topic-arn
+```
