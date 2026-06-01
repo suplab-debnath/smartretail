@@ -9,7 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -87,5 +90,59 @@ class SupplierControllerTest {
         mockMvc.perform(get("/v1/supplier/suppliers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.suppliers").isEmpty());
+    }
+
+    @Test
+    void getSuppliers_withJwtCognitoGroup_returns200() throws Exception {
+        setJwtAuth("SC_PLANNER");
+        when(supplierQueryPort.getSuppliers()).thenReturn(new SupplierRecordList(List.of()));
+
+        mockMvc.perform(get("/v1/supplier/suppliers"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getSuppliers_withJwtUnauthorisedGroup_returns403() throws Exception {
+        setJwtAuth("EXECUTIVE");
+
+        mockMvc.perform(get("/v1/supplier/suppliers"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierQueryPort);
+    }
+
+    @Test
+    void getSuppliers_withJwtNullGroups_returns403() throws Exception {
+        setJwtAuthNullGroups();
+
+        mockMvc.perform(get("/v1/supplier/suppliers"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierQueryPort);
+    }
+
+    @Test
+    void getSuppliers_withNullDevRoleHeader_returns403() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn(null);
+
+        mockMvc.perform(get("/v1/supplier/suppliers"))
+                .andExpect(status().isForbidden());
+    }
+
+    private void setJwtAuth(String group) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("cognito:groups", List.of(group))
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private void setJwtAuthNullGroups() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 }

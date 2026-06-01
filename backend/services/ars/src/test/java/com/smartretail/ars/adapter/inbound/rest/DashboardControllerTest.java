@@ -18,7 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -177,7 +180,140 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.suppliers").isArray());
     }
 
+    // ── JWT auth path ─────────────────────────────────────────────────────────
+
+    @Test
+    void getExecutiveDashboard_withJwtCognitoGroup_returns200() throws Exception {
+        when(executiveDashboardPort.assemble()).thenReturn(minimalExecutiveDashboard());
+        setJwtAuth("EXECUTIVE");
+
+        mockMvc.perform(get("/v1/dashboard/executive"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getExecutiveDashboard_withJwtNullGroups_returns403() throws Exception {
+        setJwtAuthNullGroups();
+
+        mockMvc.perform(get("/v1/dashboard/executive"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(executiveDashboardPort);
+    }
+
+    @Test
+    void getExecutiveDashboard_withScPlannerRole_returns200() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("SC_PLANNER");
+        when(executiveDashboardPort.assemble()).thenReturn(minimalExecutiveDashboard());
+
+        mockMvc.perform(get("/v1/dashboard/executive"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getExecutiveDashboard_withNullHeader_defaultsToExecutiveRoleAndReturns200() throws Exception {
+        // null X-Dev-Role header → extractRoles() returns {"EXECUTIVE"} → allowed
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn(null);
+        when(executiveDashboardPort.assemble()).thenReturn(minimalExecutiveDashboard());
+
+        mockMvc.perform(get("/v1/dashboard/executive"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getScPlannerDashboard_withNullHeader_returns403() throws Exception {
+        // null header → EXECUTIVE default → not in PLANNER_ROLES → 403
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn(null);
+
+        mockMvc.perform(get("/v1/dashboard/sc-planner"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getStoreManagerDashboard_withAdminRole_returns200() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("ADMIN");
+        // OpenAPI defaultValue="20" for size, so absent param arrives as 20
+        when(storeManagerDashboardPort.assemble(eq("DC-LONDON"), eq(0), eq(20)))
+                .thenReturn(minimalStoreManagerDashboard("DC-LONDON"));
+
+        mockMvc.perform(get("/v1/dashboard/store-manager")
+                        .param("dcId", "DC-LONDON"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getStoreManagerDashboard_withNullPageAndSize_usesOpenApiDefaults() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("STORE_MANAGER");
+        // OpenAPI defaults: page=0, size=20
+        when(storeManagerDashboardPort.assemble(eq("DC-LONDON"), eq(0), eq(20)))
+                .thenReturn(minimalStoreManagerDashboard("DC-LONDON"));
+
+        mockMvc.perform(get("/v1/dashboard/store-manager")
+                        .param("dcId", "DC-LONDON"))
+                .andExpect(status().isOk());
+
+        verify(storeManagerDashboardPort).assemble("DC-LONDON", 0, 20);
+    }
+
+    @Test
+    void getScPlannerDashboard_withJwtCognitoGroup_returns200() throws Exception {
+        when(scPlannerDashboardPort.assemble()).thenReturn(minimalScPlannerDashboard());
+        setJwtAuth("SC_PLANNER");
+
+        mockMvc.perform(get("/v1/dashboard/sc-planner"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getSupplierOrdersDashboard_withStatusFilter_passesStatusToPort() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("ADMIN");
+        when(supplierOrdersDashboardPort.assemble("DISPATCHED"))
+                .thenReturn(new SupplierOrdersDashboard(List.of(), Instant.now()));
+
+        mockMvc.perform(get("/v1/dashboard/supplier-orders")
+                        .param("status", "DISPATCHED"))
+                .andExpect(status().isOk());
+
+        verify(supplierOrdersDashboardPort).assemble("DISPATCHED");
+    }
+
+    @Test
+    void getSupplierOrdersDashboard_withExecutiveRole_returns403() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("EXECUTIVE");
+
+        mockMvc.perform(get("/v1/dashboard/supplier-orders"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierOrdersDashboardPort);
+    }
+
+    @Test
+    void getSupplierPerformanceDashboard_withJwtUnauthorisedGroup_returns403() throws Exception {
+        setJwtAuth("STORE_MANAGER");
+
+        mockMvc.perform(get("/v1/dashboard/supplier-performance"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierPerformancePort);
+    }
+
     // ── Helper factories ──────────────────────────────────────────────────────
+
+    private void setJwtAuth(String group) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("cognito:groups", List.of(group))
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private void setJwtAuthNullGroups() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
 
     private ExecutiveDashboard minimalExecutiveDashboard() {
         var forecastAccuracy = new ExecutiveDashboard.ForecastAccuracy(

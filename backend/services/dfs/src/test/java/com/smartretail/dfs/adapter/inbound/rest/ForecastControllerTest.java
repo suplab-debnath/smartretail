@@ -16,7 +16,10 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -186,7 +189,91 @@ class ForecastControllerTest {
                 .andExpect(jsonPath("$.rowsInserted").value(2));
     }
 
+    // ── JWT auth branches ─────────────────────────────────────────────────────
+
+    @Test
+    void getForecastBands_withJwtCognitoGroup_returns200() throws Exception {
+        setJwtAuth("SC_PLANNER");
+        when(forecastQueryPort.getForecast(any(), any(), anyInt())).thenReturn(minimalForecastData());
+
+        mockMvc.perform(get("/v1/forecast/{skuId}/{dcId}", "SKU-BEV-001", "DC-LONDON")
+                        .param("horizonDays", "30"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getForecastBands_withJwtNoMatchingGroup_returns403() throws Exception {
+        setJwtAuth("STORE_MANAGER");
+
+        mockMvc.perform(get("/v1/forecast/{skuId}/{dcId}", "SKU-BEV-001", "DC-LONDON")
+                        .param("horizonDays", "30"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(forecastQueryPort);
+    }
+
+    @Test
+    void getForecastBands_withJwtNullGroups_returns403() throws Exception {
+        setJwtAuthNullGroups();
+
+        mockMvc.perform(get("/v1/forecast/{skuId}/{dcId}", "SKU-BEV-001", "DC-LONDON")
+                        .param("horizonDays", "30"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(forecastQueryPort);
+    }
+
+    @Test
+    void getForecastBands_withNullHorizonDays_defaultsTo30() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("SC_PLANNER");
+        when(forecastQueryPort.getForecast(eq("SKU-BEV-001"), eq("DC-LONDON"), eq(30)))
+                .thenReturn(minimalForecastData());
+
+        mockMvc.perform(get("/v1/forecast/{skuId}/{dcId}", "SKU-BEV-001", "DC-LONDON"))
+                .andExpect(status().isOk());
+
+        verify(forecastQueryPort).getForecast("SKU-BEV-001", "DC-LONDON", 30);
+    }
+
+    @Test
+    void getForecastBands_withNoDevRoleHeader_returns403() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn(null);
+
+        mockMvc.perform(get("/v1/forecast/{skuId}/{dcId}", "SKU-BEV-001", "DC-LONDON")
+                        .param("horizonDays", "30"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void triggerForecastRun_withNullRequestBody_defaultsToScheduled() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(forecastTriggerPort.registerRun("SCHEDULED")).thenReturn(runId);
+
+        mockMvc.perform(post("/v1/forecast/runs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.triggeredBy").value("SCHEDULED"));
+    }
+
     // ── Helper factories ──────────────────────────────────────────────────────
+
+    private void setJwtAuth(String group) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("cognito:groups", List.of(group))
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private void setJwtAuthNullGroups() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
 
     private ForecastData minimalForecastData() {
         var band = new ForecastData.Band(LocalDate.now().plusDays(1), 80, 100, 120, null);

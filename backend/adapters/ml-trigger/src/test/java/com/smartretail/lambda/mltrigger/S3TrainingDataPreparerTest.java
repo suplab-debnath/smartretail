@@ -199,6 +199,7 @@ class S3TrainingDataPreparerTest {
                 new ResponseInputStream<>(GetObjectResponse.builder().build(),
                         new ByteArrayInputStream(bytes));
         when(s3.getObject(argThat((Consumer<GetObjectRequest.Builder> b) -> {
+            if (b == null) return false;
             GetObjectRequest.Builder rb = GetObjectRequest.builder();
             b.accept(rb);
             return rb.build().key().equals(key);

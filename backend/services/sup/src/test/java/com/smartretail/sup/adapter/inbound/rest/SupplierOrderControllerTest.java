@@ -14,7 +14,10 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -168,7 +171,89 @@ class SupplierOrderControllerTest {
         verifyNoInteractions(createSupplierOrderPort);
     }
 
+    // ── JWT auth branches ─────────────────────────────────────────────────────
+
+    @Test
+    void getSupplierOrders_withJwtCognitoGroup_returns200() throws Exception {
+        setJwtAuth("SC_PLANNER");
+        when(supplierOrderQueryPort.getSupplierOrders(null)).thenReturn(minimalOrderList());
+
+        mockMvc.perform(get("/v1/supplier/orders"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getSupplierOrders_withJwtUnauthorisedGroup_returns403() throws Exception {
+        setJwtAuth("STORE_MANAGER");
+
+        mockMvc.perform(get("/v1/supplier/orders"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierOrderQueryPort);
+    }
+
+    @Test
+    void getSupplierOrders_withJwtNullGroups_returns403() throws Exception {
+        setJwtAuthNullGroups();
+
+        mockMvc.perform(get("/v1/supplier/orders"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(supplierOrderQueryPort);
+    }
+
+    @Test
+    void getSupplierOrders_withNullStatusParam_passesNullToPort() throws Exception {
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn("ADMIN");
+        when(supplierOrderQueryPort.getSupplierOrders(null))
+                .thenReturn(new SupplierOrderList(List.of(), Instant.now()));
+
+        mockMvc.perform(get("/v1/supplier/orders"))
+                .andExpect(status().isOk());
+
+        verify(supplierOrderQueryPort).getSupplierOrders(null);
+    }
+
+    @Test
+    void createSupplierOrder_withJwtCognitoGroup_returns201() throws Exception {
+        setJwtAuth("SUPPLIER_ADMIN");
+        UUID supplierPoId = UUID.randomUUID();
+        when(createSupplierOrderPort.createSupplierOrder(any())).thenReturn(supplierPoId);
+
+        String body = """
+                {
+                  "poId": "%s",
+                  "supplierId": "%s",
+                  "skuId": "SKU-BEV-001",
+                  "dcId": "DC-LONDON",
+                  "quantity": 100
+                }
+                """.formatted(UUID.randomUUID(), UUID.randomUUID());
+
+        mockMvc.perform(post("/v1/supplier/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
+
     // ── Helper factories ──────────────────────────────────────────────────────
+
+    private void setJwtAuth(String group) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("cognito:groups", List.of(group))
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private void setJwtAuthNullGroups() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("test-user")
+                .build();
+        Authentication auth = new UsernamePasswordAuthenticationToken(jwt, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
 
     private SupplierOrderList minimalOrderList() {
         var order = new SupplierOrderList.SupplierOrder(
