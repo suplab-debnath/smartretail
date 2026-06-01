@@ -232,11 +232,11 @@ Use the AWS CLI or Cognito console.
  
 ### Internal User Pool
  
-| Username | Email | Group | Purpose |
-|----------|-------|-------|---------|
-| store-manager-1 | sm1@test.com | STORE_MANAGER | Flow 4 — Store Manager Dashboard |
-| sc-planner-1 | scp1@test.com | SC_PLANNER | Flows 3, 4, 9 — approve POs, view scorecard |
-| executive-1 | exec1@test.com | EXECUTIVE | Flow 8 — Executive Dashboard |
+| Username (= email) | Group | Purpose |
+|--------------------|-------|---------|
+| sm1@test.com | STORE_MANAGER | Flow 4 — Store Manager Dashboard |
+| scp1@test.com | SC_PLANNER | Flows 3, 4, 9 — approve POs, view scorecard |
+| exec1@test.com | EXECUTIVE | Flow 8 — Executive Dashboard |
  
 ### Supplier User Pool
  
@@ -244,25 +244,16 @@ Use the AWS CLI or Cognito console.
 |----------|-------|-------|-----------------|---------|
 | supplier-acme-1 | acme@test.com | SUPPLIER | supplierId=11111111-...-001 | Supplier portal testing |
  
-CLI commands to create users:
+Use `make demo-create-users` — it handles all three users automatically. To create manually (username must be the email address):
 ```bash
-# Internal pool
-aws cognito-idp admin-create-user \
-  --user-pool-id {INTERNAL_POOL_ID} \
-  --username sc-planner-1 \
-  --user-attributes Name=email,Value=scp1@test.com \
-  --temporary-password Temp123! \
-  --message-action SUPPRESS
- 
-aws cognito-idp admin-add-user-to-group \
-  --user-pool-id {INTERNAL_POOL_ID} \
-  --username sc-planner-1 \
-  --group-name SC_PLANNER
- 
-# Set permanent password
-aws cognito-idp admin-set-user-password \
-  --user-pool-id {INTERNAL_POOL_ID} \
-  --username sc-planner-1 \
-  --password Test@12345! \
-  --permanent
+POOL={INTERNAL_POOL_ID}
+for row in "scp1@test.com:SC_PLANNER" "sm1@test.com:STORE_MANAGER" "exec1@test.com:EXECUTIVE"; do
+  user=${row%%:*}; group=${row##*:}
+  aws cognito-idp admin-create-user --user-pool-id $POOL --username $user \
+    --user-attributes Name=email,Value=$user Name=email_verified,Value=true \
+    --message-action SUPPRESS
+  aws cognito-idp admin-set-user-password --user-pool-id $POOL --username $user \
+    --password Test@12345! --permanent
+  aws cognito-idp admin-add-user-to-group --user-pool-id $POOL --username $user --group-name $group
+done
 ```

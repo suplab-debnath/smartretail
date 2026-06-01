@@ -14,11 +14,15 @@ INTERNAL_POOL=$(aws ssm get-parameter \
 
 create_user() {
     local pool=$1 username=$2 email=$3 password=$4 group=$5
-    aws cognito-idp admin-create-user \
+    local out
+    if ! out=$(aws cognito-idp admin-create-user \
         --user-pool-id "$pool" \
         --username "$username" \
         --user-attributes Name=email,Value="$email" Name=email_verified,Value=true \
-        --message-action SUPPRESS 2>/dev/null || true
+        --message-action SUPPRESS 2>&1); then
+        echo "$out" | grep -q "UsernameExistsException" \
+            || { echo "  [ERROR] admin-create-user failed for $username: $out"; exit 1; }
+    fi
     aws cognito-idp admin-set-user-password \
         --user-pool-id "$pool" \
         --username "$username" \
@@ -31,8 +35,8 @@ create_user() {
     echo "  ✅ $username ($group)"
 }
 
-create_user "$INTERNAL_POOL" "store-manager-1" "sm1@test.com"   "Test@12345!" "STORE_MANAGER"
-create_user "$INTERNAL_POOL" "sc-planner-1"    "scp1@test.com"  "Test@12345!" "SC_PLANNER"
-create_user "$INTERNAL_POOL" "executive-1"     "exec1@test.com" "Test@12345!" "EXECUTIVE"
+create_user "$INTERNAL_POOL" "sm1@test.com"   "sm1@test.com"   "Test@12345!" "STORE_MANAGER"
+create_user "$INTERNAL_POOL" "scp1@test.com"  "scp1@test.com"  "Test@12345!" "SC_PLANNER"
+create_user "$INTERNAL_POOL" "exec1@test.com" "exec1@test.com" "Test@12345!" "EXECUTIVE"
 
 echo "✅ All Cognito test users created for env=${ENV}"

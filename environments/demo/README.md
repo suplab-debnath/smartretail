@@ -42,39 +42,54 @@ CDK_CONTEXT_alertEmail=you@example.com ./environments/demo/scripts/deploy-demo.s
 
 ## Granular deployment steps
 
-If you need control over individual steps:
+Use this sequence for a first-time deploy. **Do not run `make demo-cdk-deploy` on its own for a first deploy** — it deploys all stacks at once, which causes ECS to fail because the ECR repos are empty and the circuit breaker fires.
 
 ```bash
 # 1. Bootstrap CDK (once per account/region)
 make demo-bootstrap
 
-# 2. Deploy all Min-* CDK stacks
-make demo-cdk-deploy
+# 2a. Deploy pre-compute stacks only (creates ECR repos, RDS, Cognito, SQS)
+cd environments/demo/infra && AWS_PROFILE=smartretail-dev SMARTRETAIL_ENV=demo \
+  npx cdk deploy Min-NetworkStack Min-DataStack Min-MessagingStack Min-IdentityStack \
+  --require-approval never
 
-# 3. Build and push 5 service images to ECR
-make demo-push-services
+# 2b. Build and push 5 service images — ECR repos now exist
+make demo-push-services DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 
-# 4. Run Flyway migrations + seed data (V1–V7)
+# 2c. Deploy remaining stacks (ECS can now pull images successfully)
+cd environments/demo/infra && AWS_PROFILE=smartretail-dev SMARTRETAIL_ENV=demo \
+  npx cdk deploy Min-ComputeStack Min-ApiStack Min-HostingStack Min-MonitoringStack \
+  --require-approval never
+
+# 3. Run Flyway migrations + seed data (V1–V7)
 make demo-migrate
 
-# 5. Build and deploy SC Planner MFE to S3
+# 4. Build and deploy SC Planner MFE to S3
 make demo-deploy-mfe
 
-# 6. Create Cognito test users
+# 5. Create Cognito test users
 make demo-create-users DEMO_ENV=demo
 ```
+
+> If step 2c fails with a circuit breaker error, `Min-ComputeStack` will be in `ROLLBACK_COMPLETE` and must be deleted before retrying:
+> ```bash
+> AWS_PROFILE=smartretail-dev aws cloudformation delete-stack --stack-name Min-ComputeStack
+> AWS_PROFILE=smartretail-dev aws cloudformation wait stack-delete-complete --stack-name Min-ComputeStack
+> ```
 
 ---
 
 ## Iterative redeployment
 
+`make demo-cdk-deploy` (deploys all stacks) is safe for subsequent updates once images exist in ECR.
+
 | Change | Command |
 |--------|---------|
-| Service code | `make demo-push-services` (rebuilds all 5 images) |
+| Service code | `make demo-push-services` then `make demo-cdk-deploy` |
 | Single service (e.g. re) | `docker buildx build … && docker push … && aws ecs update-service …` |
 | MFE code | `make demo-deploy-mfe` |
 | DB migration | `make demo-migrate` |
-| CDK infra | `make demo-cdk-deploy` |
+| CDK infra only | `make demo-cdk-deploy` |
 
 ---
 
