@@ -59,7 +59,12 @@ env/
 *.iml
 *.iws
 *.ipr
-.vscode/
+# Commit shared settings; ignore user-specific files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .project
 .classpath
 .settings/

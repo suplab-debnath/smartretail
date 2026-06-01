@@ -1,46 +1,301 @@
 {
   "agents": [
+
+    // - Technical Standards Agents (loaded by CLAUDE.md conventions) -
     {
       "name": "java-standards",
-      "description": "Java 21 + Spring Boot 3.3 coding standards for SmartRetail services. Covers hexagonal architecture, package structure, Spring Data JDBC patterns, and ArchUnit rules.",
+      "description": "Java 21 + Spring Boot 3.3 coding standards. Hexagonal architecture, Spring Data JDBC, ArchUnit rules.",
       "contextFiles": [
         ".claude/standards/java.md"
       ]
     },
     {
       "name": "openapi-standards",
-      "description": "OpenAPI 3.1 design rules for contract-first REST API development. Covers schema design, naming conventions, error shapes, and code-generation constraints.",
+      "description": "OpenAPI 3.1 contract-first design rules. Schema design, naming conventions, error shapes, code-generation constraints.",
       "contextFiles": [
         ".claude/standards/openapi.md"
       ]
     },
     {
       "name": "maven-standards",
-      "description": "Maven 3.9 build standards including openapi-generator plugin config, multi-module layout, and code-generation workflow for SmartRetail services.",
+      "description": "Maven 3.9 build standards. openapi-generator plugin config, multi-module layout, code-generation workflow.",
       "contextFiles": [
         ".claude/standards/maven.md"
       ]
     },
     {
       "name": "frontend-standards",
-      "description": "React 18 + TypeScript 5 standards for SmartRetail MFEs. Covers component patterns, Tailwind CSS usage, Recharts integration, and @aws-amplify/auth patterns.",
+      "description": "React 18 + TypeScript 5 standards for SmartRetail MFEs. Tailwind CSS, Recharts, @aws-amplify/auth patterns.",
       "contextFiles": [
         ".claude/standards/frontend.md"
       ]
     },
     {
       "name": "sql-standards",
-      "description": "SQL and Flyway migration standards. Covers schema ownership rules, naming conventions, versioned migration scripts, and cross-schema join prohibition.",
+      "description": "SQL and Flyway migration standards. Schema ownership, naming conventions, cross-schema join prohibition.",
       "contextFiles": [
         ".claude/standards/sql.md"
       ]
     },
     {
       "name": "testing-standards",
-      "description": "Testing standards for SmartRetail services. Covers unit, integration, and ArchUnit test patterns for Spring Boot services and React MFEs.",
+      "description": "Testing standards for SmartRetail. Unit, integration, ArchUnit patterns for Spring Boot and React MFEs.",
       "contextFiles": [
         ".claude/standards/testing.md"
       ]
+    },
+
+    // - Persona Agents -
+    {
+      "name": "aws-architect",
+      "description": "Senior AWS Solutions Architect. Designs and reviews CDK stacks, ECS/RDS/SQS/Firehose/EventBridge config, IAM policies, and multi-environment deployment strategy.",
+      "contextFiles": [
+        ".claude/agents/aws-architect.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/aws-infrastructure.md",
+        "docs/CDK_SPEC.md",
+        "docs/ARCHITECTURE.md"
+      ]
+    },
+    {
+      "name": "java-developer",
+      "description": "Senior Java 21 Developer. Implements Spring Boot 3.3 services following hexagonal architecture. Contract-first with OpenAPI. Spring Data JDBC, SQS listeners, EventBridge publishers.",
+      "contextFiles": [
+        ".claude/agents/java-developer.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/domain-glossary.md",
+        ".claude/standards/java.md",
+        ".claude/standards/openapi.md",
+        ".claude/standards/maven.md",
+        "docs/SERVICE_SPECS.md",
+        "docs/API_CONTRACTS.md",
+        "docs/SCHEMAS.md"
+      ]
+    },
+    {
+      "name": "tester",
+      "description": "QA Engineer. Writes JUnit 5 + Mockito unit tests, Testcontainers ITs, ArchUnit tests, and Vitest + RTL MFE tests. Diagnoses smoke-test failures.",
+      "contextFiles": [
+        ".claude/agents/tester.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/domain-glossary.md",
+        ".claude/standards/testing.md",
+        ".claude/standards/java.md",
+        "docs/FLOWS.md",
+        "docs/SCHEMAS.md"
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "description": "Senior Code Reviewer. Checks all 8 architecture non-negotiables, forbidden patterns, security issues, and test coverage. Provides BLOCK / SUGGEST / NIT feedback.",
+      "contextFiles": [
+        ".claude/agents/code-reviewer.md",
+        ".claude/memory/project-context.md",
+        ".claude/standards/java.md",
+        ".claude/standards/frontend.md",
+        ".claude/standards/sql.md",
+        ".claude/standards/testing.md",
+        "docs/ARCHITECTURE.md"
+      ]
+    },
+    {
+      "name": "ops-engineer",
+      "description": "Platform / Ops Engineer. Manages local dev environment (Docker Compose + LocalStack), Makefile targets, Flyway migrations, CDK deploys, and CloudWatch observability.",
+      "contextFiles": [
+        ".claude/agents/ops-engineer.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/aws-infrastructure.md",
+        "docs/LOCAL_DEV.md",
+        "docs/BUILD_SEQUENCE.md",
+        "docs/CDK_SPEC.md",
+        "docs/DEVELOPER_GUIDE.md"
+      ]
+    },
+    {
+      "name": "enterprise-architect",
+      "description": "Senior Enterprise Architect. Guards bounded context boundaries, event contract design, schema cross-cutting concerns, API versioning, and hexagonal architecture integrity.",
+      "contextFiles": [
+        ".claude/agents/enterprise-architect.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/aws-infrastructure.md",
+        ".claude/memory/domain-glossary.md",
+        "docs/ARCHITECTURE.md",
+        "docs/SCHEMAS.md",
+        "docs/EVENT_ASYNC_SPEC.md",
+        "docs/API_CONTRACTS.md"
+      ]
+    },
+    {
+      "name": "react-developer",
+      "description": "Senior React / Frontend Developer. Builds supply chain MFEs with React 18, TypeScript 5, Tailwind CSS, Recharts. Implements data-freshness, approve/reject, and chart patterns.",
+      "contextFiles": [
+        ".claude/agents/react-developer.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/domain-glossary.md",
+        ".claude/standards/frontend.md",
+        "docs/MFE_SPECS.md",
+        "docs/API_CONTRACTS.md"
+      ]
+    },
+    {
+      "name": "ml-engineer",
+      "description": "ML / Data Engineer. Owns DFS service, SageMaker Trigger Lambda, Batch Post-Processor Lambda, forecast pipeline design, MAPE accuracy monitoring, and seed forecast data.",
+      "contextFiles": [
+        ".claude/agents/ml-engineer.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/domain-glossary.md",
+        ".claude/standards/java.md",
+        "docs/SERVICE_SPECS.md",
+        "docs/SEED_DATA.md",
+        "docs/SCHEMAS.md"
+      ]
+    },
+    {
+      "name": "retail-sme",
+      "description": "Retail Supply Chain SME. Validates flow specs against real operations, advises on KPI thresholds, reviews seed data realism, and explains domain concepts to the team.",
+      "contextFiles": [
+        ".claude/agents/retail-sme.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/domain-glossary.md",
+        "docs/FLOWS.md",
+        "docs/SEED_DATA.md",
+        "docs/API_CONTRACTS.md",
+        "docs/MFE_SPECS.md"
+      ]
+    },
+    {
+      "name": "aws-finops-analyst",
+      "description": "AWS FinOps Analyst. Evaluates and optimises infrastructure cost across poc, dev, stg, and prod environments. Right-sizes ECS/RDS, designs tagging strategies, recommends Savings Plans, and identifies waste.",
+      "contextFiles": [
+        ".claude/agents/aws-finops-analyst.md",
+        ".claude/memory/project-context.md",
+        ".claude/memory/aws-infrastructure.md",
+        "docs/CDK_SPEC.md",
+        "docs/ARCHITECTURE.md"
+      ]
     }
-  ]
+  ],
+
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(git fetch*)",
+      "Bash(git stash list*)",
+      "Bash(git remote*)",
+      "Bash(ls*)",
+      "Bash(find . *)",
+      "Bash(find src *)",
+      "Bash(find backend *)",
+      "Bash(find mfe *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(java --version)",
+      "Bash(mvn --version)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(mvn clean*)",
+      "Bash(mvn compile*)",
+      "Bash(mvn test*)",
+      "Bash(mvn verify*)",
+      "Bash(mvn generate-sources*)",
+      "Bash(mvn package*)",
+      "Bash(mvn spring-boot:run*)",
+      "Bash(mvn dependency:tree*)",
+      "Bash(mvn help:effective-pom*)",
+      "Bash(npm install*)",
+      "Bash(npm ci*)",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run type-check*)",
+      "Bash(npm run test*)",
+      "Bash(npm run generate-api*)",
+      "Bash(npm run dev*)",
+      "Bash(docker-compose up*)",
+      "Bash(docker-compose down*)",
+      "Bash(docker-compose ps*)",
+      "Bash(docker-compose logs*)",
+      "Bash(docker ps*)",
+      "Bash(docker logs*)",
+      "Bash(make local-up*)",
+      "Bash(make local-down*)",
+      "Bash(make local-migrate*)",
+      "Bash(make local-seed*)",
+      "Bash(make test-flow*)",
+      "Bash(make build-all*)",
+      "Bash(make build-service*)",
+      "Bash(make local-sis*)",
+      "Bash(make local-ims*)",
+      "Bash(make local-re*)",
+      "Bash(make local-ars*)",
+      "Bash(make local-dfs*)",
+      "Bash(make local-sup*)",
+      "Bash(make local-pps*)",
+      "Bash(make coverage*)",
+      "Read(*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore .)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/*)",
+      "Bash(drop database*)",
+      "Bash(DROP DATABASE*)",
+      "Bash(DROP TABLE*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-bash-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-write-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-write-guard.sh"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "SPRING_PROFILES_ACTIVE": "local",
+    "SMARTRETAIL_ENV": "local",
+    "AWS_ENDPOINT_URL": "http://localhost:4566",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "AWS_ACCESS_KEY_ID": "test",
+    "AWS_SECRET_ACCESS_KEY": "test"
+  }
 }

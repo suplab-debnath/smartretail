@@ -1,0 +1,186 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    //  Java Service Debug (remote attach via JDWP) 
+    // Start the service with: JAVA_TOOL_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" make local-sis
+    {
+      "type": "java",
+      "name": "Debug: SIS (attach :5005)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: IMS (attach :5006)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5006,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: RE (attach :5007)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5007,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: ARS (attach :5008)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5008,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: DFS (attach :5009)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5009,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: SUP (attach :5010)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5010,
+      "timeout": 30000
+    },
+    {
+      "type": "java",
+      "name": "Debug: PPS (attach :5011)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5011,
+      "timeout": 30000
+    },
+
+    //  Java Service Launch (run directly from IDE) 
+    {
+      "type": "java",
+      "name": "Launch: SIS (local)",
+      "request": "launch",
+      "mainClass": "com.smartretail.sis.SisApplication",
+      "projectName": "sis",
+      "args": [],
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "local",
+        "SMARTRETAIL_ENV": "local",
+        "SERVER_PORT": "8080"
+      }
+    },
+    {
+      "type": "java",
+      "name": "Launch: IMS (local)",
+      "request": "launch",
+      "mainClass": "com.smartretail.ims.ImsApplication",
+      "projectName": "ims",
+      "args": [],
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "local",
+        "SMARTRETAIL_ENV": "local",
+        "SERVER_PORT": "8081"
+      }
+    },
+    {
+      "type": "java",
+      "name": "Launch: RE (local)",
+      "request": "launch",
+      "mainClass": "com.smartretail.re.ReApplication",
+      "projectName": "re",
+      "args": [],
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "local",
+        "SMARTRETAIL_ENV": "local",
+        "SERVER_PORT": "8082"
+      }
+    },
+    {
+      "type": "java",
+      "name": "Launch: ARS (local)",
+      "request": "launch",
+      "mainClass": "com.smartretail.ars.ArsApplication",
+      "projectName": "ars",
+      "args": [],
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "local",
+        "SMARTRETAIL_ENV": "local",
+        "SERVER_PORT": "8083"
+      }
+    },
+
+    //  Chrome Debug for React MFEs 
+    // Start the MFE dev server first with the corresponding task, then attach.
+    {
+      "type": "chrome",
+      "name": "Debug: store-manager MFE (:5173)",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/mfe/store-manager/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "chrome",
+      "name": "Debug: sc-planner MFE (:5174)",
+      "request": "launch",
+      "url": "http://localhost:5174",
+      "webRoot": "${workspaceFolder}/mfe/sc-planner/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "chrome",
+      "name": "Debug: executive MFE (:5175)",
+      "request": "launch",
+      "url": "http://localhost:5175",
+      "webRoot": "${workspaceFolder}/mfe/executive/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "chrome",
+      "name": "Debug: supplier MFE (:5177)",
+      "request": "launch",
+      "url": "http://localhost:5177",
+      "webRoot": "${workspaceFolder}/mfe/supplier/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    },
+
+    //  Demo Control Server (Node.js) 
+    {
+      "type": "node",
+      "name": "Debug: demo control server (:3099)",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/tools/demo/server",
+      "runtimeExecutable": "node",
+      "args": ["server.js"],
+      "env": {
+        "PORT": "3099"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full local stack (SIS + IMS + RE + ARS)",
+      "configurations": [
+        "Launch: SIS (local)",
+        "Launch: IMS (local)",
+        "Launch: RE (local)",
+        "Launch: ARS (local)"
+      ],
+      "stopAll": true
+    }
+  ]
+}
