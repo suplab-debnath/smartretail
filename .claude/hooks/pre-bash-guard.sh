@@ -49,4 +49,22 @@ if echo "$COMMAND" | grep -qE 'git clean -[fdxX]'; then
   echo "WARNING: git clean will permanently delete untracked files. Proceeding as allowed."
 fi
 
+# ── Warn: hardcoded AWS region in source file write commands ──────────
+# Catches patterns like echoing a region literal into a .java/.ts file
+if echo "$COMMAND" | grep -qE '\.(java|ts|tsx)' && \
+  echo "$COMMAND" | grep -qE '(us-east-1|us-west-2|eu-west-1|ap-southeast)'; then
+  if ! echo "$COMMAND" | grep -qE '(application|config|settings|docker-compose|README|\.md)'; then
+    echo "WARNING: Command may embed a hardcoded AWS region into a source file."
+    echo "Use environment variables or CDK context (Stack.of(this).region) instead."
+  fi
+fi
+
+# ── Warn: committing directly to a protected branch ──────────────────
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+if echo "$COMMAND" | grep -qE 'git (commit|push)' && \
+  echo "$CURRENT_BRANCH" | grep -qE '^(main|master|develop)$'; then
+  echo "WARNING: You are on '$CURRENT_BRANCH' — a protected branch."
+  echo "Create a feature branch first: git checkout -b feat/your-feature-name"
+fi
+
 exit 0
