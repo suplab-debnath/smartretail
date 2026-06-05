@@ -66,7 +66,7 @@ echo "=================================================="
 # ── 0. CDK: update Min-ComputeStack task definition (optional) ───────────────
 if [[ "$DEPLOY_CDK" == true ]]; then
   echo ""
-  echo "▶  Deploying Min-ComputeStack via CDK (updates ECS task definitions)…"
+  echo "▶  Deploying Min-ComputeStack via CDK (updates ECS task definitions)..."
   CDK_DIR="${REPO_ROOT}/environments/demo/infra"
   (cd "$CDK_DIR" && \
     SMARTRETAIL_ENV="$ENV" npx cdk deploy Min-ComputeStack \
@@ -79,7 +79,7 @@ fi
 # ── 1. Maven build ────────────────────────────────────────────────────────────
 if [[ "$SKIP_BUILD" == false ]]; then
   echo ""
-  echo "▶  Building service JARs (Maven)…"
+  echo "▶  Building service JARs (Maven)..."
   mvn clean package -DskipTests \
     -pl backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
@@ -90,7 +90,7 @@ fi
 # ── 2. ECR authentication ──────────────────────────────────────────────────────
 if [[ "$SKIP_PUSH" == false ]]; then
   echo ""
-  echo "▶  Authenticating with ECR (${ECR_PREFIX})…"
+  echo "▶  Authenticating with ECR (${ECR_PREFIX})..."
   aws ecr get-login-password --region "$REGION" --profile "$PROFILE" \
     | docker login --username AWS --password-stdin "$ECR_PREFIX"
 fi
@@ -109,7 +109,7 @@ for SVC in $SERVICES; do
     docker tag "smartretail-${SVC}:local" "$REPO_URI"
     docker push "$REPO_URI"
 
-    echo "▶  Forcing ECS redeployment…"
+    echo "▶  Forcing ECS redeployment..."
     aws ecs update-service \
       --cluster  "$CLUSTER" \
       --service  "smartretail-${SVC}-${ENV}" \
@@ -123,9 +123,9 @@ done
 # ── 4. Wait for ECS steady state (optional) ───────────────────────────────────
 if [[ "$WAIT" == true && "$SKIP_PUSH" == false ]]; then
   echo ""
-  echo "▶  Waiting for ECS services to reach steady state…"
+  echo "▶  Waiting for ECS services to reach steady state..."
   for SVC in $SERVICES; do
-    echo "   waiting: smartretail-${SVC}-${ENV}…"
+    echo "   waiting: smartretail-${SVC}-${ENV}..."
     aws ecs wait services-stable \
       --cluster  "$CLUSTER" \
       --services "smartretail-${SVC}-${ENV}" \

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Amplify } from 'aws-amplify';
 import { fetchAuthSession, signInWithRedirect, signOut as amplifySignOut } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 import { jwtDecode } from 'jwt-decode';
 import { getConfig } from './config.js';
 
@@ -22,7 +23,13 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+interface AuthProviderProps {
+  children: React.ReactNode;
+  redirectSignIn?: string;
+  redirectSignOut?: string;
+}
+
+export function AuthProvider({ children, redirectSignIn, redirectSignOut }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const config = getConfig();
     if (config.cognitoPoolId) {
+      const callbackUrl  = redirectSignIn  ?? (window.location.origin + '/callback');
+      const logoutUrl    = redirectSignOut ?? (window.location.origin + '/logout');
       Amplify.configure({
         Auth: {
           Cognito: {
@@ -39,8 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               oauth: {
                 domain: config.cognitoDomain,
                 scopes: ['openid', 'email', 'profile'],
-                redirectSignIn: [window.location.origin + '/callback'],
-                redirectSignOut: [window.location.origin + '/logout'],
+                redirectSignIn: [callbackUrl],
+                redirectSignOut: [logoutUrl],
                 responseType: 'code'
               }
             }
@@ -49,15 +58,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    const unsubscribe = Hub.listen('auth', ({ payload }) => {
+      if (payload.event === 'signInWithRedirect') {
+        checkUser();
+      } else if (payload.event === 'signInWithRedirect_failure') {
+        console.error('OAuth redirect failure', payload.data);
+        setIsLoading(false);
+      }
+    });
+
     checkUser();
+
+    return () => unsubscribe();
   }, []);
 
   async function checkUser() {
+    // If the URL contains PKCE params, Amplify is mid-exchange.
+    // Keep isLoading=true so components don't call signIn() and trigger a second redirect.
+    // The Hub 'signInWithRedirect' event will call checkUser() again once tokens are ready.
+    const pendingPkce = window.location.search.includes('code=') &&
+                        window.location.search.includes('state=');
     try {
       const session = await fetchAuthSession();
       if (session.tokens?.idToken) {
         const idToken = session.tokens.idToken.toString();
-        // The idToken from cognito contains 'cognito:groups'
         const decoded = jwtDecode<any>(idToken);
         setToken(idToken);
         setUser({
@@ -65,16 +89,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: decoded.email || '',
           groups: decoded['cognito:groups'] || []
         });
+        setIsLoading(false);
       } else {
         setUser(null);
         setToken(null);
+        if (!pendingPkce) setIsLoading(false);
       }
     } catch (err) {
       console.warn('No active session. Waiting for sign-in.');
       setUser(null);
       setToken(null);
-    } finally {
-      setIsLoading(false);
+      if (!pendingPkce) setIsLoading(false);
     }
   }
 

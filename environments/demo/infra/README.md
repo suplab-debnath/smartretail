@@ -33,7 +33,7 @@ Internet ──── ALB :80 ───►│  path-based routing (single listen
                           │  /v1/forecast/*      ──► DFS :8084  ─────────┤  │    t4g.micro (public
                           │  /v1/supplier/*      ──► SUP :8085  ─────────┘  │    subnet, SG-gated)
                           │                                                  │
-                          │  ECS Fargate (ARM64, FARGATE_SPOT 80%)           │
+                          │  ECS Fargate (ARM64, on-demand)                  │
                           │  CloudMap: smartretail.local                     │
                           └─────────────────────────────────────────────────┘
 

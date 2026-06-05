@@ -2,10 +2,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, AuthCallback } from '@smartretail/auth'
 import { ExecutiveDashboard } from './components/ExecutiveDashboard'
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '') || ''
+
 export default function App() {
+  const origin = window.location.origin
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <AuthProvider
+      redirectSignIn={`${origin}${BASE}/callback`}
+      redirectSignOut={`${origin}${BASE}/logout`}
+    >
+      <BrowserRouter basename={BASE}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ExecutiveDashboard />} />

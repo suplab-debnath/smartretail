@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => ({
           : '../shared/auth/src/index.ts'
       ),
     },
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   server: {
     port: 5173,

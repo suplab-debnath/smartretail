@@ -222,6 +222,39 @@
       "Resource": "*"
     },
     {
+      "Sid": "EcsStopStart",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:UpdateService",
+        "ecs:DescribeServices",
+        "ecs:ListServices"
+      ],
+      "Resource": [
+        "arn:aws:ecs:us-east-1:491085389857:cluster/smartretail-*",
+        "arn:aws:ecs:us-east-1:491085389857:service/smartretail-*"
+      ]
+    },
+    {
+      "Sid": "RdsStopStart",
+      "Effect": "Allow",
+      "Action": [
+        "rds:StopDBInstance",
+        "rds:StartDBInstance",
+        "rds:DescribeDBInstances"
+      ],
+      "Resource": "arn:aws:rds:us-east-1:491085389857:db:smartretail-rds-*"
+    },
+    {
+      "Sid": "CloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation",
+        "cloudfront:ListInvalidations"
+      ],
+      "Resource": "arn:aws:cloudfront::491085389857:distribution/*"
+    },
+    {
       "Sid": "CloudWatchLogsForCdkBootstrap",
       "Effect": "Allow",
       "Action": [
@@ -235,7 +268,24 @@
         "logs:DescribeMetricFilters",
         "logs:TagResource",
         "logs:UntagResource",
-        "logs:ListTagsForResource"
+        "logs:ListTagsForResource",
+        "logs:GetLogEvents",
+        "logs:FilterLogEvents",
+        "logs:StartQuery",
+        "logs:StopQuery",
+        "logs:GetQueryResults",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcsDescribeForDiagnostics",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:ListClusters",
+        "ecs:ListTasks",
+        "ecs:DescribeTasks",
+        "ecs:DescribeTaskDefinition"
       ],
       "Resource": "*"
     }

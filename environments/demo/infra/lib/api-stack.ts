@@ -77,12 +77,16 @@ export class ApiStack extends cdk.Stack {
     addNlbListener('sup', 8085, compute.supService);
 
     // ── HTTP_PROXY integration helper ─────────────────────────────────────────
-    // URI: http://{nlb-dns}:{port}/{proxy} — NLB routes to the correct ECS TG
-    const nlbProxyIntegration = (port: number) =>
+    // URI: http://{nlb-dns}:{port}{pathPrefix}/{proxy} — NLB routes to correct ECS TG.
+    // pathPrefix is the static path that the backend controller expects before the
+    // proxy variable, e.g. "/v1/dashboard". API Gateway captures only the suffix
+    // after the resource path in {proxy}, so we must prepend the prefix in the
+    // integration URI to reconstruct the full path the service listens on.
+    const nlbProxyIntegration = (port: number, pathPrefix: string) =>
       new apigw.Integration({
         type: apigw.IntegrationType.HTTP_PROXY,
         integrationHttpMethod: 'ANY',
-        uri: `http://${nlb.loadBalancerDnsName}:${port}/{proxy}`,
+        uri: `http://${nlb.loadBalancerDnsName}:${port}${pathPrefix}/{proxy}`,
         options: {
           connectionType: apigw.ConnectionType.VPC_LINK,
           vpcLink,
@@ -107,16 +111,18 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY
-    // defaultMethodOptions must declare the proxy path parameter so that
-    // method.request.path.proxy is a valid mapping expression source.
+    // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY.
+    // pathPrefix must match the path the backend controller listens on, e.g.
+    // "/v1/dashboard". It is prepended in the integration URI so the full path
+    // reaches the service (API Gateway's {proxy} captures only the suffix).
     const addProxyResource = (
       parent: apigw.IResource,
       pathPart: string,
       port: number,
+      pathPrefix: string,
     ): void => {
       parent.addResource(pathPart).addProxy({
-        defaultIntegration: nlbProxyIntegration(port),
+        defaultIntegration: nlbProxyIntegration(port, pathPrefix),
         anyMethod: true,
         defaultMethodOptions: {
           requestParameters: { 'method.request.path.proxy': true },
@@ -126,11 +132,11 @@ export class ApiStack extends cdk.Stack {
 
     // Staff APIs — five services, one proxy resource each
     const v1 = restApi.root.addResource('v1');
-    addProxyResource(v1, 'dashboard',     8083); // ARS
-    addProxyResource(v1, 'inventory',     8081); // IMS
-    addProxyResource(v1, 'forecast',      8084); // DFS
-    addProxyResource(v1, 'replenishment', 8082); // RE
-    addProxyResource(v1, 'supplier',      8085); // SUP
+    addProxyResource(v1, 'dashboard',     8083, '/v1/dashboard');     // ARS
+    addProxyResource(v1, 'inventory',     8081, '/v1/inventory');     // IMS
+    addProxyResource(v1, 'forecast',      8084, '/v1/forecast');      // DFS
+    addProxyResource(v1, 'replenishment', 8082, '/v1/replenishment'); // RE
+    addProxyResource(v1, 'supplier',      8085, '/v1/supplier');      // SUP
 
     this.apiEndpoint = restApi.url;
     this.restApiName = restApi.restApiName;

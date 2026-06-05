@@ -7,6 +7,7 @@ import com.smartretail.sis.domain.model.SalesTransaction;
 import com.smartretail.sis.port.outbound.EventPublisherPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
@@ -34,6 +35,7 @@ public class EventBridgePublisher implements EventPublisherPort {
     private final ObjectMapper objectMapper;
 
     /** Production constructor — delegates to real EventBridgeClient. */
+    @Autowired
     public EventBridgePublisher(
             EventBridgeClient eventBridge,
             @Value("${smartretail.eventbridge.bus-name}") String busName) {

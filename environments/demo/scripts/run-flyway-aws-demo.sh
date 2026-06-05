@@ -6,7 +6,7 @@
 
 set -e
 
-ENV=${1:-dev}
+ENV=${1:-demo}
 
 echo "Running Flyway migrations for env=${ENV} (demo — direct RDS)..."
 

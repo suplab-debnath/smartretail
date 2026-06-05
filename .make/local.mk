@@ -71,7 +71,7 @@ local-mfe-demo: ## Start Demo Control Center MFE at :5176
 	cd tools/demo/ui && npm install --silent && npm run dev
 
 local-demo: ## Start full demo experience — tools/demo/server + tools/demo/ui in parallel
-	@echo "Starting tools/demo/server (:3099) and tools/demo/ui (:5176)…"
+	@echo "Starting tools/demo/server (:3099) and tools/demo/ui (:5176)..."
 	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make local-demo-server & make local-mfe-demo
 
@@ -79,7 +79,7 @@ aws-demo-server: ## Start demo control server in AWS mode
 	cd tools/demo/server && npm install --silent && SMARTRETAIL_ENV=aws node server.js
 
 aws-demo: ## Start Demo Control Center pointing at AWS (set env vars first)
-	@echo "Starting tools/demo/server in AWS mode and tools/demo/ui…"
+	@echo "Starting tools/demo/server in AWS mode and tools/demo/ui..."
 	@pid=$$(lsof -t -i:3099 2>/dev/null); if [ -n "$$pid" ]; then echo "Freeing port 3099 (pid $$pid)..."; kill -9 $$pid; fi
 	@make aws-demo-server & cd tools/demo/ui && npm run dev
 

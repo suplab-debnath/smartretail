@@ -477,7 +477,6 @@ const cluster = new ecs.Cluster(this, 'SmartRetailCluster', {
   clusterName: `smartretail-${env}`,
   vpc,
   containerInsights: true,
-  enableFargateCapacityProviders: true,
 });
 ```
  

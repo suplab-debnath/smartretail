@@ -14,7 +14,8 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 /**
- * Upserts promotion schedules received from Campaign Management via EventBridge.
+ * Upserts promotion schedules received from Campaign Management via
+ * EventBridge.
  * ON CONFLICT ensures idempotent handling of duplicate event deliveries.
  */
 @Repository
@@ -24,8 +25,10 @@ public class PromotionWriteRepository implements PromotionWritePort {
 
     /**
      * The sku_ids column is UUID[] in the DB schema. We store the skuIds as-is via
-     * PostgreSQL's cast. The SQL uses ARRAY[…]::text[]::uuid[] when values are UUIDs,
-     * but for prototype simplicity we omit dc_ids and set uplift_factor default 1.0.
+     * PostgreSQL's cast. The SQL uses ARRAY[...]::text[]::uuid[] when values are
+     * UUIDs,
+     * but for prototype simplicity we omit dc_ids and set uplift_factor default
+     * 1.0.
      * source_event_id is set to the promotionId (the external event identifier).
      */
     private static final String UPSERT_SQL = """
@@ -69,16 +72,17 @@ public class PromotionWriteRepository implements PromotionWritePort {
 
     @Override
     public void upsert(PromotionActivationCommand command) {
-        // Convert List<String> skuIds to a PostgreSQL UUID array via text representation
+        // Convert List<String> skuIds to a PostgreSQL UUID array via text
+        // representation
         String skuIdsArray = toPostgresUuidArray(command.skuIds().toArray(String[]::new));
 
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("promotionId",   command.promotionId().toString())
+                .addValue("promotionId", command.promotionId().toString())
                 .addValue("promotionName", command.promotionName())
-                .addValue("skuIds",        skuIdsArray)
-                .addValue("discountPct",   command.discountPct())
-                .addValue("validFrom",     LocalDateTime.of(command.validFrom(), LocalTime.MIDNIGHT))
-                .addValue("validTo",       LocalDateTime.of(command.validTo(), LocalTime.MIDNIGHT));
+                .addValue("skuIds", skuIdsArray)
+                .addValue("discountPct", command.discountPct())
+                .addValue("validFrom", LocalDateTime.of(command.validFrom(), LocalTime.MIDNIGHT))
+                .addValue("validTo", LocalDateTime.of(command.validTo(), LocalTime.MIDNIGHT));
 
         int rows = jdbc.update(UPSERT_SQL, params);
         log.debug("Upserted promotion promotionId={} rows={}", command.promotionId(), rows);
@@ -95,7 +99,8 @@ public class PromotionWriteRepository implements PromotionWritePort {
         }
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < values.length; i++) {
-            if (i > 0) sb.append(',');
+            if (i > 0)
+                sb.append(',');
             sb.append('"').append(values[i].replace("\"", "\\\"")).append('"');
         }
         sb.append('}');

@@ -117,7 +117,7 @@ if [[ ${#FAILED[@]} -eq 0 ]]; then
 
   if [[ -n "$CF_ID" && "$CF_ID" != "None" ]]; then
     echo ""
-    echo "▶  Invalidating CloudFront distribution ${CF_ID}…"
+    echo "▶  Invalidating CloudFront distribution ${CF_ID}..."
     INVALIDATION_ID=$(aws cloudfront create-invalidation \
       --distribution-id "$CF_ID" \
       --paths "/*" \

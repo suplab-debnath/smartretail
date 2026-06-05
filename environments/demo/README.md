@@ -54,6 +54,7 @@ cd environments/demo/infra && AWS_PROFILE=smartretail-dev SMARTRETAIL_ENV=demo \
   --require-approval never
 
 # 2b. Build and push 5 service images — ECR repos now exist
+cd ../../..
 make demo-push-services DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 
 # 2c. Deploy remaining stacks (ECS can now pull images successfully)
@@ -62,10 +63,10 @@ cd environments/demo/infra && AWS_PROFILE=smartretail-dev SMARTRETAIL_ENV=demo \
   --require-approval never
 
 # 3. Run Flyway migrations + seed data (V1–V7)
-make demo-migrate
+make demo-migrate DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 
 # 4. Build and deploy SC Planner MFE to S3
-make demo-deploy-mfe
+make demo-deploy-mfe DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 
 # 5. Create Cognito test users
 make demo-create-users DEMO_ENV=demo
@@ -159,20 +160,20 @@ Here's the full breakdown pulled directly from all 7 demo CDK stacks:
 | Service | Config | $/month |
 |---------|--------|---------|
 | RDS | t4g.micro, PostgreSQL 16, 20 GB, single-AZ | ~$14 |
-| ECS Fargate | 5 tasks × 0.25 vCPU / 0.5 GB, ARM64, 80% SPOT | ~$17 |
+| ECS Fargate | 5 tasks × 0.25 vCPU / 0.5 GB, ARM64, on-demand | ~$36 |
 | NLB | 1 internal NLB, 5 listeners, low traffic | ~$7 |
 | CloudWatch | 1 dashboard, 6 alarms, 5 log groups | ~$4 |
 | Secrets Manager | 1 secret (RDS password) | ~$0.40 |
 | API Gateway (REST) | Low demo traffic (~100k calls) | ~$0.50 |
 | ECR | 5 repos, ~1 GB images | ~$0.05 |
 | S3 / SQS / EventBridge / Cognito / SNS / SSM | Minimal usage, within free tiers | ~$0.50 |
-| **Total** | | **~$44/month** |
+| **Total** | | **~$63/month** |
 
 **Key points:**
-- RDS + Fargate = 70% of the bill. The 4:1 FARGATE_SPOT weight saves ~$19/month vs all on-demand.
+- RDS + Fargate = 79% of the bill. Pure on-demand FARGATE trades ~$19/month in savings for reliable deployments — worth it for a 1-2 day demo.
 - No NAT Gateway — tasks use public IPs in the default VPC, saving ~$32/month vs a private-subnet setup.
-- At ~$1.47/day, a 2-day demo costs ~$3. **Run `make demo-destroy` after every demo session.**
-- Running `make demo-stop` each evening (9 h off) cuts RDS + Fargate cost by ~37%, saving ~$0.55/night.
+- At ~$2.10/day, a 2-day demo costs ~$4.20. **Run `make demo-destroy` after every demo session.**
+- Running `make demo-stop` each evening (9 h off) cuts RDS + Fargate cost by ~37%, saving ~$0.60/night.
 
 ---
 

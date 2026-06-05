@@ -8,6 +8,7 @@ import com.smartretail.ims.domain.model.StockAlert;
 import com.smartretail.ims.port.outbound.AlertPublisherPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
@@ -35,6 +36,7 @@ public class EventBridgeAlertPublisher implements AlertPublisherPort {
     private final ObjectMapper objectMapper;
 
     /** Production constructor — delegates to real EventBridgeClient. */
+    @Autowired
     public EventBridgeAlertPublisher(
             EventBridgeClient eventBridge,
             @Value("${smartretail.eventbridge.bus-name}") String busName) {

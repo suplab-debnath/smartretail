@@ -67,7 +67,7 @@ if [[ "$SKIP_INFRA" == false ]]; then
     -am --no-transfer-progress
 
   for svc in "${DEMO_SERVICES[@]}"; do
-    echo "Building ${svc}…"
+    echo "Building ${svc}..."
     docker buildx build --platform linux/arm64 \
       -t "smartretail-${svc}:local" "backend/services/${svc}/"
     docker tag "smartretail-${svc}:local" \

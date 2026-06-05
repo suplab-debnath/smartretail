@@ -20,14 +20,14 @@ demo-cdk-deploy: ## Deploy all Min-* CDK stacks (trimmed SC Planner demo)
 
 demo-build-services: ## Build Docker images for the 5 SC Planner backend services
 	@for svc in $(DEMO_SERVICES); do \
-	    echo "Building $$svc…"; \
+	    echo "Building $$svc..."; \
 	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
 	done
 
 demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service images to ECR (demo env)
 	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
 	for svc in $(DEMO_SERVICES); do \
-	    echo "Pushing $$svc ($(DEMO_ENV))…"; \
+	    echo "Pushing $$svc ($(DEMO_ENV))..."; \
 	    docker tag smartretail-$$svc:local \
 	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$svc-$(DEMO_ENV):latest; \
 	    docker push \
@@ -36,15 +36,38 @@ demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service 
 
 demo-migrate: ## Run Flyway migrations on demo RDS (includes V7 seed data)
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
-	    ./scripts/shared/run-flyway-aws.sh $(DEMO_ENV)
+	    ./environments/demo/scripts/run-flyway-aws-demo.sh $(DEMO_ENV)
 
-demo-deploy-mfe: ## Build and deploy SC Planner MFE to demo S3 bucket
-	cd mfe/sc-planner && npm install --silent && npm run build
-	@BUCKET=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+demo-deploy-mfe: ## Build and deploy SC Planner MFE to demo S3 bucket + invalidate CloudFront
+	cd mfe/sc-planner && npm install --silent && VITE_BASE_PATH=/sc-planner/ npm run build
+	@API_URL=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	    --name /smartretail/$(DEMO_ENV)/api/endpoint \
+	    --query Parameter.Value --output text); \
+	POOL_ID=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	    --name /smartretail/$(DEMO_ENV)/cognito/internal-pool-id \
+	    --query Parameter.Value --output text); \
+	CLIENT_ID=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	    --name /smartretail/$(DEMO_ENV)/cognito/internal-client-id \
+	    --query Parameter.Value --output text); \
+	DOMAIN=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	    --name /smartretail/$(DEMO_ENV)/cognito/internal-domain \
+	    --query Parameter.Value --output text); \
+	printf 'window.SMARTRETAIL_CONFIG = {\n  apiGatewayEndpoint: "%s",\n  cognitoPoolId:      "%s",\n  cognitoClientId:    "%s",\n  cognitoDomain:      "%s",\n  env:                "%s",\n};\n' \
+	    "$$API_URL" "$$POOL_ID" "$$CLIENT_ID" "$$DOMAIN" "$(DEMO_ENV)" \
+	    > mfe/sc-planner/dist/config.js; \
+	echo "config.js written (api: $$API_URL, domain: $$DOMAIN)"; \
+	BUCKET=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
 	    --name /smartretail/$(DEMO_ENV)/hosting/sc-planner-bucket-name \
 	    --query Parameter.Value --output text); \
-	AWS_PROFILE=$(DEMO_PROFILE) aws s3 sync mfe/sc-planner/dist/ s3://$$BUCKET/ --delete
-	@echo "SC Planner URL: $$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	AWS_PROFILE=$(DEMO_PROFILE) aws s3 sync mfe/sc-planner/dist/ s3://$$BUCKET/ --delete; \
+	CF_ID=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
+	    --name /smartretail/$(DEMO_ENV)/hosting/cloudfront-distribution-id \
+	    --query Parameter.Value --output text); \
+	echo "Invalidating CloudFront distribution $$CF_ID ..."; \
+	AWS_PROFILE=$(DEMO_PROFILE) aws cloudfront create-invalidation \
+	    --distribution-id "$$CF_ID" --paths "/*" --no-cli-pager \
+	    --query 'Invalidation.Status' --output text; \
+	echo "SC Planner URL: $$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
 	    --name /smartretail/$(DEMO_ENV)/hosting/sc-planner-url \
 	    --query Parameter.Value --output text)"
 
@@ -68,7 +91,7 @@ demo-full-deploy: ## Full demo deployment: CDK → images → migrate → MFE �
 	@echo "    Dashboard: https://$(REGION).console.aws.amazon.com/cloudwatch/home?region=$(REGION)#dashboards:name=SmartRetail-$(DEMO_ENV)-Ops"
 
 demo-stop: ## Scale all ECS services to 0 and stop RDS (keeps infra, saves cost overnight)
-	@echo "Stopping ECS services ($(DEMO_ENV))…"
+	@echo "Stopping ECS services ($(DEMO_ENV))..."
 	@for svc in $(DEMO_SERVICES); do \
 	    AWS_PROFILE=$(DEMO_PROFILE) aws ecs update-service \
 	        --cluster smartretail-$(DEMO_ENV) \
@@ -77,7 +100,7 @@ demo-stop: ## Scale all ECS services to 0 and stop RDS (keeps infra, saves cost 
 	        --no-cli-pager \
 	        --query 'service.serviceName' --output text; \
 	done
-	@echo "Stopping RDS (smartretail-rds-$(DEMO_ENV))…"
+	@echo "Stopping RDS (smartretail-rds-$(DEMO_ENV))..."
 	@AWS_PROFILE=$(DEMO_PROFILE) aws rds stop-db-instance \
 	    --db-instance-identifier smartretail-rds-$(DEMO_ENV) \
 	    --no-cli-pager \
@@ -85,7 +108,7 @@ demo-stop: ## Scale all ECS services to 0 and stop RDS (keeps infra, saves cost 
 	@echo "✅  Demo stopped. Resume with: make demo-start"
 
 demo-start: ## Scale ECS services back to 1 and start RDS
-	@echo "Starting RDS (smartretail-rds-$(DEMO_ENV))…"
+	@echo "Starting RDS (smartretail-rds-$(DEMO_ENV))..."
 	@STATUS=$$(AWS_PROFILE=$(DEMO_PROFILE) aws rds describe-db-instances \
 	    --db-instance-identifier smartretail-rds-$(DEMO_ENV) \
 	    --query 'DBInstances[0].DBInstanceStatus' --output text); \
@@ -98,7 +121,7 @@ demo-start: ## Scale ECS services back to 1 and start RDS
 	else \
 	    echo "  RDS status: $$STATUS (no action needed)"; \
 	fi
-	@echo "Scaling ECS services to 1 ($(DEMO_ENV))…"
+	@echo "Scaling ECS services to 1 ($(DEMO_ENV))..."
 	@for svc in $(DEMO_SERVICES); do \
 	    AWS_PROFILE=$(DEMO_PROFILE) aws ecs update-service \
 	        --cluster smartretail-$(DEMO_ENV) \
@@ -134,7 +157,7 @@ dev-deploy-all:
 
 dev-push-all: aws-ecr-login ## Build and push service images to ECR (dev env)
 	@for svc in sis ims re ars dfs sup; do \
-	    echo "Pushing $$svc (dev)…"; \
+	    echo "Pushing $$svc (dev)..."; \
 	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/ && \
 	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-dev:latest && \
 	    docker push $(ECR_PREFIX)/smartretail-$$svc-dev:latest; \

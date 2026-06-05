@@ -13,7 +13,7 @@ aws-push-%: docker-build-%
 
 aws-push-all: aws-ecr-login
 	@for svc in sis ims re ars dfs sup; do \
-	    echo "Pushing $$svc…"; \
+	    echo "Pushing $$svc..."; \
 	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/ && \
 	    docker tag smartretail-$$svc:local $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest && \
 	    docker push $(ECR_PREFIX)/smartretail-$$svc-$(ENV):latest; \
@@ -33,11 +33,14 @@ aws-deploy-mfe-%:
 	    s3://smartretail-mfe-$(ENV)-$*-$(ACCOUNT)/ \
 	    --delete --profile $(PROFILE)
 	@CF_ID=$$(AWS_PROFILE=$(PROFILE) aws ssm get-parameter \
-	    --name /smartretail/$(ENV)/cloudfront/$*-distribution-id \
-	    --query Parameter.Value --output text 2>/dev/null) && \
-	[ -n "$$CF_ID" ] && \
-	AWS_PROFILE=$(PROFILE) aws cloudfront create-invalidation \
-	    --distribution-id "$$CF_ID" --paths "/*" || true
+	    --name /smartretail/$(ENV)/hosting/cloudfront-distribution-id \
+	    --query Parameter.Value --output text 2>/dev/null); \
+	if [ -n "$$CF_ID" ]; then \
+	    echo "Invalidating CloudFront distribution $$CF_ID ..."; \
+	    AWS_PROFILE=$(PROFILE) aws cloudfront create-invalidation \
+	        --distribution-id "$$CF_ID" --paths "/*" --no-cli-pager \
+	        --query 'Invalidation.Status' --output text; \
+	fi
 
 aws-deploy-mfes: ## Build and deploy all 3 MFEs to S3 + invalidate CloudFront
 	@make aws-deploy-mfe-store-manager ENV=$(ENV) PROFILE=$(PROFILE)
