@@ -17,6 +17,13 @@ Open Copilot Chat and type `/` to use any of these prompt files from `.github/pr
 | `/agent-ml-engineer` | ML Engineer -- SageMaker pipeline, DFS, MAPE, forecast accuracy |
 | `/agent-retail-sme` | Supply Chain SME -- domain expert, KPIs, replenishment rules |
 | `/agent-aws-finops-analyst` | AWS FinOps Analyst -- cost evaluation for poc/dev/stg/prod, right-sizing, Savings Plans |
+| `/agent-api-contract-guardian` | API Contract Guardian -- breaking change detection, OpenAPI versioning, idempotency headers |
+| `/agent-aws-deployer` | Guarded AWS Deployer -- CDK deploys, ECS updates, Flyway on RDS; always shows plan, waits for YES |
+| `/agent-ci-engineer` | CI / Pipeline Engineer -- CodePipeline status, CodeBuild log diagnosis, retry guidance |
+| `/agent-db-admin` | Database Administrator -- Flyway migration authoring, schema design, PostgreSQL index strategy |
+| `/agent-performance-engineer` | Performance Engineer -- Micrometer metrics, HikariCP tuning, JVM flags, CloudWatch alarm design |
+| `/agent-project-tracker` | Project Tracker -- flow implementation status, doc freshness, coverage gaps, .github consistency |
+| `/agent-security-auditor` | Application Security Auditor -- JWT, IAM least-privilege, OWASP Top 10, secret scanning, CORS |
 
 ### Task prompts (specific coding tasks)
 | Prompt | What it does |

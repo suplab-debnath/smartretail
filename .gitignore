@@ -87,3 +87,6 @@ temp/
 
 # -- Claude
 .claude/worktrees/*
+
+# -- GitHub Copilot
+.copilot/session.log

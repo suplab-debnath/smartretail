@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "mkdir -p .copilot && echo \"[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] SESSION_START branch=$(git branch --show-current 2>/dev/null || echo detached) user=$USER\" >> .copilot/session.log 2>/dev/null || true",
+        "powershell": "New-Item -ItemType Directory -Force -Path .copilot | Out-Null; Add-Content -Path .copilot/session.log -Value \"[$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')] SESSION_START branch=$(git branch --show-current 2>$null) user=$env:USERNAME\" -ErrorAction SilentlyContinue",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "echo \"[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] SESSION_END\" >> .copilot/session.log 2>/dev/null || true",
+        "powershell": "Add-Content -Path .copilot/session.log -Value \"[$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')] SESSION_END\" -ErrorAction SilentlyContinue",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "echo \"[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] PROMPT: ${COPILOT_PROMPT:0:200}\" >> .copilot/session.log 2>/dev/null || true",
+        "powershell": "Add-Content -Path .copilot/session.log -Value \"[$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')] PROMPT: $($env:COPILOT_PROMPT.Substring(0, [Math]::Min(200, $env:COPILOT_PROMPT.Length)))\" -ErrorAction SilentlyContinue",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./scripts/hooks/pre-tool-check.sh",
+        "powershell": "./scripts/hooks/pre-tool-check.ps1",
+        "cwd": ".",
+        "timeoutSec": 15
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "echo \"[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] TOOL_DONE tool=${COPILOT_TOOL_NAME} status=${COPILOT_TOOL_STATUS:-ok}\" >> .copilot/session.log 2>/dev/null || true",
+        "powershell": "Add-Content -Path .copilot/session.log -Value \"[$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')] TOOL_DONE tool=$env:COPILOT_TOOL_NAME status=$($env:COPILOT_TOOL_STATUS ?? 'ok')\" -ErrorAction SilentlyContinue",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
