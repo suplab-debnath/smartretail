@@ -71,7 +71,11 @@ aws-full-deploy: ## End-to-end: CDK infra → push images → deploy MFEs → mi
 	@echo ""
 	@echo "✅  Full deployment complete (env: $(ENV))"
 
-aws-migrate:
+aws-push-flyway: aws-ecr-login docker-build-flyway-amd64 ## Build amd64 Flyway image and push to ECR (dev/prod)
+	docker tag smartretail-flyway:local $(ECR_PREFIX)/smartretail-flyway-$(ENV):latest
+	docker push $(ECR_PREFIX)/smartretail-flyway-$(ENV):latest
+
+aws-migrate: ## Run Flyway migrations via ECS Fargate (no IP allowlisting needed)
 	AWS_PROFILE=$(PROFILE) SMARTRETAIL_ENV=$(ENV) ./scripts/shared/run-flyway-aws.sh $(ENV)
 
 aws-create-users:

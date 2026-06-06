@@ -34,7 +34,14 @@ demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service 
 	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$svc-$(DEMO_ENV):latest; \
 	done
 
-demo-migrate: ## Run Flyway migrations on demo RDS (includes V7 seed data)
+demo-push-flyway: aws-ecr-login docker-build-flyway-arm64 ## Build arm64 Flyway image and push to demo ECR
+	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
+	docker tag smartretail-flyway:local \
+	    $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-flyway-$(DEMO_ENV):latest; \
+	docker push \
+	    $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-flyway-$(DEMO_ENV):latest
+
+demo-migrate: ## Run Flyway migrations via ECS Fargate (no IP allowlisting needed)
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
 	    ./environments/demo/scripts/run-flyway-aws-demo.sh $(DEMO_ENV)
 

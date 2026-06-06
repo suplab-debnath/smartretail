@@ -15,6 +15,7 @@ export interface DataStackProps extends cdk.StackProps {
 
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;
+  public readonly rdsInstance: rds.DatabaseInstance;
   public readonly eventsBucket: s3.Bucket;
   public readonly eventsBucketName: string;
   public readonly sagemakerBucket: s3.Bucket;
@@ -30,7 +31,7 @@ export class DataStack extends cdk.Stack {
     const account = this.account;
 
     // RDS — r6g.large, Multi-AZ, 7-day backup, performance insights
-    const rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
+    this.rdsInstance = new rds.DatabaseInstance(this, 'Rds', {
       instanceIdentifier: `smartretail-rds-${srEnv}`,
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_13,
@@ -51,9 +52,9 @@ export class DataStack extends cdk.Stack {
     });
 
     // RDS Proxy — Secrets Manager auth, isolated subnet
-    const proxy = rdsInstance.addProxy('RdsProxy', {
+    const proxy = this.rdsInstance.addProxy('RdsProxy', {
       dbProxyName: `smartretail-rds-proxy-${srEnv}`,
-      secrets: [rdsInstance.secret!],
+      secrets: [this.rdsInstance.secret!],
       vpc: network.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [network.sgRdsProxy],
@@ -134,7 +135,7 @@ export class DataStack extends cdk.Stack {
       });
 
     put('rds/proxy-endpoint',            proxy.endpoint);
-    put('rds/secret-arn',                rdsInstance.secret!.secretArn);
+    put('rds/secret-arn',                this.rdsInstance.secret!.secretArn);
     put('firehose/access-key-secret-arn', this.firehoseAccessKeySecret.secretArn);
     put('s3/events-bucket-name',         this.eventsBucket.bucketName);
     put('s3/sagemaker-bucket-name',      this.sagemakerBucket.bucketName);

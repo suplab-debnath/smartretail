@@ -94,5 +94,8 @@ export class NetworkStack extends cdk.Stack {
     put('sg-ecs-tasks-id',    this.sgEcsTasks.securityGroupId);
     put('sg-rds-proxy-id',    this.sgRdsProxy.securityGroupId);
     put('sg-rds-id',          this.sgRds.securityGroupId);
+    // Used by run-flyway-ecs.sh to launch the migration run-task without IP allowlisting
+    put('ecs-subnet-ids',   this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }).subnetIds.join(','));
+    put('assign-public-ip', 'DISABLED');
   }
 }
