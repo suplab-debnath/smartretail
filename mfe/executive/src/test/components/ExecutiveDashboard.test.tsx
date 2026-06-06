@@ -86,7 +86,7 @@ describe('ExecutiveDashboard', () => {
     mockedUseAuth.mockReturnValue(authWithRole())
     mockedDash.mockReturnValue({ ...defaultDashReturn, loading: true })
     render(<ExecutiveDashboard />)
-    expect(screen.getByText('Loading dashboard…')).toBeInTheDocument()
+    expect(screen.getByText('Loading dashboard...')).toBeInTheDocument()
   })
 
   it('shows error banner when fetch fails', () => {

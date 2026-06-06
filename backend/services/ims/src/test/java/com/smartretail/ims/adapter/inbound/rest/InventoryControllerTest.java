@@ -153,4 +153,50 @@ class InventoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.alerts[0].dcId").value("DC-PARIS"));
     }
+
+    // ── null page / size — default value branches ─────────────────────────────
+
+    @Test
+    void listInventoryPositions_withNoPageOrSize_usesDefaults() throws Exception {
+        // Omitting page and size triggers the null-safe default branches (page=0, size=20)
+        when(inventoryRepo.findPositions(null, null, 0, 20)).thenReturn(List.of());
+        when(inventoryRepo.countPositions(null, null)).thenReturn(0L);
+
+        mockMvc.perform(get("/v1/inventory/positions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20));
+
+        verify(inventoryRepo).findPositions(null, null, 0, 20);
+    }
+
+    @Test
+    void listStockAlerts_withNoPageOrSize_usesDefaults() throws Exception {
+        // Omitting page and size triggers the null-safe default branches (page=0, size=20)
+        when(inventoryRepo.findAlerts(null, null, "ACTIVE", 0, 20)).thenReturn(List.of());
+        when(inventoryRepo.countAlerts(null, null, "ACTIVE")).thenReturn(0L);
+
+        mockMvc.perform(get("/v1/inventory/alerts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20));
+
+        verify(inventoryRepo).findAlerts(null, null, "ACTIVE", 0, 20);
+    }
+
+    @Test
+    void listStockAlerts_withExplicitResolvedStatus_passesStatusToRepo() throws Exception {
+        // Exercises the status != null branch: status.getValue() is used instead of "ACTIVE"
+        when(inventoryRepo.findAlerts(null, null, "RESOLVED", 0, 20)).thenReturn(List.of());
+        when(inventoryRepo.countAlerts(null, null, "RESOLVED")).thenReturn(0L);
+
+        mockMvc.perform(get("/v1/inventory/alerts")
+                        .param("status", "RESOLVED")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(inventoryRepo).findAlerts(null, null, "RESOLVED", 0, 20);
+    }
 }

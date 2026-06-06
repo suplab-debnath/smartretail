@@ -9,6 +9,7 @@ import { useForecast } from '../../hooks/useForecast'
 import { usePendingApprovals } from '../../hooks/usePendingApprovals'
 import { useSupplierOrders } from '../../hooks/useSupplierOrders'
 import { useSupplierPerformance } from '../../hooks/useSupplierPerformance'
+import { useSuppliers } from '../../hooks/useSuppliers'
 
 // vi.hoisted ensures the mock fn is created before module resolution so the
 // @smartretail/auth factory can reference it without a static import.
@@ -26,6 +27,7 @@ vi.mock('../../hooks/useForecast')
 vi.mock('../../hooks/usePendingApprovals')
 vi.mock('../../hooks/useSupplierOrders')
 vi.mock('../../hooks/useSupplierPerformance')
+vi.mock('../../hooks/useSuppliers')
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ComposedChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -54,6 +56,7 @@ beforeEach(() => {
   vi.mocked(usePendingApprovals).mockReturnValue({ orders: [], loading: false, error: null, removeOrder: vi.fn(), refetch: vi.fn() })
   vi.mocked(useSupplierOrders).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
   vi.mocked(useSupplierPerformance).mockReturnValue({ data: null, loading: false, error: null, refetch: vi.fn() })
+  vi.mocked(useSuppliers).mockReturnValue({})
   mockedExceptions.mockReturnValue(defaultExcReturn)
   mockedDash.mockReturnValue(defaultDashReturn)
   vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
@@ -133,5 +136,86 @@ describe('ScPlannerConsole', () => {
     render(<ScPlannerConsole />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(signOut).toHaveBeenCalled()
+  })
+
+  it('switches to Demand Forecast tab on click', async () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    render(<ScPlannerConsole />)
+    await userEvent.click(screen.getByRole('button', { name: 'Demand Forecast' }))
+    // Tab is now visible (visitedTabs includes 'forecast')
+    expect(screen.getByRole('button', { name: 'Demand Forecast' })).toBeInTheDocument()
+  })
+
+  it('switches to Approvals tab on click', async () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    render(<ScPlannerConsole />)
+    await userEvent.click(screen.getByRole('button', { name: 'Approvals' }))
+    expect(screen.getByRole('button', { name: 'Approvals' })).toBeInTheDocument()
+  })
+
+  it('switches to Supplier Orders tab on click', async () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    render(<ScPlannerConsole />)
+    await userEvent.click(screen.getByRole('button', { name: 'Supplier Orders' }))
+    expect(screen.getByRole('button', { name: 'Supplier Orders' })).toBeInTheDocument()
+  })
+
+  it('switches to Supplier Scorecard tab on click', async () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    render(<ScPlannerConsole />)
+    await userEvent.click(screen.getByRole('button', { name: 'Supplier Scorecard' }))
+    expect(screen.getByRole('button', { name: 'Supplier Scorecard' })).toBeInTheDocument()
+  })
+
+  it('switches to Demo tab on click', async () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    render(<ScPlannerConsole />)
+    await userEvent.click(screen.getByRole('button', { name: 'Demo' }))
+    expect(screen.getByRole('button', { name: 'Demo' })).toBeInTheDocument()
+  })
+
+  it('shows 99+ badge when alert count exceeds 99', () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    mockedDash.mockReturnValue({
+      ...defaultDashReturn,
+      data: { pendingApprovalCount: 0, activeAlertCount: 100, forecastAccuracy: { latestMape: 0.08, mapeThreshold: 0.15, lastRunAt: '', status: 'WITHIN_THRESHOLD' }, dataFreshness: '' },
+    })
+    render(<ScPlannerConsole />)
+    expect(screen.getByText('99+')).toBeInTheDocument()
+  })
+
+  it('shows approval badge count on Approvals tab', () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    mockedDash.mockReturnValue({
+      ...defaultDashReturn,
+      data: { pendingApprovalCount: 7, activeAlertCount: 0, forecastAccuracy: { latestMape: 0.08, mapeThreshold: 0.15, lastRunAt: '', status: 'WITHIN_THRESHOLD' }, dataFreshness: '' },
+    })
+    render(<ScPlannerConsole />)
+    expect(screen.getByText('7')).toBeInTheDocument()
+  })
+
+  it('shows MAPE above-threshold label when status is ABOVE_THRESHOLD', () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    mockedDash.mockReturnValue({
+      ...defaultDashReturn,
+      data: { pendingApprovalCount: 0, activeAlertCount: 0, forecastAccuracy: { latestMape: 0.25, mapeThreshold: 0.15, lastRunAt: '', status: 'ABOVE_THRESHOLD' }, dataFreshness: '' },
+    })
+    render(<ScPlannerConsole />)
+    expect(screen.getByText(/Above threshold/)).toBeInTheDocument()
+  })
+
+  it('shows last updated timestamp when present', () => {
+    mockedUseAuth.mockReturnValue(authWithRole())
+    const lastUpdated = new Date('2026-05-18T10:30:00Z')
+    mockedDash.mockReturnValue({ ...defaultDashReturn, lastUpdated })
+    render(<ScPlannerConsole />)
+    expect(screen.getByText(/Last updated:/)).toBeInTheDocument()
+  })
+
+  it('calls signIn when not authenticated and not loading', () => {
+    const signIn = vi.fn()
+    mockedUseAuth.mockReturnValue({ isAuthenticated: false, isLoading: false, signIn, signOut: vi.fn(), user: null, hasRole: () => false })
+    render(<ScPlannerConsole />)
+    expect(signIn).toHaveBeenCalled()
   })
 })

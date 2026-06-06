@@ -320,4 +320,81 @@ class ReplenishmentControllerTest {
 
         verify(rejectPort, never()).reject(any(), anyInt(), any(), any());
     }
+
+    // ── listPurchaseOrders — null status branch ──────────────────────────────
+
+    @Test
+    void listPurchaseOrders_withNoStatus_passesNullToRepo() throws Exception {
+        when(repo.findOrders(eq(null), eq(null), eq(null), eq(0), eq(10)))
+                .thenReturn(List.of());
+        when(repo.countOrders(eq(null), eq(null), eq(null)))
+                .thenReturn(0L);
+
+        mockMvc.perform(get("/v1/replenishment/orders")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        verify(repo).findOrders(null, null, null, 0, 10);
+    }
+
+    // ── extractRoles — null X-Dev-Role header defaults to SC_PLANNER ─────────
+
+    @Test
+    void approvePurchaseOrder_withNullXDevRoleHeader_defaultsToScPlannerRole() throws Exception {
+        UUID poId = UUID.randomUUID();
+        com.smartretail.re.domain.model.PurchaseOrder po = sampleDomainPo(poId);
+        po.setWorkflowStatus(WorkflowStatus.APPROVED);
+
+        ApproveRequest request = new ApproveRequest();
+        request.setVersion(1);
+
+        // X-Dev-Role header not set → mock returns null → controller defaults to "SC_PLANNER"
+        when(httpRequest.getHeader("X-Dev-Role")).thenReturn(null);
+        when(approvePort.approve(poId, 1, "local-user")).thenReturn(po);
+        when(repo.findLineItemsByPoId(poId)).thenReturn(sampleLineItems(poId));
+
+        mockMvc.perform(post("/v1/replenishment/orders/{poId}/approve", poId)
+                        .header("X-Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowStatus").value("APPROVED"));
+    }
+
+    // ── extractRoles — JWT with no cognito:groups → 403 ──────────────────────
+
+    @Test
+    void approvePurchaseOrder_withJwtHavingNoCognitoGroups_returns403() throws Exception {
+        UUID poId = UUID.randomUUID();
+        ApproveRequest request = new ApproveRequest();
+        request.setVersion(1);
+
+        // JWT with no cognito:groups claim → extractRoles returns empty Set → requireRole throws 403
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("no-role-user")
+                .build(); // no cognito:groups claim
+
+        Authentication auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                jwt, null, List.of()
+        ) {
+            @Override
+            public String getName() { return "no-role-user"; }
+        };
+
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        mockMvc.perform(post("/v1/replenishment/orders/{poId}/approve", poId)
+                        .header("X-Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verify(approvePort, never()).approve(any(), anyInt(), any());
+    }
 }

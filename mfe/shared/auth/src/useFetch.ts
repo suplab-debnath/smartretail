@@ -16,10 +16,13 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   // Strip trailing slash from base to avoid double-slash with leading-slash paths.
   const resolvedUrl = base ? `${base.replace(/\/$/, '')}${url}` : url
 
-  const headers = new Headers(init?.headers)
+  // AWS mode only: mutate headers to add Bearer token and strip X-Dev-Role
+  // (blocked by API Gateway CORS). In local/test mode pass init unchanged so
+  // callers' plain-object headers are preserved as-is (tests can assert on them).
+  let requestInit: RequestInit | undefined = init
 
   if (config.cognitoPoolId) {
-    // AWS mode: add Bearer token and remove local-dev-only headers blocked by CORS.
+    const headers = new Headers(init?.headers)
     headers.delete('X-Dev-Role')
     try {
       const { fetchAuthSession } = await import('aws-amplify/auth')
@@ -30,11 +33,12 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
     } catch {
       // No active session — proceed without token; API will return 401.
     }
+    requestInit = { ...init, headers }
   }
 
   let res: Response
   try {
-    res = await fetch(resolvedUrl, { ...init, headers })
+    res = await fetch(resolvedUrl, requestInit)
   } catch {
     throw {
       kind: 'network',
