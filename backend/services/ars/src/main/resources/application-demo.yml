@@ -1,7 +1,5 @@
-# Demo profile: auth is bypassed via X-Dev-Role header (see SecurityConfig#demoSecurity).
-# Exclude the OAuth2 resource-server auto-configuration so Spring does not attempt
-# an eager OIDC discovery call against the Cognito issuer URI at startup.
-spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+# Demo profile: JWT is parsed so DashboardController.extractRoles() can read
+# cognito:groups from the token (scp1@test.com → SC_PLANNER group).
+# oauth2ResourceServer is enabled in SecurityConfig#demoSecurity; the JwtDecoder
+# is auto-configured from the issuer-uri set in application-aws.yml (loaded via
+# profiles.group.demo: [aws]). OIDC discovery against Cognito works reliably.

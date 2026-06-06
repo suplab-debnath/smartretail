@@ -30,13 +30,18 @@ public class InventoryController implements InventoryPositionsApi, StockAlertsAp
     public ResponseEntity<InventoryPositionPage> listInventoryPositions(
             String dcId, String skuId, Integer page, Integer size) {
 
-        var positions = inventoryRepo.findPositions(dcId, skuId, page, size);
+        // Null-safe defaults: openapi-generator emits Integer (nullable) for optional
+        // query params; findPositions/findAlerts take primitive int — NPE on auto-unbox.
+        int p = page != null ? page : 0;
+        int s = size != null ? size : 20;
+
+        var positions = inventoryRepo.findPositions(dcId, skuId, p, s);
         long total = inventoryRepo.countPositions(dcId, skuId);
 
         InventoryPositionPage response = new InventoryPositionPage();
         response.setPositions(positions.stream().map(mapper::toApiModel).toList());
-        response.setPage(page);
-        response.setSize(size);
+        response.setPage(p);
+        response.setSize(s);
         response.setTotalElements(total);
         return ResponseEntity.ok(response);
     }
@@ -45,16 +50,19 @@ public class InventoryController implements InventoryPositionsApi, StockAlertsAp
     public ResponseEntity<StockAlertPage> listStockAlerts(
             String dcId, AlertSeverity severity, AlertStatus status, Integer page, Integer size) {
 
+        int p = page != null ? page : 0;
+        int s = size != null ? size : 20;
+
         String severityName = severity != null ? severity.getValue() : null;
         String statusName   = status   != null ? status.getValue()   : "ACTIVE";
 
-        var alerts = inventoryRepo.findAlerts(dcId, severityName, statusName, page, size);
+        var alerts = inventoryRepo.findAlerts(dcId, severityName, statusName, p, s);
         long total = inventoryRepo.countAlerts(dcId, severityName, statusName);
 
         StockAlertPage response = new StockAlertPage();
         response.setAlerts(alerts.stream().map(mapper::toApiModel).toList());
-        response.setPage(page);
-        response.setSize(size);
+        response.setPage(p);
+        response.setSize(s);
         response.setTotalElements(total);
         return ResponseEntity.ok(response);
     }
