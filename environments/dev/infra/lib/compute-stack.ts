@@ -344,6 +344,49 @@ export class ComputeStack extends cdk.Stack {
       parameterName: `/smartretail/${srEnv}/ecs/cluster-name`,
       stringValue: this.cluster.clusterName,
     });
+
+    // Flyway migration task — one-shot Fargate run-task, not a persistent service.
+    // Grant execution role access to the RDS secret so Flyway can authenticate with
+    // username/password via the RDS Proxy (services use IAM auth; Flyway uses the secret).
+    data.rdsInstance.secret!.grantRead(ecsExecutionRole);
+
+    const flywayRepo = new ecr.Repository(this, 'FlywayRepo', {
+      repositoryName: `smartretail-flyway-${srEnv}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      emptyOnDelete: true,
+      lifecycleRules: [{ maxImageCount: 5 }],
+    });
+
+    const flywayLogGroup = new logs.LogGroup(this, 'FlywayLogGroup', {
+      logGroupName: `/smartretail/flyway/${srEnv}`,
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const flywayTaskDef = new ecs.FargateTaskDefinition(this, 'FlywayTaskDef', {
+      family: `smartretail-flyway-${srEnv}`,
+      cpu: 256,
+      memoryLimitMiB: 512,
+      executionRole: ecsExecutionRole,
+      runtimePlatform: {
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
+        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+      },
+    });
+
+    flywayTaskDef.addContainer('flywayContainer', {
+      image: ecs.ContainerImage.fromEcrRepository(flywayRepo, 'latest'),
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'flyway', logGroup: flywayLogGroup }),
+      environment: {
+        FLYWAY_URL:       `jdbc:postgresql://${data.dbEndpoint}:5432/smartretail`,
+        FLYWAY_USER:      'smartretail_admin',
+        FLYWAY_SCHEMAS:   'public,sales,forecasting,inventory,replenishment,supplier,promotions',
+        FLYWAY_LOCATIONS: 'filesystem:/flyway/sql',
+      },
+      secrets: {
+        FLYWAY_PASSWORD: ecs.Secret.fromSecretsManager(data.rdsInstance.secret!, 'password'),
+      },
+    });
   }
 
   private createFargateService(

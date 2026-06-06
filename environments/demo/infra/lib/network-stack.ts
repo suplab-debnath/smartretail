@@ -50,5 +50,8 @@ export class NetworkStack extends cdk.Stack {
     put('vpc-id',          this.vpc.vpcId);
     put('sg-ecs-tasks-id', this.sgEcsTasks.securityGroupId);
     put('sg-rds-id',       this.sgRds.securityGroupId);
+    // Used by run-flyway-ecs.sh to launch the migration run-task without IP allowlisting
+    put('ecs-subnet-ids',   this.vpc.publicSubnets.map(s => s.subnetId).join(','));
+    put('assign-public-ip', 'ENABLED');
   }
 }

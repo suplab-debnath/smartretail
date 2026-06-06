@@ -33,3 +33,9 @@ docker-build-ml-trigger:
 	docker buildx build --platform linux/arm64 -t smartretail-ml-trigger:local backend/adapters/ml-trigger/
 
 docker-build-lambda: docker-build-batch-post-processor docker-build-ml-trigger
+
+docker-build-flyway-arm64:
+	docker buildx build --platform linux/arm64 -t smartretail-flyway:local backend/migrations/
+
+docker-build-flyway-amd64:
+	docker buildx build --platform linux/amd64 -t smartretail-flyway:local backend/migrations/
