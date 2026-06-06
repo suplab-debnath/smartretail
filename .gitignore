@@ -90,3 +90,4 @@ temp/
 
 # -- GitHub Copilot
 .copilot/session.log
+.claude/memory/session-log.md
