@@ -103,32 +103,51 @@ export class ApiStack extends cdk.Stack {
       description: 'SmartRetail Demo REST API — NLB VPC Link to ECS services',
       endpointTypes: [apigw.EndpointType.REGIONAL],
       deployOptions: { stageName: 'internal' },
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
-        allowMethods: apigw.Cors.ALL_METHODS,
-        allowHeaders: ['Authorization', 'Content-Type', 'X-Correlation-ID'],
-        maxAge: cdk.Duration.hours(1),
-      },
     });
 
     // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY.
     // pathPrefix must match the path the backend controller listens on, e.g.
     // "/v1/dashboard". It is prepended in the integration URI so the full path
     // reaches the service (API Gateway's {proxy} captures only the suffix).
+    const corsOptions: apigw.CorsOptions = {
+      allowOrigins: apigw.Cors.ALL_ORIGINS,
+      allowMethods: apigw.Cors.ALL_METHODS,
+      allowHeaders: ['Authorization', 'Content-Type', 'X-Correlation-ID'],
+      maxAge: cdk.Duration.hours(1),
+    };
+
     const addProxyResource = (
       parent: apigw.IResource,
       pathPart: string,
       port: number,
       pathPrefix: string,
     ): void => {
-      parent.addResource(pathPart).addProxy({
+      const resource = parent.addResource(pathPart);
+      resource.addCorsPreflight(corsOptions);
+      resource.addProxy({
         defaultIntegration: nlbProxyIntegration(port, pathPrefix),
         anyMethod: true,
         defaultMethodOptions: {
           requestParameters: { 'method.request.path.proxy': true },
         },
+        defaultCorsPreflightOptions: corsOptions,
       });
     };
+
+    // Gateway Responses — inject CORS header on API GW-generated 4xx/5xx so the
+    // browser doesn't report a CORS error when the real problem is auth/routing.
+    const corsHeaders = { 'Access-Control-Allow-Origin': "'*'" };
+    for (const type of [
+      apigw.ResponseType.DEFAULT_4XX,
+      apigw.ResponseType.DEFAULT_5XX,
+      apigw.ResponseType.ACCESS_DENIED,
+      apigw.ResponseType.UNAUTHORIZED,
+    ]) {
+      restApi.addGatewayResponse(`GwResp${type.responseType}`, {
+        type,
+        responseHeaders: corsHeaders,
+      });
+    }
 
     // Staff APIs — five services, one proxy resource each
     const v1 = restApi.root.addResource('v1');

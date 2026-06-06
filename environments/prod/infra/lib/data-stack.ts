@@ -94,14 +94,37 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // SageMaker execution role — assumed by training and batch transform jobs
+    // SageMaker execution role — assumed by training and batch transform jobs.
+    // Scoped to minimum required actions; AmazonSageMakerFullAccess is intentionally
+    // avoided to limit blast radius.
     this.sagemakerExecutionRole = new iam.Role(this, 'SageMakerExecutionRole', {
       roleName: `smartretail-sagemaker-execution-${srEnv}`,
       assumedBy: new iam.ServicePrincipal('sagemaker.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSageMakerFullAccess'),
-      ],
     });
+    this.sagemakerExecutionRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SageMakerJobActions',
+      actions: [
+        'sagemaker:CreateTrainingJob',
+        'sagemaker:DescribeTrainingJob',
+        'sagemaker:StopTrainingJob',
+        'sagemaker:CreateTransformJob',
+        'sagemaker:DescribeTransformJob',
+        'sagemaker:StopTransformJob',
+      ],
+      resources: [
+        `arn:aws:sagemaker:${this.region}:${account}:training-job/smartretail-*`,
+        `arn:aws:sagemaker:${this.region}:${account}:transform-job/smartretail-*`,
+      ],
+    }));
+    this.sagemakerExecutionRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'CloudWatchLogs',
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents',
+      ],
+      resources: [`arn:aws:logs:${this.region}:${account}:log-group:/aws/sagemaker/*`],
+    }));
     this.sagemakerBucket.grantReadWrite(this.sagemakerExecutionRole);
 
     const put = (name: string, value: string) =>
