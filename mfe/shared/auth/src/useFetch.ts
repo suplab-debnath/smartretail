@@ -25,7 +25,7 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
     const headers = new Headers(init?.headers)
     headers.delete('X-Dev-Role')
     try {
-      const { fetchAuthSession } = await import('aws-amplify/auth')
+      const { fetchAuthSession } = await import(/* @vite-ignore */ 'aws-amplify/auth')
       const session = await fetchAuthSession()
       if (session.tokens?.idToken) {
         headers.set('Authorization', `Bearer ${session.tokens.idToken.toString()}`)
