@@ -45,6 +45,10 @@ demo-migrate: ## Run Flyway migrations via ECS Fargate (no IP allowlisting neede
 	AWS_PROFILE=$(DEMO_PROFILE) SMARTRETAIL_ENV=$(DEMO_ENV) \
 	    ./environments/demo/scripts/run-flyway-aws-demo.sh $(DEMO_ENV)
 
+demo-reset-db: ## Wipe and reinitialise the demo DB (flyway clean + migrate) — use between demo runs
+	AWS_PROFILE=$(DEMO_PROFILE) \
+	    ./scripts/shared/run-flyway-ecs.sh $(DEMO_ENV) --clean
+
 demo-deploy-mfe: ## Build and deploy SC Planner MFE to demo S3 bucket + invalidate CloudFront
 	cd mfe/sc-planner && npm install --silent && VITE_BASE_PATH=/sc-planner/ npm run build
 	@API_URL=$$(AWS_PROFILE=$(DEMO_PROFILE) aws ssm get-parameter \
