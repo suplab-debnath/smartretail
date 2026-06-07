@@ -138,11 +138,13 @@
 
 ## 3. SQS Queues
 
-| Queue name                           | Type     | Visibility | DLQ (max receive) | Encryption   |
-|--------------------------------------|----------|------------|-------------------|--------------|
-| `smartretail-ims-sales-demo`         | Standard | 120 s      | …-dlq (3×)        | SQS-managed  |
-| `smartretail-re-alert-demo.fifo`     | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  |
-| `smartretail-ars-updates-demo`       | Standard | default    | …-dlq (3×)        | SQS-managed  |
+| Queue name                           | Type     | Visibility | DLQ (max receive) | Encryption   | Note                  |
+|--------------------------------------|----------|------------|-------------------|--------------|----------------------|
+| `smartretail-ims-sales-demo`         | Standard | 120 s      | …-dlq (3×)        | SQS-managed  | Provisioned; idle — no EventBridge rule routes to it (SIS absent, no `SalesTransactionEvent` published) |
+| `smartretail-re-alert-demo.fifo`     | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  | Content-based dedup; `messageGroupId=$.detail.dcId` |
+| `smartretail-ars-updates-demo`       | Standard | default    | …-dlq (3×)        | SQS-managed  | Dashboard aggregation |
+
+> **Why 3 queues?** Demo has no PPS service and no SIS service. The IMS sales queue is wired in CDK for consistency but receives no messages; only 2 queues (`re-alert` and `ars-updates`) carry live traffic during demos.
 
 ---
 

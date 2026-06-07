@@ -12,7 +12,7 @@
 |-----------------------|-----------------------------------------------------------------------|
 | Environment name      | `prod`                                                                |
 | Spring profile        | `aws`                                                                 |
-| CDK stacks            | `Prod-Network` · `Prod-Data` · `Prod-Messaging` · `Prod-Identity` · `Prod-Compute` · `Prod-Api` |
+| CDK stacks            | `Prod-Network` · `Prod-Data` · `Prod-Messaging` · `Prod-Hosting` · `Prod-Identity` · `Prod-Compute` · `Prod-Api` |
 | CPU architecture      | x86_64                                                                |
 | VPC type              | Custom CDK VPC (10.0.0.0/16), 3 AZs, 3 subnet tiers                 |
 | Subnet tiers          | Public · PrivateApp · Isolated                                       |
@@ -77,19 +77,29 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 ```
                                     INTERNET
                                        │
-            ┌──────────────────────────┤──────────────────────────────────────────┐
-            │                          │                                          │
-   ┌────────▼────────┐     ┌───────────▼───────────────────────────────────────┐ │
-   │  Amazon Cognito │     │                Amazon CloudFront                  │ │
-   │  Internal Pool  │     │           (HTTPS, *.smartretail.com)              │ │
-   │                 │     └───────────────────────────────────────────────────┘ │
-   │  Groups:        │         │                    │                    │        │
-   │  • STORE_MANAGER│    ┌────▼─────────┐  ┌──────▼───────┐  ┌────────▼──────┐ │
-   │  • SC_PLANNER   │    │     S3       │  │     S3       │  │     S3        │ │
-   │  • EXECUTIVE    │    │ store-manager│  │  sc-planner  │  │  executive    │ │
-   │  • ADMIN        │    │   -prod-{id} │  │  -prod-{id}  │  │  -prod-{id}   │ │
-   └────────┬────────┘    └─────────────┘  └──────────────┘  └───────────────┘ │
-            │ JWT Bearer                                                          │
+            ┌──────────────────────────┤────────────────────────────────────────────────┐
+            │                          │                                                │
+   ┌────────▼─────────────────────┐    │ ┌─────────▼──────────────────────────────────┐ │
+   │  Amazon Cognito              │    │ │  Amazon CloudFront (HostingStack)           │ │
+   │  (IdentityStack)             │    │ │  HTTPS · *.smartretail.com · PriceClass 100 │ │
+   │                              │    │ │  Single distribution with 4 path behaviors  │ │
+   │  Internal Pool               │    │ │  (each behavior: OAC SigV4 + SPA rewrite fn)│ │
+   │  smartretail-internal-prod   │    │ │    /store-manager/* → store-manager S3      │ │
+   │  Groups:                     │    │ │    /sc-planner/*    → sc-planner S3         │ │
+   │    • STORE_MANAGER           │    │ │    /executive/*     → executive S3          │ │
+   │    • SC_PLANNER              │    │ │    /supplier/*      → supplier S3           │ │
+   │    • EXECUTIVE · ADMIN       │    │ │    /* (default)     → 302 /sc-planner/      │ │
+   │  Domain:                     │    │ └─────────────────────────┬───────────────────┘ │
+   │    smartretail-prod-internal │    │           ┌───────────────┼──────────────┐      │
+   │                              │    │  ┌────────▼──┐  ┌─────────▼┐  ┌─────────▼┐  ┌──▼───────┐ │
+   │  Supplier Pool               │    │  │    S3     │  │    S3    │  │    S3    │  │    S3    │ │
+   │  smartretail-supplier-prod   │    │  │  store-   │  │   sc-    │  │executive │  │ supplier │ │
+   │  Group: SUPPLIER_ADMIN       │    │  │  manager  │  │ planner  │  │ -prod-   │  │  -prod-  │ │
+   │  Domain:                     │    │  │  -prod-   │  │  -prod-  │  │  {acct}  │  │  {acct}  │ │
+   │    smartretail-prod-supplier │    │  │  {acct}   │  │  {acct}  │  │          │  │          │ │
+   │  OAuth: /supplier/callback   │    │  └───────────┘  └──────────┘  └──────────┘  └──────────┘ │
+   └────────┬─────────────────────┘    │                                                           │
+            │ JWT Bearer token          │                                                           │
    ┌────────▼──────────────────────────────────────────────────────────────────┐ │
    │                  Amazon API Gateway (Regional REST API)                    │ │
    │              smartretail-api-prod  │  stage: internal                     │ │
@@ -471,6 +481,7 @@ Operator:  make aws-migrate ENV=prod
 | `smartretail-mfe-prod-store-manager-{acct}` | Store Manager MFE assets    | —         | —               | RETAIN   |
 | `smartretail-mfe-prod-sc-planner-{acct}` | SC Planner MFE assets          | —         | —               | RETAIN   |
 | `smartretail-mfe-prod-executive-{acct}`  | Executive Dashboard MFE assets | —         | —               | RETAIN   |
+| `smartretail-mfe-prod-supplier-{acct}`   | Supplier Portal MFE assets     | —         | —               | RETAIN   |
 
 ---
 
@@ -509,6 +520,9 @@ Operator:  make aws-migrate ENV=prod
 | SageMaker pipeline        | `smartretail-demand-forecast-prod`                                 |
 | ECR repos                 | `smartretail-{sis,ims,re,ars,dfs,sup,pps,batch-post-processor,ml-trigger,flyway}-prod` |
 | System API key            | `smartretail-system-events-prod`                                   |
+| Cognito internal pool     | `smartretail-internal-prod` (domain `smartretail-prod-internal`)   |
+| Cognito supplier pool     | `smartretail-supplier-prod` (domain `smartretail-prod-supplier`)   |
+| CloudFront distribution   | Single dist; SSM `/smartretail/prod/hosting/cloudfront-url`        |
 | CloudMap namespace        | `smartretail.local`                                                |
 | Flyway task family        | `smartretail-flyway-prod`                                          |
 | SSM prefix                | `/smartretail/prod/`                                               |
@@ -521,8 +535,9 @@ Operator:  make aws-migrate ENV=prod
 Prod-Network
   └── Prod-Data         (needs VPC + SGs for RDS/Proxy placement + S3 buckets)
         └── Prod-Messaging  (SQS + EventBridge — no VPC dependency)
-              └── Prod-Identity   (Cognito — no VPC dependency)
-                    └── Prod-Compute  (needs VPC, Data, Messaging)
-                          └── Prod-Api  (needs VPC, Data, Messaging, Compute;
-                                         creates NLB, VPC Link, API GW, Firehose)
+              └── Prod-Hosting    (CloudFront + 4 MFE S3 buckets — no VPC dependency)
+                    └── Prod-Identity   (Cognito — needs distributionUrl for OAuth callback)
+                          └── Prod-Compute  (needs VPC, Data, Messaging)
+                                └── Prod-Api  (needs VPC, Data, Messaging, Compute;
+                                               creates NLB, VPC Link, API GW, Firehose)
 ```
