@@ -34,6 +34,16 @@ demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service 
 	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$svc-$(DEMO_ENV):latest; \
 	done
 
+demo-deploy-services: demo-push-services ## Build, push and force ECS redeployment for all demo services
+	@for svc in $(DEMO_SERVICES); do \
+	    echo "Force-redeploying $$svc ($(DEMO_ENV))..."; \
+	    AWS_PROFILE=$(DEMO_PROFILE) aws ecs update-service \
+	        --cluster smartretail-$(DEMO_ENV) \
+	        --service smartretail-$$svc-$(DEMO_ENV) \
+	        --force-new-deployment \
+	        --query 'service.serviceName' --output text; \
+	done
+
 demo-push-flyway: aws-ecr-login docker-build-flyway-amd64 ## Build amd64 Flyway image and push to demo ECR
 	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
 	docker tag smartretail-flyway:local \
