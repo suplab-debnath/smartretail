@@ -9,6 +9,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${RDS_PROXY_ENDPOINT:localhost}:5432/smartretail
     username: ${DB_USERNAME:smartretail_admin}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
