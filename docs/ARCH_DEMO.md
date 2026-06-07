@@ -101,13 +101,14 @@
 │  │  │  │    DB_PASSWORD injected from Secrets Manager at start     │ │ │ │
 │  │  │  │    COGNITO_ISSUER_URI=https://cognito-idp.{region}.        │ │ │ │
 │  │  │  │                        amazonaws.com/{poolId}             │ │ │ │
+│  │  │  │    HikariCP: max-pool=5  min-idle=1 (per service)         │ │ │ │
 │  │  │  └───────────────────────────────────────────────────────────┘ │ │ │
 │  │  │                                                                 │ │ │
 │  │  │  ┌───────────────────────────────────────────────────────────┐ │ │ │
 │  │  │  │  Flyway Migration Task (run-task only — not a service)    │ │ │ │
 │  │  │  │  Family: smartretail-flyway-demo                          │ │ │ │
-│  │  │  │  256 CPU · 512 MiB · ARM64 · assignPublicIp=true          │ │ │ │
-│  │  │  │  Image: flyway/flyway:10-alpine + SQL files               │ │ │ │
+│  │  │  │  256 CPU · 512 MiB · X86_64 · assignPublicIp=true         │ │ │ │
+│  │  │  │  Image: flyway/flyway:10-alpine (--platform=$TARGETPLATFORM) + SQL files │ │ │ │
 │  │  │  │  FLYWAY_SCHEMAS: public,sales,forecasting,inventory,      │ │ │ │
 │  │  │  │                  replenishment,supplier,promotions        │ │ │ │
 │  │  │  │  FLYWAY_PASSWORD injected from Secrets Manager            │ │ │ │
@@ -250,17 +251,23 @@ MFE → API Gateway /v1/dashboard/* → ARS :8083
 
 ```
 Developer workstation:  make demo-push-flyway
-  → docker buildx build --platform linux/arm64 backend/migrations/
+  → docker buildx build --platform linux/amd64 --pull --load backend/migrations/
+     (FROM --platform=$TARGETPLATFORM flyway/flyway:10-alpine — X86_64 native build)
   → docker push {ecr}/smartretail-flyway-demo:latest
 
 Developer workstation:  make demo-migrate
   → reads SSM /smartretail/demo/network/ecs-subnet-ids + sg-ecs-tasks-id
   → aws ecs run-task --launch-type FARGATE
-      --task-definition smartretail-flyway-demo
+      --task-definition smartretail-flyway-demo   (X86_64)
       --network-configuration {subnets, sgEcsTasks, assignPublicIp=ENABLED}
   → ECS task starts, connects RDS :5432 via sgEcsTasks
   → Flyway applies V1…V9 migrations then exits 0
   → aws ecs wait tasks-stopped → reports result
+
+Developer workstation:  make demo-reset-db          (between demo runs)
+  → same ECS run-task with --overrides command=["clean","migrate"]
+  → FLYWAY_CLEAN_DISABLED=false — drops all schemas then re-applies V1…V9
+  → exits 0 when complete; logs at /smartretail/flyway/demo
 ```
 
 ---
