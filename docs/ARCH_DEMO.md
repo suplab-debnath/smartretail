@@ -101,12 +101,13 @@
 │  │  │  │    DB_PASSWORD injected from Secrets Manager at start     │  │ │ │
 │  │  │  │    COGNITO_ISSUER_URI=https://cognito-idp.{region}.       │  │ │ │
 │  │  │  │                        amazonaws.com/{poolId}             │  │ │ │
+│  │  │  │    HikariCP: max-pool=5  min-idle=1 (per service)         │  │ │ │
 │  │  │  └───────────────────────────────────────────────────────────┘  │ │ │
 │  │  │                                                                 │ │ │
 │  │  │  ┌───────────────────────────────────────────────────────────┐  │ │ │
 │  │  │  │  Flyway Migration Task (run-task only — not a service)    │  │ │ │
 │  │  │  │  Family: smartretail-flyway-demo                          │  │ │ │
-│  │  │  │  256 CPU · 512 MiB · ARM64 · assignPublicIp=true          │  │ │ │
+│  │  │  │  256 CPU · 512 MiB · X86_64 · assignPublicIp=true         │  │ │ │
 │  │  │  │  Image: flyway/flyway:10-alpine + SQL files               │  │ │ │
 │  │  │  │  FLYWAY_SCHEMAS: public,sales,forecasting,inventory,      │  │ │ │
 │  │  │  │                  replenishment,supplier,promotions        │  │ │ │
@@ -138,11 +139,11 @@
 
 ## 3. SQS Queues
 
-| Queue name                           | Type     | Visibility | DLQ (max receive) | Encryption   | Note                  |
-|--------------------------------------|----------|------------|-------------------|--------------|----------------------|
-| `smartretail-ims-sales-demo`         | Standard | 120 s      | …-dlq (3×)        | SQS-managed  | Provisioned; idle — no EventBridge rule routes to it (SIS absent, no `SalesTransactionEvent` published) |
-| `smartretail-re-alert-demo.fifo`     | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  | Content-based dedup; `messageGroupId=$.detail.dcId` |
-| `smartretail-ars-updates-demo`       | Standard | default    | …-dlq (3×)        | SQS-managed  | Dashboard aggregation |
+| Queue name                       | Type     | Visibility | DLQ (max receive) | Encryption   | Note                                                                                                    |
+|----------------------------------|----------|------------|-------------------|--------------|---------------------------------------------------------------------------------------------------------|
+| `smartretail-ims-sales-demo`     | Standard | 120 s      | …-dlq (3×)        | SQS-managed  | Provisioned; idle — no EventBridge rule routes to it (SIS absent, no `SalesTransactionEvent` published) |
+| `smartretail-re-alert-demo.fifo` | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  | Content-based dedup; `messageGroupId=$.detail.dcId`                                                     |
+| `smartretail-ars-updates-demo`   | Standard | default    | …-dlq (3×)        | SQS-managed  | Dashboard aggregation                                                                                   |
 
 > **Why 3 queues?** Demo has no PPS service and no SIS service. The IMS sales queue is wired in CDK for consistency but receives no messages; only 2 queues (`re-alert` and `ars-updates`) carry live traffic during demos.
 
@@ -152,10 +153,10 @@
 
 **Bus:** `smartretail-events-demo`
 
-| Rule name                            | Source                         | Detail type           | Target                        | Notes                              |
-|--------------------------------------|--------------------------------|-----------------------|-------------------------------|------------------------------------|
-| `smartretail-alert-to-re-demo`       | `smartretail.ims`              | `InventoryAlertEvent` | `re-alert-demo.fifo`          | `messageGroupId = $.detail.dcId`   |
-| `smartretail-all-to-ars-demo`        | `smartretail.ims`, `smartretail.re` | any              | `ars-updates-demo`            | Dashboard aggregation              |
+| Rule name                      | Source                              | Detail type           | Target                | Notes                              |
+|--------------------------------|-------------------------------------|-----------------------|-----------------------|------------------------------------|
+| `smartretail-alert-to-re-demo` | `smartretail.ims`                   | `InventoryAlertEvent` | `re-alert-demo.fifo`  | `messageGroupId = $.detail.dcId`   |
+| `smartretail-all-to-ars-demo`  | `smartretail.ims`, `smartretail.re` | any                   | `ars-updates-demo`    | Dashboard aggregation              |
 
 > Note: IMS publishes events; RE reads the FIFO queue and publishes in turn; ARS consumes the
 > updates queue. SIS is absent in demo — no `SalesTransactionEvent` rule is needed.
@@ -166,13 +167,13 @@
 
 **API name:** `smartretail-api-demo` · **Stage:** `internal` · **Type:** Regional REST
 
-| Path pattern               | Method | Backend service | Port   | Integration      |
-|----------------------------|--------|-----------------|--------|------------------|
-| `/v1/dashboard/{proxy+}`   | ANY    | ARS             | 8083   | HTTP_PROXY / VPC Link |
-| `/v1/inventory/{proxy+}`   | ANY    | IMS             | 8081   | HTTP_PROXY / VPC Link |
-| `/v1/forecast/{proxy+}`    | ANY    | DFS             | 8084   | HTTP_PROXY / VPC Link |
-| `/v1/replenishment/{proxy+}`| ANY   | RE              | 8082   | HTTP_PROXY / VPC Link |
-| `/v1/supplier/{proxy+}`    | ANY    | SUP             | 8085   | HTTP_PROXY / VPC Link |
+| Path pattern                | Method | Backend service | Port   | Integration           |
+|-----------------------------|--------|-----------------|--------|-----------------------|
+| `/v1/dashboard/{proxy+}`    | ANY    | ARS             | 8083   | HTTP_PROXY / VPC Link |
+| `/v1/inventory/{proxy+}`    | ANY    | IMS             | 8081   | HTTP_PROXY / VPC Link |
+| `/v1/forecast/{proxy+}`     | ANY    | DFS             | 8084   | HTTP_PROXY / VPC Link |
+| `/v1/replenishment/{proxy+}`| ANY    | RE              | 8082   | HTTP_PROXY / VPC Link |
+| `/v1/supplier/{proxy+}`     | ANY    | SUP             | 8085   | HTTP_PROXY / VPC Link |
 
 Integration URI pattern: `http://{nlb-dns}:{port}/v1/{pathPart}/{proxy}` — the path prefix is
 prepended in the URI because API Gateway's `{proxy}` captures only the suffix after the resource
@@ -250,17 +251,23 @@ MFE → API Gateway /v1/dashboard/* → ARS :8083
 
 ```
 Developer workstation:  make demo-push-flyway
-  → docker buildx build --platform linux/arm64 backend/migrations/
+  → docker buildx build --platform linux/amd64 --pull --load backend/migrations/
+     (FROM --platform=$TARGETPLATFORM flyway/flyway:10-alpine — X86_64 native build)
   → docker push {ecr}/smartretail-flyway-demo:latest
 
 Developer workstation:  make demo-migrate
   → reads SSM /smartretail/demo/network/ecs-subnet-ids + sg-ecs-tasks-id
   → aws ecs run-task --launch-type FARGATE
-      --task-definition smartretail-flyway-demo
+      --task-definition smartretail-flyway-demo   (X86_64)
       --network-configuration {subnets, sgEcsTasks, assignPublicIp=ENABLED}
   → ECS task starts, connects RDS :5432 via sgEcsTasks
   → Flyway applies V1…V9 migrations then exits 0
   → aws ecs wait tasks-stopped → reports result
+
+Developer workstation:  make demo-reset-db          (between demo runs)
+  → same ECS run-task with --overrides command=["clean","migrate"]
+  → FLYWAY_CLEAN_DISABLED=false — drops all schemas then re-applies V1…V9
+  → exits 0 when complete; logs at /smartretail/flyway/demo
 ```
 
 ---

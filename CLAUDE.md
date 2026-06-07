@@ -323,8 +323,12 @@ Migrations live in `backend/migrations/src/main/resources/db/migration/`.
 # Local
 make local-migrate
 
-# AWS (demo environment)
-cd environments/demo && bash scripts/run-flyway-aws-demo.sh
+# AWS (demo environment) — image must be pushed first
+make demo-push-flyway
+make demo-migrate
+
+# Reset demo DB between runs (drops all schemas + re-migrates)
+make demo-reset-db
 
 # AWS (dev environment)
 bash scripts/shared/run-flyway-aws.sh
@@ -420,6 +424,7 @@ Agents are defined in `.claude/settings.json`. Load the relevant one before star
 | Generated TS client out of sync             | YAML edited but `npm run generate-api` not re-run       | Re-run generator; never edit generated files manually    |
 | LocalStack Firehose behaves differently     | LocalStack Firehose targets SIS directly at `localhost:8080`; AWS Firehose routes via API Gateway + VPC Link | Ensure SIS is running before LocalStack init; check `localstack-init.sh` endpoint URL |
 | Flyway checksum error after migration edit  | Existing migration file was modified                    | Revert the edit; add a new migration instead             |
+| Services crash-loop with "Failed to obtain JDBC connection" in demo | `application-aws.yml` not loaded for `demo` profile — `spring.datasource.password` unset | `password: ${DB_PASSWORD}` is now in base `application.yml`; rebuild + redeploy |
 | Correlation ID missing in logs              | `X-Correlation-ID` header not propagated through chain  | Use `CorrelationIdFilter` and MDC in every service       |
 
 ---

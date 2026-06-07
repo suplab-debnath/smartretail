@@ -62,7 +62,8 @@ cd environments/demo/infra && AWS_PROFILE=smartretail-dev SMARTRETAIL_ENV=demo \
   npx cdk deploy Min-ComputeStack Min-ApiStack Min-HostingStack Min-MonitoringStack \
   --require-approval never
 
-# 3. Run Flyway migrations + seed data (V1–V7)
+# 3. Build and push Flyway image, then run migrations (V1–V9)
+make demo-push-flyway DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 make demo-migrate DEMO_ENV=demo DEMO_PROFILE=smartretail-dev
 
 # 4. Build and deploy SC Planner MFE to S3
@@ -86,10 +87,13 @@ make demo-create-users DEMO_ENV=demo
 
 | Change | Command |
 |--------|---------|
-| Service code | `make demo-push-services` then `make demo-cdk-deploy` |
+| Service code | `make demo-deploy-services` (build + push + force ECS redeploy) |
 | Single service (e.g. re) | `docker buildx build … && docker push … && aws ecs update-service …` |
+| Flyway image | `make demo-push-flyway` |
 | MFE code | `make demo-deploy-mfe` |
 | DB migration | `make demo-migrate` |
+| Reset DB between runs | `make demo-reset-db` |
+| Rebuild + redeploy services | `make demo-deploy-services` |
 | CDK infra only | `make demo-cdk-deploy` |
 
 ---

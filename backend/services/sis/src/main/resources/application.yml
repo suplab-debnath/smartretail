@@ -4,12 +4,14 @@ spring:
   profiles:
     group:
       dev: [aws]
+      demo: [aws]
   datasource:
     url: jdbc:postgresql://${RDS_PROXY_ENDPOINT:localhost}:5432/smartretail?currentSchema=${DB_SCHEMA:sales}
     username: ${DB_USERNAME:smartretail_admin}
+    password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      maximum-pool-size: 5
+      minimum-idle: 1
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000

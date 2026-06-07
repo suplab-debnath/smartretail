@@ -235,7 +235,7 @@ export class ComputeStack extends cdk.Stack {
       memoryLimitMiB: 512,
       executionRole: ecsExecutionRole,
       runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64,
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
     });
