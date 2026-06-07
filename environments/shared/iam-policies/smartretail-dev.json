@@ -304,7 +304,11 @@
       "Sid": "IamPassRoleToEcs",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::491085389857:role/*",
+      "Resource": [
+        "arn:aws:iam::491085389857:role/Min*",
+        "arn:aws:iam::491085389857:role/Dev*",
+        "arn:aws:iam::491085389857:role/Prod*"
+      ],
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "ecs-tasks.amazonaws.com"
