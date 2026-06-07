@@ -34,7 +34,7 @@ demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service 
 	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$svc-$(DEMO_ENV):latest; \
 	done
 
-demo-push-flyway: aws-ecr-login docker-build-flyway-arm64 ## Build arm64 Flyway image and push to demo ECR
+demo-push-flyway: aws-ecr-login docker-build-flyway-amd64 ## Build amd64 Flyway image and push to demo ECR
 	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
 	docker tag smartretail-flyway:local \
 	    $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-flyway-$(DEMO_ENV):latest; \
