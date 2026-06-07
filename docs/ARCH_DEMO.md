@@ -7,21 +7,21 @@
 
 ## 1. Environment Summary
 
-| Property              | Value                                                                 |
-|-----------------------|-----------------------------------------------------------------------|
-| Environment name      | `demo`                                                                |
-| Spring profile        | `demo`                                                                |
+| Property              | Value                                                                                     |
+|-----------------------|-------------------------------------------------------------------------------------------|
+| Environment name      | `demo`                                                                                    |
+| Spring profile        | `demo`                                                                                    |
 | CDK stacks            | `Min-Network` · `Min-Data` · `Min-Messaging` · `Min-Compute` · `Min-Identity` · `Min-Api` |
-| CPU architecture      | ARM64 (Graviton)                                                      |
-| VPC type              | Default account VPC (looked up by CDK, not created)                   |
-| Subnet tier           | Public only (no private subnets in default VPC)                      |
-| RDS proxy             | None — ECS tasks connect directly to the RDS instance                |
-| SIS / Firehose        | Absent — sales data pre-seeded via Flyway V7–V9                      |
-| MFEs deployed         | SC Planner only (:5174)                                              |
-| ECS task min / max    | 1 / 2 (CPU scaling at 70%)                                          |
-| ECS task size         | 256 CPU units · 512 MiB                                             |
-| Log retention         | 2 weeks                                                              |
-| Removal policy        | DESTROY (all resources)                                              |
+| CPU architecture      | ARM64 (Graviton)                                                                          |
+| VPC type              | Default account VPC (looked up by CDK, not created)                                       |
+| Subnet tier           | Public only (no private subnets in default VPC)                                           |
+| RDS proxy             | None — ECS tasks connect directly to the RDS instance                                     |
+| SIS / Firehose        | Absent — sales data pre-seeded via Flyway V7–V9                                           |
+| MFEs deployed         | SC Planner only (:5174)                                                                   |
+| ECS task min / max    | 1 / 2 (CPU scaling at 70%)                                                                |
+| ECS task size         | 256 CPU units · 512 MiB                                                                   |
+| Log retention         | 2 weeks                                                                                   |
+| Removal policy        | DESTROY (all resources)                                                                   |
 
 ---
 
@@ -30,10 +30,10 @@
 ```
                               INTERNET
                                  │
-           ┌─────────────────────┤──────────────────────────────────────┐
-           │                     │                                      │
+           ┌─────────────────────┤─────────────────────────────────────┐
+           │                     │                                     │
   ┌────────▼────────┐   ┌────────▼──────────────────────────────────┐  │
-  │  Amazon Cognito │   │              Amazon CloudFront             │  │
+  │  Amazon Cognito │   │              Amazon CloudFront            │  │
   │  Internal Pool  │   │         (HTTPS → MFE distribution)        │  │
   │                 │   └───────────────────┬───────────────────────┘  │
   │  Groups:        │                       │                          │
@@ -42,9 +42,9 @@
   │  • EXECUTIVE    │   │  smartretail-mfe-demo-sc-planner-{acct}   │  │
   │  • ADMIN        │   │  (static React MFE bundle)                │  │
   └────────┬────────┘   └───────────────────────────────────────────┘  │
-           │ JWT Bearer token                                           │
+           │ JWT Bearer token                                          │
   ┌────────▼────────────────────────────────────────────────────────┐  │
-  │                Amazon API Gateway (Regional REST API)            │  │
+  │                Amazon API Gateway (Regional REST API)           │  │
   │             smartretail-api-demo  │  stage: internal            │  │
   │                                                                 │  │
   │  /v1/dashboard/{proxy+}      ANY → ARS  :8083  via VPC Link     │  │
@@ -56,24 +56,24 @@
   │  CORS: all origins (*)  │  4xx/5xx gateway responses CORS-safe  │  │
   └────────┬────────────────────────────────────────────────────────┘  │
            │ VPC Link: smartretail-vpclink-demo (backed by NLB)        │
-           │                                                            │
-┌──────────▼────────────────────────────────────────────────────────────▼──┐
+           │                                                           │
+┌──────────▼───────────────────────────────────────────────────────────▼────┐
 │  DEFAULT VPC  (172.31.0.0/16 — account default; CIDR varies per account)  │
-│                                                                            │
+│                                                                           │
 │  ┌──────────────────── PUBLIC SUBNETS (all AZs) ────────────────────────┐ │
-│  │                                                                       │ │
+│  │                                                                      │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐ │ │
 │  │  │  NLB: smartretail-nlb-demo   (internal, not internet-facing)    │ │ │
 │  │  │  Protocol: TCP  │  Subnets: public                              │ │ │
 │  │  │                                                                 │ │ │
 │  │  │  Listeners → Target Groups (health: HTTP /actuator/health):     │ │ │
-│  │  │    :8081 TCP → imsContainer   (interval 30s, 2 healthy / 3 ×)  │ │ │
+│  │  │    :8081 TCP → imsContainer   (interval 30s, 2 healthy / 3 ×)   │ │ │
 │  │  │    :8082 TCP → reContainer    (deregistration delay: 30s)       │ │ │
 │  │  │    :8083 TCP → arsContainer                                     │ │ │
 │  │  │    :8084 TCP → dfsContainer                                     │ │ │
 │  │  │    :8085 TCP → supContainer                                     │ │ │
 │  │  └───────────────────────────────┬─────────────────────────────────┘ │ │
-│  │                                  │                                    │ │
+│  │                                  │                                   │ │
 │  │  ┌───────────────────────────────▼─────────────────────────────────┐ │ │
 │  │  │  ECS Cluster: smartretail-demo                                  │ │ │
 │  │  │  Launch type: Fargate  │  Arch: ARM64  │  Container Insights V2 │ │ │
@@ -82,39 +82,39 @@
 │  │  │  Security Group: sgEcsTasks                                     │ │ │
 │  │  │    Ingress: TCP 8080–8086  from VPC CIDR                        │ │ │
 │  │  │    Ingress: all TCP        from sgEcsTasks (svc-to-svc)         │ │ │
-│  │  │    Egress:  all (0.0.0.0/0 — ECR, SQS, EventBridge, Secrets)   │ │ │
+│  │  │    Egress:  all (0.0.0.0/0 — ECR, SQS, EventBridge, Secrets)    │ │ │
 │  │  │                                                                 │ │ │
-│  │  │  ┌───────────────────────────────────────────────────────────┐ │ │ │
-│  │  │  │  Persistent Services                                      │ │ │ │
-│  │  │  │  desired=1 · max=2 · scale on CPU>70% · circuit breaker   │ │ │ │
-│  │  │  │  assignPublicIp=true · profile=demo                       │ │ │ │
-│  │  │  │                                                           │ │ │ │
-│  │  │  │  IMS  :8081   inventory schema                            │ │ │ │
-│  │  │  │  RE   :8082   replenishment schema                        │ │ │ │
-│  │  │  │  ARS  :8083   multi-schema (no cross-schema JOINs)        │ │ │ │
-│  │  │  │  DFS  :8084   forecasting schema                          │ │ │ │
-│  │  │  │  SUP  :8085   supplier schema                             │ │ │ │
-│  │  │  │                                                           │ │ │ │
-│  │  │  │  Env vars (all services):                                 │ │ │ │
-│  │  │  │    SMARTRETAIL_ENV=demo  AWS_REGION=us-east-1             │ │ │ │
-│  │  │  │    RDS_PROXY_ENDPOINT=<rds-instance-hostname>             │ │ │ │
-│  │  │  │    DB_PASSWORD injected from Secrets Manager at start     │ │ │ │
-│  │  │  │    COGNITO_ISSUER_URI=https://cognito-idp.{region}.        │ │ │ │
-│  │  │  │                        amazonaws.com/{poolId}             │ │ │ │
-│  │  │  └───────────────────────────────────────────────────────────┘ │ │ │
+│  │  │  ┌───────────────────────────────────────────────────────────┐  │ │ │
+│  │  │  │  Persistent Services                                      │  │ │ │
+│  │  │  │  desired=1 · max=2 · scale on CPU>70% · circuit breaker   │  │ │ │
+│  │  │  │  assignPublicIp=true · profile=demo                       │  │ │ │
+│  │  │  │                                                           │  │ │ │
+│  │  │  │  IMS  :8081   inventory schema                            │  │ │ │
+│  │  │  │  RE   :8082   replenishment schema                        │  │ │ │
+│  │  │  │  ARS  :8083   multi-schema (no cross-schema JOINs)        │  │ │ │
+│  │  │  │  DFS  :8084   forecasting schema                          │  │ │ │
+│  │  │  │  SUP  :8085   supplier schema                             │  │ │ │
+│  │  │  │                                                           │  │ │ │
+│  │  │  │  Env vars (all services):                                 │  │ │ │
+│  │  │  │    SMARTRETAIL_ENV=demo  AWS_REGION=us-east-1             │  │ │ │
+│  │  │  │    RDS_PROXY_ENDPOINT=<rds-instance-hostname>             │  │ │ │
+│  │  │  │    DB_PASSWORD injected from Secrets Manager at start     │  │ │ │
+│  │  │  │    COGNITO_ISSUER_URI=https://cognito-idp.{region}.       │  │ │ │
+│  │  │  │                        amazonaws.com/{poolId}             │  │ │ │
+│  │  │  └───────────────────────────────────────────────────────────┘  │ │ │
 │  │  │                                                                 │ │ │
-│  │  │  ┌───────────────────────────────────────────────────────────┐ │ │ │
-│  │  │  │  Flyway Migration Task (run-task only — not a service)    │ │ │ │
-│  │  │  │  Family: smartretail-flyway-demo                          │ │ │ │
-│  │  │  │  256 CPU · 512 MiB · ARM64 · assignPublicIp=true          │ │ │ │
-│  │  │  │  Image: flyway/flyway:10-alpine + SQL files               │ │ │ │
-│  │  │  │  FLYWAY_SCHEMAS: public,sales,forecasting,inventory,      │ │ │ │
-│  │  │  │                  replenishment,supplier,promotions        │ │ │ │
-│  │  │  │  FLYWAY_PASSWORD injected from Secrets Manager            │ │ │ │
-│  │  │  │  Logs: /smartretail/flyway/demo                           │ │ │ │
-│  │  │  └───────────────────────────────────────────────────────────┘ │ │ │
+│  │  │  ┌───────────────────────────────────────────────────────────┐  │ │ │
+│  │  │  │  Flyway Migration Task (run-task only — not a service)    │  │ │ │
+│  │  │  │  Family: smartretail-flyway-demo                          │  │ │ │
+│  │  │  │  256 CPU · 512 MiB · ARM64 · assignPublicIp=true          │  │ │ │
+│  │  │  │  Image: flyway/flyway:10-alpine + SQL files               │  │ │ │
+│  │  │  │  FLYWAY_SCHEMAS: public,sales,forecasting,inventory,      │  │ │ │
+│  │  │  │                  replenishment,supplier,promotions        │  │ │ │
+│  │  │  │  FLYWAY_PASSWORD injected from Secrets Manager            │  │ │ │
+│  │  │  │  Logs: /smartretail/flyway/demo                           │  │ │ │
+│  │  │  └───────────────────────────────────────────────────────────┘  │ │ │
 │  │  └───────────────────────────────┬─────────────────────────────────┘ │ │
-│  │                                  │ TCP :5432                          │ │
+│  │                                  │ TCP :5432                         │ │
 │  │  ┌───────────────────────────────▼─────────────────────────────────┐ │ │
 │  │  │  RDS: smartretail-rds-demo                                      │ │ │
 │  │  │  Engine: PostgreSQL 16.13  │  Instance: t4g.micro               │ │ │
@@ -123,15 +123,15 @@
 │  │  │  DB name: smartretail  │  Admin: smartretail_admin              │ │ │
 │  │  │  Schemas: public · sales · forecasting · inventory ·            │ │ │
 │  │  │           replenishment · supplier · promotions                 │ │ │
-│  │  │  CW Logs: postgresql → /aws/rds/instance/…  (2 wks)            │ │ │
-│  │  │  Secret: smartretail-rds-secret-demo (Secrets Manager)         │ │ │
+│  │  │  CW Logs: postgresql → /aws/rds/instance/…  (2 wks)             │ │ │
+│  │  │  Secret: smartretail-rds-secret-demo (Secrets Manager)          │ │ │
 │  │  │                                                                 │ │ │
 │  │  │  Security Group: sgRds                                          │ │ │
 │  │  │    Ingress: TCP 5432  from sgEcsTasks only                      │ │ │
 │  │  │    Egress:  none                                                │ │ │
 │  │  └─────────────────────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────────────────┘
+│  └──────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
