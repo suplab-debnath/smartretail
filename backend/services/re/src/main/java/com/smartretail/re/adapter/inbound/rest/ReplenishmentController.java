@@ -70,13 +70,15 @@ public class ReplenishmentController implements ReplenishmentOrdersApi {
             WorkflowStatus status, String dcId, String skuId, Integer page, Integer size) {
 
         String statusName = status != null ? status.getValue() : null;
-        var orders = repo.findOrders(statusName, dcId, skuId, page, size);
+        int p = page != null ? page : 0;
+        int s = size != null ? size : 20;
+        var orders = repo.findOrders(statusName, dcId, skuId, p, s);
         long total = repo.countOrders(statusName, dcId, skuId);
 
         PurchaseOrderPage response = new PurchaseOrderPage();
         response.setOrders(orders.stream().map(mapper::toApiModel).toList());
-        response.setPage(page);
-        response.setSize(size);
+        response.setPage(p);
+        response.setSize(s);
         response.setTotalElements(total);
         return ResponseEntity.ok(response);
     }

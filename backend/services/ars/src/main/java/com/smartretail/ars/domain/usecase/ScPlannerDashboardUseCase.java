@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class ScPlannerDashboardUseCase implements ScPlannerDashboardPort {
@@ -34,21 +33,10 @@ public class ScPlannerDashboardUseCase implements ScPlannerDashboardPort {
 
     @Override
     public ScPlannerDashboard assemble() {
-        // Parallel reads — no cross-schema SQL joins (Architecture rule #1)
-        CompletableFuture<Integer> pendingFuture =
-                CompletableFuture.supplyAsync(replenishmentReadPort::countPendingApprovals);
-
-        CompletableFuture<Integer> alertFuture =
-                CompletableFuture.supplyAsync(inventoryReadPort::countActiveAlerts);
-
-        CompletableFuture<LatestMape> mapeFuture =
-                CompletableFuture.supplyAsync(forecastReadPort::findLatestMape);
-
-        CompletableFuture.allOf(pendingFuture, alertFuture, mapeFuture).join();
-
-        int pendingCount  = pendingFuture.join();
-        int alertCount    = alertFuture.join();
-        LatestMape latest = mapeFuture.join();
+        // Sequential reads — free-tier RDS has limited connections; one connection reused per request
+        int pendingCount  = replenishmentReadPort.countPendingApprovals();
+        int alertCount    = inventoryReadPort.countActiveAlerts();
+        LatestMape latest = forecastReadPort.findLatestMape();
 
         MapeStatus status = latest.mape().compareTo(MAPE_THRESHOLD) > 0
                 ? MapeStatus.ABOVE_THRESHOLD

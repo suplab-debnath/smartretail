@@ -24,13 +24,14 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Demo mode: CORS enabled, all requests permitted — no JWT required. */
+    /** Demo mode: CORS + JWT parsed so ReplenishmentController.extractRoles() can read cognito:groups. */
     @Bean
     @Profile("demo")
     public SecurityFilterChain demoSecurity(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
         return http.build();
     }
 

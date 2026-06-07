@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
@@ -46,44 +45,18 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
 
     @Override
     public ExecutiveDashboard assemble() {
-        // Parallel reads — no cross-schema SQL joins (Architecture rule #1)
-        CompletableFuture<List<MapeDataPoint>> forecastFuture =
-                CompletableFuture.supplyAsync(() -> forecastReadPort.findRecentMapeHistory(HISTORY_LIMIT));
-
-        CompletableFuture<int[]> stockoutFuture =
-                CompletableFuture.supplyAsync(() -> new int[]{
-                        inventoryReadPort.countCriticalAlerts(30),
-                        inventoryReadPort.countCriticalAlerts(60)
-                });
-
-        CompletableFuture<Optional<BigDecimal>> cycleTimeFuture =
-                CompletableFuture.supplyAsync(() -> replenishmentReadPort.averageCycleTimeDays(90));
-
-        CompletableFuture<List<StockoutDataPoint>> stockoutHistoryFuture =
-                CompletableFuture.supplyAsync(() -> inventoryReadPort.findDailyCriticalAlertHistory(30));
-
-        CompletableFuture<List<CycleTimeDataPoint>> cycleHistoryFuture =
-                CompletableFuture.supplyAsync(() -> replenishmentReadPort.findWeeklyCycleTimeHistory(90));
-
-        CompletableFuture<List<SupplierDeliveryStats>> supplierStatsFuture =
-                CompletableFuture.supplyAsync(() -> supplierReadPort.findDeliveryStats());
-
-        CompletableFuture<Map<UUID, int[]>> fillRateFuture =
-                CompletableFuture.supplyAsync(() -> replenishmentReadPort.fillRateBySupplier(90));
-
-        CompletableFuture.allOf(forecastFuture, stockoutFuture, cycleTimeFuture,
-                stockoutHistoryFuture, cycleHistoryFuture, supplierStatsFuture, fillRateFuture).join();
-
-        List<MapeDataPoint> history = forecastFuture.join();
-        int[] stockoutCounts = stockoutFuture.join();
-        Optional<BigDecimal> cycleTime = cycleTimeFuture.join();
-        List<StockoutDataPoint> stockoutHistory = stockoutHistoryFuture.join();
-        List<CycleTimeDataPoint> cycleHistory = cycleHistoryFuture.join();
-        List<SupplierDeliveryStats> deliveryStats = supplierStatsFuture.join();
-        Map<UUID, int[]> fillRates = fillRateFuture.join();
-
-        // Supplier names fetched synchronously — cheap single-table read
-        Map<UUID, String> supplierNames = supplierReadPort.findActiveSupplierNames();
+        // Sequential reads — free-tier RDS has limited connections; one connection reused per request
+        List<MapeDataPoint>         history        = forecastReadPort.findRecentMapeHistory(HISTORY_LIMIT);
+        int[]                       stockoutCounts = new int[]{
+                inventoryReadPort.countCriticalAlerts(30),
+                inventoryReadPort.countCriticalAlerts(60)
+        };
+        Optional<BigDecimal>        cycleTime      = replenishmentReadPort.averageCycleTimeDays(90);
+        List<StockoutDataPoint>     stockoutHistory = inventoryReadPort.findDailyCriticalAlertHistory(30);
+        List<CycleTimeDataPoint>    cycleHistory    = replenishmentReadPort.findWeeklyCycleTimeHistory(90);
+        List<SupplierDeliveryStats> deliveryStats   = supplierReadPort.findDeliveryStats();
+        Map<UUID, int[]>            fillRates       = replenishmentReadPort.fillRateBySupplier(90);
+        Map<UUID, String>           supplierNames   = supplierReadPort.findActiveSupplierNames();
 
         List<SupplierPerformanceEntry> suppliers = buildSupplierPerformance(supplierNames, deliveryStats, fillRates);
 

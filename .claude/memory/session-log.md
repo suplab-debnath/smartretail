@@ -1,3 +1,83 @@
+## 2026-06-07 10:44 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:41 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/resources/application.yml
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:31 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+ ?? environments/demo/scripts/run-flyway-direct-demo.sh
+```
+
+## 2026-06-07 10:27 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:14 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:14 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:12 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:12 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 10:10 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/config/SecurityConfig.java
+  M backend/services/re/src/main/java/com/smartretail/re/adapter/inbound/rest/ReplenishmentController.java
+  M backend/services/re/src/main/java/com/smartretail/re/config/SecurityConfig.java
+```
+
+## 2026-06-07 09:58 UTC
+```
+ (no git changes this session)
+```
+
 ## 2026-06-07 09:28 UTC
 ```
   M .claude/memory/session-log.md
