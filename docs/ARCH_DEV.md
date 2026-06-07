@@ -77,20 +77,20 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 ```
                                     INTERNET
                                        │
-            ┌──────────────────────────┤──────────────────────────────────────────────────┐
-            │                          │                                                  │
-   ┌────────▼─────────────────────┐    │ ┌─────────▼──────────────────────────────────┐   │
-   │  Amazon Cognito              │    │ │  Amazon CloudFront (HostingStack)           │   │
-   │  (IdentityStack)             │    │ │  HTTPS · *.smartretail.com · PriceClass 100 │   │
-   │                              │    │ │  Single distribution with 4 path behaviors  │   │
-   │  Internal Pool               │    │ │  (each behavior: OAC SigV4 + SPA rewrite fn)│   │
-   │  smartretail-internal-dev    │    │ │    /store-manager/* → store-manager S3      │   │
-   │  Groups:                     │    │ │    /sc-planner/*    → sc-planner S3         │   │
-   │    • STORE_MANAGER           │    │ │    /executive/*     → executive S3          │   │
-   │    • SC_PLANNER              │    │ │    /supplier/*      → supplier S3           │   │
-   │    • EXECUTIVE · ADMIN       │    │ │    /* (default)     → 302 /sc-planner/      │   │
-   │  Domain: smartretail-dev-    │    │ └───────────────────────┬────────────────────┘   │
-   │          internal            │    │          ┌─────────────┼──────────────┐          │
+            ┌──────────────────────────┤───────────────────────────────────────────────────────┐
+            │                          │                                                       │
+   ┌────────▼─────────────────────┐    │ ┌─────────▼───────────────────────────────────┐       │
+   │  Amazon Cognito              │    │ │  Amazon CloudFront (HostingStack)           │       │
+   │  (IdentityStack)             │    │ │  HTTPS · *.smartretail.com · PriceClass 100 │       │
+   │                              │    │ │  Single distribution with 4 path behaviors  │       │
+   │  Internal Pool               │    │ │  (each behavior: OAC SigV4 + SPA rewrite fn)│       │
+   │  smartretail-internal-dev    │    │ │    /store-manager/* → store-manager S3      │       │
+   │  Groups:                     │    │ │    /sc-planner/*    → sc-planner S3         │       │
+   │    • STORE_MANAGER           │    │ │    /executive/*     → executive S3          │       │
+   │    • SC_PLANNER              │    │ │    /supplier/*      → supplier S3           │       │
+   │    • EXECUTIVE · ADMIN       │    │ │    /* (default)     → 302 /sc-planner/      │       │
+   │  Domain: smartretail-dev-    │    │ └───────────────────────┬─────────────────────┘       │
+   │          internal            │    │          ┌─────────────┼─────────────┼─────────┐      │
    │                              │    │  ┌───────▼──┐ ┌────────▼─┐ ┌─────────▼┐ ┌──────▼───┐  │
    │  Supplier Pool               │    │  │    S3    │ │    S3    │ │    S3    │ │    S3    │  │
    │  smartretail-supplier-dev    │    │  │  store-  │ │   sc-    │ │executive │ │ supplier │  │
@@ -98,74 +98,74 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
    │  Domain: smartretail-dev-    │    │  │  -dev-   │ │  -dev-   │ │  {acct}  │ │  {acct}  │  │
    │          supplier            │    │  │  {acct}  │ │  {acct}  │ │          │ │          │  │
    │  OAuth: /supplier/callback   │    │  └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
-   └────────┬─────────────────────┘    │                                                        │
-            │ JWT Bearer token          │                                                        │
+   └────────┬─────────────────────┘    │                                                       │
+            │ JWT Bearer token         │                                                       │
    ┌────────▼──────────────────────────────────────────────────────────────────────────────┐   │
-   │                  Amazon API Gateway (Regional REST API)                                │   │
-   │              smartretail-api-dev  │  stage: internal                                 │   │
-   │                                                                                      │   │
-   │  Staff routes (VPC Link → NLB HTTP_PROXY):                                           │   │
-   │    /v1/dashboard/{proxy+}       → ARS  :8083                                         │   │
-   │    /v1/inventory/{proxy+}       → IMS  :8081                                         │   │
-   │    /v1/forecast/{proxy+}        → DFS  :8084                                         │   │
-   │    /v1/replenishment/{proxy+}   → RE   :8082                                         │   │
-   │    /v1/supplier/{proxy+}        → SUP  :8085                                         │   │
-   │    /v1/ingest/{proxy+}          → SIS  :8080  (Firehose delivery target)             │   │
-   │    /v1/promotions/{proxy+}      → PPS  :8086                                         │   │
-   │                                                                                      │   │
-   │  System route (EventBridge AWS direct integration, API key required):                │   │
-   │    POST /system/v1/events/promotions → EventBridge PutEvents                         │   │
-   │    Source: external.campaign-management │ DetailType: PromotionActivated             │   │
-   │    Rate: 50 rps burst 100 │ Quota: 10,000 req/day                                   │   │
-   │                                                                                      │   │
-   │  CORS: https://*.smartretail.com  │  4xx/5xx CORS-safe gateway responses             │   │
-   └───────────────┬──────────────────────────────────────────────────────────────────┬──┘   │
-                   │ VPC Link: smartretail-vpclink-dev                                 │      │
-                   │                                                                   │      │
-   ┌───────────────┴──── Kinesis Data Firehose ───────────────────────────────────────┘      │
-   │  Stream: smartretail-ingest-dev   Type: DirectPut                                        │
-   │  HTTP endpoint: {api-url}/v1/ingest/events                                               │
-   │  Auth: X-Access-Key (from Secrets Manager)                                               │
-   │  Buffering: 1 MiB / 60 s  │  Retry: 86400 s                                            │
-   │  S3 backup: AllData → smartretail-events-dev-{acct}/firehose/…                          │
-   │             Compression: GZIP  │  Buffering: 5 MiB / 60 s                              │
-   │  Role: FirehoseRole → S3 write on events bucket                                          │
-   └──────────────────────────────────────────────────────────────────────────────────────────┘
+   │                  Amazon API Gateway (Regional REST API)                               │   │
+   │              smartretail-api-dev  │  stage: internal                                  │   │
+   │                                                                                       │   │
+   │  Staff routes (VPC Link → NLB HTTP_PROXY):                                            │   │
+   │    /v1/dashboard/{proxy+}       → ARS  :8083                                          │   │
+   │    /v1/inventory/{proxy+}       → IMS  :8081                                          │   │
+   │    /v1/forecast/{proxy+}        → DFS  :8084                                          │   │
+   │    /v1/replenishment/{proxy+}   → RE   :8082                                          │   │
+   │    /v1/supplier/{proxy+}        → SUP  :8085                                          │   │
+   │    /v1/ingest/{proxy+}          → SIS  :8080  (Firehose delivery target)              │   │
+   │    /v1/promotions/{proxy+}      → PPS  :8086                                          │   │
+   │                                                                                       │   │
+   │  System route (EventBridge AWS direct integration, API key required):                 │   │
+   │    POST /system/v1/events/promotions → EventBridge PutEvents                          │   │
+   │    Source: external.campaign-management │ DetailType: PromotionActivated              │   │
+   │    Rate: 50 rps burst 100 │ Quota: 10,000 req/day                                     │   │
+   │                                                                                       │   │
+   │  CORS: https://*.smartretail.com  │  4xx/5xx CORS-safe gateway responses              │   │
+   └───────────────┬────────────────────────────────────────────────────────────────────┬──┘   │
+                   │ VPC Link: smartretail-vpclink-dev                                  │      │
+                   │                                                                    │      │
+   ┌───────────────┴──── Kinesis Data Firehose ─────────────────────────────────────────┘      │
+   │  Stream: smartretail-ingest-dev   Type: DirectPut                                         │
+   │  HTTP endpoint: {api-url}/v1/ingest/events                                                │
+   │  Auth: X-Access-Key (from Secrets Manager)                                                │
+   │  Buffering: 1 MiB / 60 s  │  Retry: 86400 s                                               │
+   │  S3 backup: AllData → smartretail-events-dev-{acct}/firehose/…                            │
+   │             Compression: GZIP  │  Buffering: 5 MiB / 60 s                                 │
+   │  Role: FirehoseRole → S3 write on events bucket                                           │
+   └───────────────────────────────────────────────────────────────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────────────────────────────────────────────┐
 │  VPC: 10.0.0.0/16                                                                           │
 │                                                                                             │
-│  ┌──────────────── PUBLIC SUBNETS (2 AZs) ─────────────────────────────────────────────┐   │
+│  ┌──────────────── PUBLIC SUBNETS (2 AZs) ──────────────────────────────────────────────┐   │
 │  │  NAT Gateway (AZ-a only — shared by both PrivateApp subnets)   Internet Gateway      │   │
 │  └──────────────────────────────────────────────────────────────────────────────────────┘   │
 │                                                                                             │
-│  ┌──────────── PRIVATEAPP SUBNETS (2 AZs, egress via single NAT) ─────────────────────┐    │
+│  ┌──────────── PRIVATEAPP SUBNETS (2 AZs, egress via single NAT) ──────────────────────┐    │
 │  │                                                                                     │    │
-│  │  ┌─────────────────────────────────────────────────────────────────────────────┐   │    │
-│  │  │  NLB: smartretail-nlb-dev  (internal, PrivateApp subnets)                   │   │    │
-│  │  │  Listeners → Target Groups (health: HTTP /actuator/health, 30 s):           │   │    │
-│  │  │    :8080 → sisContainer   :8081 → imsContainer   :8082 → reContainer        │   │    │
-│  │  │    :8083 → arsContainer   :8084 → dfsContainer   :8085 → supContainer       │   │    │
-│  │  │    :8086 → ppsContainer   (deregistration delay: 30 s)                      │   │    │
-│  │  └──────────────────────────────┬──────────────────────────────────────────────┘   │    │
-│  │                                 │                                                  │    │
-│  │  ┌──────────────────────────────▼──────────────────────────────────────────────┐   │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────────────┐    │    │
+│  │  │  NLB: smartretail-nlb-dev  (internal, PrivateApp subnets)                   │    │    │
+│  │  │  Listeners → Target Groups (health: HTTP /actuator/health, 30 s):           │    │    │
+│  │  │    :8080 → sisContainer   :8081 → imsContainer   :8082 → reContainer        │    │    │
+│  │  │    :8083 → arsContainer   :8084 → dfsContainer   :8085 → supContainer       │    │    │
+│  │  │    :8086 → ppsContainer   (deregistration delay: 30 s)                      │    │    │
+│  │  └──────────────────────────────┬──────────────────────────────────────────────┘    │    │
+│  │                                 │                                                   │    │
+│  │  ┌──────────────────────────────▼───────────────────────────────────────────────┐   │    │
 │  │  │  ECS Cluster: smartretail-dev                                                │   │    │
-│  │  │  Launch type: Fargate  │  Arch: x86_64  │  Container Insights V2            │   │    │
-│  │  │  Capacity: FARGATE_SPOT (weight 4) + FARGATE (weight 1)                     │   │    │
+│  │  │  Launch type: Fargate  │  Arch: x86_64  │  Container Insights V2             │   │    │
+│  │  │  Capacity: FARGATE_SPOT (weight 4) + FARGATE (weight 1)                      │   │    │
 │  │  │  CloudMap namespace: smartretail.local                                       │   │    │
 │  │  │                                                                              │   │    │
 │  │  │  Security Group: sgEcsTasks                                                  │   │    │
-│  │  │    Ingress: TCP 8080–8086  from VPC CIDR (10.0.0.0/16)                      │   │    │
+│  │  │    Ingress: TCP 8080–8086  from VPC CIDR (10.0.0.0/16)                       │   │    │
 │  │  │    Ingress: all TCP        from sgEcsTasks (svc-to-svc)                      │   │    │
-│  │  │    Egress:  all (0.0.0.0/0 — routed via NAT or VPC endpoints)               │   │    │
+│  │  │    Egress:  all (0.0.0.0/0 — routed via NAT or VPC endpoints)                │   │    │
 │  │  │                                                                              │   │    │
 │  │  │  ┌────────────────────────────────────────────────────────────────────────┐  │   │    │
 │  │  │  │  Persistent Services                                                   │  │   │    │
 │  │  │  │  desired=1 · max=3 · scale on CPU>70% · circuit breaker+rollback       │  │   │    │
 │  │  │  │  256 CPU · 512 MiB · assignPublicIp=false · profile=aws                │  │   │    │
 │  │  │  │                                                                        │  │   │    │
-│  │  │  │  SIS  :8080   sales schema        (+ Firehose access key secret)      │  │   │    │
+│  │  │  │  SIS  :8080   sales schema        (+ Firehose access key secret)       │  │   │    │
 │  │  │  │  IMS  :8081   inventory schema                                         │  │   │    │
 │  │  │  │  RE   :8082   replenishment schema                                     │  │   │    │
 │  │  │  │  ARS  :8083   multi-schema reads (no cross-schema JOINs)               │  │   │    │
@@ -182,66 +182,65 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 │  │  │  ┌────────────────────────────────────────────────────────────────────────┐  │   │    │
 │  │  │  │  Flyway Migration Task (run-task only — not a service)                 │  │   │    │
 │  │  │  │  Family: smartretail-flyway-dev                                        │  │   │    │
-│  │  │  │  256 CPU · 512 MiB · x86_64 · assignPublicIp=false                    │  │   │    │
+│  │  │  │  256 CPU · 512 MiB · x86_64 · assignPublicIp=false                     │  │   │    │
 │  │  │  │  FLYWAY_URL → RDS Proxy :5432                                          │  │   │    │
 │  │  │  │  FLYWAY_PASSWORD injected from Secrets Manager (execution role)        │  │   │    │
-│  │  │  │  Logs: /smartretail/flyway/dev (1 month, DESTROY)                     │  │   │    │
+│  │  │  │  Logs: /smartretail/flyway/dev (1 month, DESTROY)                      │  │   │    │
 │  │  │  └────────────────────────────────────────────────────────────────────────┘  │   │    │
-│  │  └──────────────────────────────┬──────────────────────────────────────────────┘   │    │
-│  │                                 │                                                  │    │
-│  │  ┌──────────────────────────────▼──────────────────────────────────────────────┐   │    │
-│  │  │  Lambda: smartretail-batch-post-processor-dev                               │   │    │
-│  │  │  Trigger: S3 ObjectCreated on smartretail-sagemaker-dev-{acct}             │   │    │
-│  │  │           (prefix: sagemaker/output/, suffix: .csv)                        │   │    │
-│  │  │  Timeout: 180 s  │  Memory: 512 MiB  │  x86_64                            │   │    │
-│  │  │  VPC: PrivateApp subnets  │  SG: sgBatchProcessor (egress all)             │   │    │
-│  │  │  Calls: http://smartretail-dfs-dev.smartretail.local:8084 (CloudMap)       │   │    │
-│  │  │  Role: S3 GetObject on sagemaker bucket (sagemaker/output/*)               │   │    │
-│  │  └─────────────────────────────────────────────────────────────────────────────┘   │    │
+│  │  └──────────────────────────────┬───────────────────────────────────────────────┘   │    │
+│  │                                 │                                                   │    │
+│  │  ┌──────────────────────────────▼──────────────────────────────────────────────┐    │    │
+│  │  │  Lambda: smartretail-batch-post-processor-dev                               │    │    │
+│  │  │  Trigger: S3 ObjectCreated on smartretail-sagemaker-dev-{acct}              │    │    │
+│  │  │           (prefix: sagemaker/output/, suffix: .csv)                         │    │    │
+│  │  │  Timeout: 180 s  │  Memory: 512 MiB  │  x86_64                              │    │    │
+│  │  │  VPC: PrivateApp subnets  │  SG: sgBatchProcessor (egress all)              │    │    │
+│  │  │  Calls: http://smartretail-dfs-dev.smartretail.local:8084 (CloudMap)        │    │    │
+│  │  │  Role: S3 GetObject on sagemaker bucket (sagemaker/output/*)                │    │    │
+│  │  └─────────────────────────────────────────────────────────────────────────────┘    │    │
 │  │                                                                                     │    │
-│  │  ┌─────────────────────────────────────────────────────────────────────────────┐   │    │
-│  │  │  Lambda: smartretail-ml-trigger-dev                                         │   │    │
-│  │  │  Trigger: EventBridge schedule  cron(0 2 * * ? *)  daily 02:00 UTC         │   │    │
-│  │  │  Timeout: 300 s  │  Memory: 512 MiB  │  x86_64                             │   │    │
-│  │  │  VPC: PrivateApp subnets  │  SG: sgMlTrigger (egress all)                  │   │    │
-│  │  │  Calls: sagemaker:StartPipelineExecution on smartretail-demand-forecast-dev │   │    │
-│  │  │  Role: S3 read (events bucket), S3 write (sagemaker bucket),               │   │    │
-│  │  │        sagemaker:StartPipelineExecution                                     │   │    │
-│  │  └─────────────────────────────────────────────────────────────────────────────┘   │    │
+│  │  ┌─────────────────────────────────────────────────────────────────────────────┐    │    │
+│  │  │  Lambda: smartretail-ml-trigger-dev                                         │    │    │
+│  │  │  Trigger: EventBridge schedule  cron(0 2 * * ? *)  daily 02:00 UTC          │    │    │
+│  │  │  Timeout: 300 s  │  Memory: 512 MiB  │  x86_64                              │    │    │
+│  │  │  VPC: PrivateApp subnets  │  SG: sgMlTrigger (egress all)                   │    │    │
+│  │  │  Calls: sagemaker:StartPipelineExecution on smartretail-demand-forecast-dev │    │    │
+│  │  │  Role: S3 read (events bucket), S3 write (sagemaker bucket),                │    │    │
+│  │  │        sagemaker:StartPipelineExecution                                     │    │    │
+│  │  └─────────────────────────────────────────────────────────────────────────────┘    │    │
 │  │                                                                                     │    │
-│  │  VPC Interface Endpoints (sgVpcEndpoints: ingress 443 from VPC CIDR):             │    │
-│  │    ecr.api · ecr.dkr · sqs · events · logs · secretsmanager                      │    │
+│  │  VPC Interface Endpoints (sgVpcEndpoints: ingress 443 from VPC CIDR):               │    │
+│  │    ecr.api · ecr.dkr · sqs · events · logs · secretsmanager                         │    │
 │  └─────────────────────────────────────────────────────────────────────────────────────┘    │
 │                                                                                             │
-│  ┌─────────────── ISOLATED SUBNETS (2 AZs, no internet route) ───────────────────────┐     │
-│  │                                                                                    │     │
-│  │  ┌──────────────────────────────────────────────────────────────────────────────┐ │     │
-│  │  │  RDS Proxy: smartretail-rds-proxy-dev                                        │ │     │
-│  │  │  Subnets: isolated  │  TLS: not required  │  IAM auth: disabled              │ │     │
-│  │  │  Secrets: RDS credentials (Secrets Manager)                                  │ │     │
-│  │  │                                                                              │ │     │
-│  │  │  Security Group: sgRdsProxy                                                  │ │     │
-│  │  │    Ingress: TCP 5432  from sgEcsTasks                                        │ │     │
-│  │  │    Egress:  all                                                              │ │     │
-│  │  └──────────────────────────────┬───────────────────────────────────────────────┘ │     │
-│  │                                 │ TCP :5432                                       │     │
-│  │  ┌──────────────────────────────▼───────────────────────────────────────────────┐ │     │
-│  │  │  RDS: smartretail-rds-dev                                                    │ │     │
-│  │  │  Engine: PostgreSQL 16.13  │  Instance: t4g.small                           │ │     │
-│  │  │  Storage: 20 GiB GP2  │  Single-AZ (dev sizing — no standby)               │ │     │
-│  │  │  Backup: 1 day  │  Performance Insights: disabled                           │ │     │
-│  │  │  Deletion protection: off  │  Removal policy: DESTROY                       │ │     │
-│  │  │  DB name: smartretail  │  Admin: smartretail_admin                          │ │     │
-│  │  │  Schemas: public · sales · forecasting · inventory ·                        │ │     │
-│  │  │           replenishment · supplier · promotions                              │ │     │
-│  │  │  CW Logs: postgresql → /aws/rds/…  (1 month)                               │ │     │
-│  │  │  Secret: auto-generated (Secrets Manager)                                   │ │     │
-│  │  │                                                                              │ │     │
-│  │  │  Security Group: sgRds                                                       │ │     │
-│  │  │    Ingress: TCP 5432  from sgRdsProxy only                                   │ │     │
-│  │  │    Egress:  none                                                             │ │     │
-│  │  └──────────────────────────────────────────────────────────────────────────────┘ │     │
-│  └────────────────────────────────────────────────────────────────────────────────────┘     │
+│  ┌─────────────── ISOLATED SUBNETS (2 AZs, no internet route) ───────────────────────┐      │
+│  │                                                                                   │      │
+│  │  ┌──────────────────────────────────────────────────────────────────────────────┐ │      │
+│  │  │  RDS Proxy: smartretail-rds-proxy-dev                                        │ │      │
+│  │  │  Subnets: isolated  │  TLS: not required  │  IAM auth: disabled              │ │      │
+│  │  │  Secrets: RDS credentials (Secrets Manager)                                  │ │      │
+│  │  │                                                                              │ │      │
+│  │  │  Security Group: sgRdsProxy                                                  │ │      │
+│  │  │    Ingress: TCP 5432  from sgEcsTasks                                        │ │      │
+│  │  │    Egress:  all                                                              │ │      │
+│  │  └──────────────────────────────┬───────────────────────────────────────────────┘ │      │
+│  │                                 │ TCP :5432                                       │      │
+│  │  ┌──────────────────────────────▼───────────────────────────────────────────────┐ │      │
+│  │  │  RDS: smartretail-rds-dev                                                    │ │      │
+│  │  │  Engine: PostgreSQL 16.13  │  Instance: t4g.small                            │ │      │
+│  │  │  Storage: 20 GiB GP2  │  Single-AZ (dev sizing — no standby)                 │ │      │
+│  │  │  Backup: 1 day  │  Performance Insights: enabled                             │ │      │
+│  │  │  DB name: smartretail  │  Admin: smartretail_admin                           │ │      │
+│  │  │  Schemas: public · sales · forecasting · inventory ·                         │ │      │
+│  │  │           replenishment · supplier · promotions                              │ │      │
+│  │  │  CW Logs: postgresql → /aws/rds/…  (1 month)                                 │ │      │
+│  │  │  Secret: auto-generated (Secrets Manager)                                    │ │      │
+│  │  │                                                                              │ │      │
+│  │  │  Security Group: sgRds                                                       │ │      │
+│  │  │    Ingress: TCP 5432  from sgRdsProxy only                                   │ │      │
+│  │  │    Egress:  none                                                             │ │      │
+│  │  └──────────────────────────────────────────────────────────────────────────────┘ │      │
+│  └───────────────────────────────────────────────────────────────────────────────────┘      │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
