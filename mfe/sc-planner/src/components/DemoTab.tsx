@@ -23,7 +23,7 @@ const PIPELINE_STEPS = [
   { label: 'Checkout confirmed', hint: 'Store till transaction received and validated' },
   { label: 'Warehouse stock updated', hint: 'DC inventory level automatically decremented' },
   { label: 'Low-stock alert sent', hint: 'Stock fell below reorder threshold — alert published to event bus' },
-  { label: 'Reorder created', hint: 'Replenishment Engine raised a Purchase Order for your approval' },
+  { label: 'Reorder created', hint: 'Replenishment Engine raised a Purchase Order for an approval' },
 ]
 
 const DC_OPTIONS = [
@@ -220,16 +220,16 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
       {/* Scenario card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
         <h2 className="text-base font-semibold text-blue-900 mb-2">
-          Your bestseller just ran out at the warehouse — and nobody noticed
+          A bestseller just ran out at the warehouse — and nobody noticed
         </h2>
         <p className="text-sm text-blue-800 leading-relaxed">
-          It's a busy Friday afternoon. A customer at your London flagship just bought the last pack
+          It's a busy Friday afternoon. A customer at the London flagship just bought the last pack
           of Pringles in the DC-London warehouse. Without an automated system, that gap sits
           undetected until Monday — by then, weekend shoppers walk in, find empty shelves, and head
           straight to a competitor.
         </p>
         <p className="mt-2 text-sm text-blue-800 leading-relaxed">
-          This demo shows how your platform closes that loop in seconds. One checkout fires an
+          This demo shows how the platform closes that loop in seconds. One checkout fires an
           automatic stock check, raises a low-inventory alert, and creates a supplier reorder —
           all before a single customer is turned away.
         </p>
@@ -471,7 +471,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
               <p className="text-sm text-green-800 font-semibold mb-1">Order confirmed — supplier has been notified</p>
               <p className="text-sm text-green-700">
                 {foundPO.quantity.toLocaleString()} units of {SKU_NAMES[foundPO.skuId] ?? foundPO.skuId} are
-                now on order. Estimated arrival: 3–5 business days. Your store will have stock back on
+                now on order. Estimated arrival: 3–5 business days. The store will have stock back on
                 the shelves before this weekend's gap turns into lost sales.
               </p>
               <p className="text-xs text-green-600 mt-2">

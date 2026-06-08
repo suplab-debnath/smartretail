@@ -35,7 +35,51 @@ Build in order: Flow 1 → 2 → 3 → 4 → 8 → 9.
 Run `scripts/shared/publish-pos-event.py` with a test transaction payload.
 In LOCAL mode, the script POSTs directly to SIS (`http://localhost:8080/v1/ingest/events`) with a single-record body.
 In AWS mode, the script uses `aws firehose put-record` to send through the full Firehose → API Gateway → SIS path.
- 
+
+```
+POS Terminal
+    │
+    │  store LAN / batch
+    ▼
+[ Store-Edge Aggregator ]  (outside AWS — Greengrass or equiv.)
+    │
+    │  Firehose PutRecordBatch (HTTPS, IAM SigV4)
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  INGESTION                                                      │
+│                                                                 │
+│   ──────────────────────────────────────► Store-Edge Aggregator │  prod only
+│                                              │  IAM SigV4       │
+│                                              ▼                  │
+│                                      Amazon Data Firehose       │  prod only
+│                                       ├── S3 raw archive        │
+│                                       └── API GW HTTP endpoint  │
+│                                              │  VPC Link        │
+│   SIS (ECS)  ◄──────────────────────────────┘                  │  prod only
+│                                                                 │
+│   - - - - - - - - - - - - - - - - - - - - - - - - - - - - ->   │
+│   SIS accepts direct POST (no Firehose, no Lambda)             │  demo only
+│   [SIS not deployed in demo — data pre-seeded via V7 SQL]      │  demo only
+└─────────────────────────────────────────────────────────────────┘
+    │
+    │  (shared path from here)
+    ▼
+   SIS
+    ├═════► RDS — sales.sales_events (write)
+    │
+    └═════► SQS: smartretail-ims-sales-{env}
+                │
+                ▼
+              IMS (ECS)
+                ├═════► RDS — inventory.inventory_positions (update on_hand)
+                ├═════► RDS — inventory.stock_alerts (raise if ATP < reorder_point)
+                └═════► EventBridge: InventoryAlertEvent
+                              │
+                              ▼ (see Flow 2 fan-out)
+```
+
+**Idempotency (prod only):** SIS checks and writes SHA-256 of `transactionId` to `sales.idempotency_keys` (RDS) within the same transaction as the `sales_events` INSERT. Duplicate Firehose-delivered events are silently skipped and SIS returns 200 OK (Firehose interprets this as success).
+
 **Observable evidence — all must be true for Flow 1 to pass:**
  
 | # | Check | How to verify |
@@ -78,7 +122,36 @@ The dedup check is transactional — the second attempt will find the key in `id
 Flow 1 must have published an InventoryAlertEvent to the RE FIFO queue.
 Alternatively: inject a test InventoryAlertEvent directly into the RE SQS queue
 using `scripts/shared/publish-pos-event.py --flow2-direct`.
- 
+
+```
+EventBridge: InventoryAlertEvent
+    │
+    ├═════════════════════════════════════════════════════► SQS: re-alert (FIFO)
+    │                                                              │
+    │                                                              ▼
+    │                                                         RE (ECS)
+    │                                                              │
+    │                                          totalValue ≤ threshold?
+    │                                         ┌──────────────────┘
+    │                                         │
+    │                               ┌── YES ──┴── NO ──┐
+    │                               ▼                  ▼
+    │                           APPROVED          PENDING_APPROVAL
+    │                               │                  │
+    │                               └─────────┬────────┘
+    │                                         │
+    │                                         ▼
+    │                              RDS — replenishment.purchase_orders
+    │                                         │
+    │                              ═══════════► EventBridge: PurchaseOrderEvent
+    │
+    └═════════════════════════════════════════════════════► SQS: ars-updates
+                                                                   │
+                                                                   ▼
+                                                             ARS (ECS)
+                                                            (dashboard aggregation)
+```
+
 **Two sub-scenarios to test:**
  
 ### Scenario 2a: Auto-approve (totalValue ≤ threshold)
@@ -126,7 +199,47 @@ for at least one SKU/DC combination so totalValue always exceeds it.
 - Browser → SC Planner Console MFE
 - API Gateway (internal stage, JWT authoriser)
 - ECS: RE
- 
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  SC PLANNER MFE                                                 │
+│                                                                 │
+│   ──────────────────────────────────────────────────────────►  │  prod
+│   S3 Static Website (CloudFront HTTPS)                         │  prod
+│                                                                 │
+│   - - - - - - - - - - - - - - - - - - - - - - - - - - - - ->  │  demo
+│   S3 Static Website (HTTP, no CloudFront)                      │  demo
+└─────────────────────────────────────────────────────────────────┘
+    │
+    │  GET /v1/replenishment/orders?status=PENDING_APPROVAL
+    │  POST /v1/replenishment/orders/{poId}/approve
+    │  POST /v1/replenishment/orders/{poId}/reject
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AUTH                                                           │
+│                                                                 │
+│   ──────────────────────────────────────────────────────────►  │  prod
+│   Cognito JWT → API Gateway authoriser → service JWT check     │  prod
+│                                                                 │
+│   - - - - - - - - - - - - - - - - - - - - - - - - - - - - ->  │  demo
+│   X-Dev-Role: SC_PLANNER header (mock bypass)                  │  demo
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+  API Gateway (VPC Link)  ──►  RE (ECS)
+              │
+              ├═════► Validate: status must be PENDING_APPROVAL (else 409)
+              ├═════► Validate: SC_PLANNER or ADMIN role (else 403)
+              ├═════► RDS UPDATE with optimistic lock (version check)
+              │         PENDING_APPROVAL ──► APPROVED  (approve path)
+              │         PENDING_APPROVAL ──► REJECTED  (reject path)
+              │
+              └═════► EventBridge: PurchaseOrderEvent (status=APPROVED|REJECTED)
+                            │
+                            └═════► SQS: ars-updates ──► ARS (dashboard refresh)
+```
+
 **Scenario 3a: Approve**
  
 Steps:
@@ -197,7 +310,31 @@ and replenishment schemas. Seed data provides forecast data.
 - Browser → Store Manager Dashboard MFE
 - API Gateway (internal stage)
 - ECS: ARS (reads across sales, inventory, forecasting, replenishment schemas)
- 
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  STORE MANAGER MFE                                              │
+│                                                                 │
+│   ──────────────────────────────────────────────────────────►  │  prod (CloudFront)
+│   - - - - - - - - - - - - - - - - - - - - - - - - - - - - ->  │  demo (S3 HTTP)
+└─────────────────────────────────────────────────────────────────┘
+    │
+    │  GET /v1/dashboard/store-manager?dcId=DC-LONDON
+    ▼
+  ARS (ECS)
+    │
+    │  parallel queries (no JOINs — merged in Java)
+    ├═════► RDS — inventory.inventory_positions   (on_hand, in_transit, reorder status)
+    ├═════► RDS — inventory.stock_alerts          (active alert counts)
+    ├═════► RDS — replenishment.purchase_orders   (pending PO count)
+    └═════► RDS — forecasting.demand_forecasts    (P50 for dcId)
+              │
+              └═════► HTTP response: StoreManagerDashboardResponse
+                            │
+                            ▼
+                      MFE renders KPI cards
+```
+
 Steps:
 1. Open Store Manager Dashboard MFE in browser
 2. Sign in with Cognito user in STORE_MANAGER group
@@ -326,3 +463,54 @@ Steps:
 | 9.9 | No cross-schema JOIN used | Code review: ARS fetches supplier and replenishment data in separate queries, merges in Java |
 | 9.10 | Supplier scorecard renders 5 rows with correct OTD rates | Visual: Metro Food 71% (red), Chill Chain 95% (green) per seed data |
 | 9.11 | `dataFreshness` displayed on all surfaces | Visual: "Data as of HH:MM" visible on each tab/surface |
+
+---
+
+## Appendix: Full System Topology
+
+```
+                         ┌──────────────────────────────────────────────┐
+                         │  INGESTION (prod)                            │
+  POS Terminal ─────────►│  Edge Aggregator ──► Firehose ──► API GW      │
+                         │  ──► SIS ──► imsSalesQueue                   │
+                         │                                              │
+                         │  INGESTION (demo — pre-seeded, SIS absent)  │
+  POS Terminal  - - - -> │  [V7 seed SQL populates RDS directly]        │
+                         └───────────────────────┬──────────────────────┘
+                                                 │
+                                   ┌─────────────▼──────────────┐
+                                   │  IMS (ECS)                  │
+                                   │  inventory positions + alerts│
+                                   └──────┬──────────────────────┘
+                                          │ EventBridge
+                              ┌───────────┴───────────┐
+                              │                       │
+                    ┌─────────▼────────┐   ┌──────────▼────────┐
+                    │  RE (ECS)        │   │  ARS (ECS)         │
+                    │  auto/manual PO  │   │  dashboards        │
+                    │  creation        │   │  scorecards        │
+                    └─────────┬────────┘   └──────────┬─────────┘
+                              │ EventBridge            │
+                              └───────────┬────────────┘
+                                          │
+                              ┌───────────▼───────────┐
+                              │  DFS (ECS)             │
+                              │  demand forecasts      │
+                              │  P10 / P50 / P90       │
+                              └───────────┬────────────┘
+                                          │
+                              ┌───────────▼───────────┐
+                              │  SUP (ECS)             │
+                              │  supplier records      │
+                              │  order tracking        │
+                              └───────────────────────┘
+
+  MFEs
+  ┌───────────────────┐   ┌─────────────────────┐   ┌──────────────────┐
+  │  SC Planner       │   │  Store Manager      │   │  Executive       │
+  │  :5174 / S3       │   │  :5173 / S3 (prod)  │   │  :5175 / S3(prod)│
+  │  RE, ARS, DFS,    │   │  ARS, IMS           │   │  ARS, DFS        │
+  │  SUP, IMS         │   │                     │   │                  │
+  └───────────────────┘   └─────────────────────┘   └──────────────────┘
+  deployed in demo ✅      prod / dev only ❌ demo    prod / dev only ❌ demo
+```
