@@ -10,9 +10,9 @@ export interface MessagingStackProps extends cdk.StackProps {
 }
 
 /**
- * Demo messaging stack — SQS inter-service routing only, no POS ingestion queue.
- * SIS is not deployed in the demo; all data is pre-seeded. The three inter-service
- * queues (IMS, RE, ARS) are retained so RE can raise live alerts during demos.
+ * Demo messaging stack — SQS inter-service routing for the live pipeline.
+ * SIS publishes SalesTransactionProcessed to EventBridge; IMS and RE consume
+ * via the queues below. ARS receives all domain events for dashboard aggregation.
  */
 export class MessagingStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;

@@ -71,6 +71,7 @@ export class ApiStack extends cdk.Stack {
       });
     };
 
+    addNlbListener('sis', 8080, compute.sisService);
     addNlbListener('ims', 8081, compute.imsService);
     addNlbListener('re',  8082, compute.reService);
     addNlbListener('ars', 8083, compute.arsService);
@@ -150,8 +151,9 @@ export class ApiStack extends cdk.Stack {
       });
     }
 
-    // Staff APIs — five services, one proxy resource each
+    // Staff APIs — six services, one proxy resource each
     const v1 = restApi.root.addResource('v1');
+    addProxyResource(v1, 'ingest',        8080, '/v1/ingest');        // SIS
     addProxyResource(v1, 'dashboard',     8083, '/v1/dashboard');     // ARS
     addProxyResource(v1, 'inventory',     8081, '/v1/inventory');     // IMS
     addProxyResource(v1, 'forecast',      8084, '/v1/forecast');      // DFS

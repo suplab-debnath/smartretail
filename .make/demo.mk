@@ -1,11 +1,11 @@
-# ── Demo / SC Planner (cdk-demo, SC Planner only) ────────────────────────────
-# Deploys a trimmed SC Planner demo: 5 backend services (no SIS), 1 MFE, REST API + NLB.
-# Intended lifespan: 1-2 days. Tear down with `make demo-destroy`.
+# ── Demo / SC Planner (cdk-demo) ─────────────────────────────────────────────
+# Deploys a trimmed SC Planner demo: 6 backend services (SIS, IMS, RE, ARS, DFS, SUP),
+# 1 MFE, REST API + NLB. Intended lifespan: 1-2 days. Tear down with `make demo-destroy`.
 # All resources tagged Lifecycle=ephemeral for easy cost tracking and cleanup.
 
 DEMO_ENV     ?= demo
 DEMO_PROFILE ?= $(PROFILE)
-DEMO_SERVICES = ims re ars dfs sup
+DEMO_SERVICES = sis ims re ars dfs sup
 
 demo-bootstrap: ## Bootstrap CDK for demo environment (run once per account/region)
 	cd environments/demo/infra && npm install --silent && \
@@ -18,13 +18,13 @@ demo-cdk-deploy: ## Deploy all Min-* CDK stacks (trimmed SC Planner demo)
 	    npx cdk deploy --all --require-approval never \
 	    $(if $(ALERT_EMAIL),-c alertEmail=$(ALERT_EMAIL),)
 
-demo-build-services: ## Build Docker images for the 5 SC Planner backend services
+demo-build-services: ## Build Docker images for the 6 SC Planner backend services
 	@for svc in $(DEMO_SERVICES); do \
 	    echo "Building $$svc..."; \
 	    docker buildx build --platform linux/arm64 -t smartretail-$$svc:local backend/services/$$svc/; \
 	done
 
-demo-push-services: aws-ecr-login demo-build-services ## Build + push 5 service images to ECR (demo env)
+demo-push-services: aws-ecr-login demo-build-services ## Build + push 6 service images to ECR (demo env)
 	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
 	for svc in $(DEMO_SERVICES); do \
 	    echo "Pushing $$svc ($(DEMO_ENV))..."; \

@@ -173,7 +173,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
     if (!foundPO) return
     setPhase('approving')
     try {
-      const res = await fetch(`/v1/replenishment/orders/${foundPO.poId}/approve`, {
+      const res = await fetch(`${getApiBase()}/v1/replenishment/orders/${foundPO.poId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -269,6 +269,18 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
             </span>
           </div>
         )}
+
+        {/* Production context — shown always so the audience understands the real flow */}
+        <div className="flex gap-2 mb-4 px-3 py-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          <span className="shrink-0 mt-0.5">ℹ</span>
+          <span>
+            <span className="font-semibold">Demo mode:</span> this button calls the Sales
+            Ingestion Service directly to simulate a checkout. In production, POS aggregator
+            sends each transaction to <span className="font-semibold">AWS Data Firehose</span>,
+            which batches and delivers the events to SIS — the same pipeline then runs
+            automatically from there.
+          </span>
+        </div>
 
         <div className="grid grid-cols-2 gap-4 mb-5">
           <label className="block">
