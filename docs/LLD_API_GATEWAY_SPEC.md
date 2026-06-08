@@ -1,8 +1,4 @@
 # LLD §6.8 — API Gateway Configuration & Routing Specification
-**Document:** LLD Supplement — SmartRetail Platform
-**Section:** §6.8 (appended to LLD v2.0 after §6.7 Deployment Architecture)
-**Version:** 1.0 | **Date:** May 2026 | **Author:** Suplab Debnath
-**Status:** Confirmed — Sprint 1
 
 > **Why this section exists.** The platform API Gateway serves four structurally different
 > integration types routed to different backends with different auth mechanisms. This is not
@@ -14,16 +10,16 @@
 
 ## 6.8.1 API Gateway Type and Constraints
 
-| Property | Value | Rationale |
-|---|---|---|
-| API type | REST API | Required for VPC Link (NLB target) and AWS service integrations. HTTP API supports neither. |
-| Deployment model | Regional | Paired with CloudFront for MFE assets. API Gateway itself is regional; CloudFront adds edge caching for GET responses where applicable. |
-| Stage count | 4 | `internal`, `supplier`, `ingest`, `system` — each with independent throttle, auth, and WAF override settings. |
-| Custom domains | 2 | `api.smartretail.com` (internal + ingest + system stages) · `supplier-api.smartretail.com` (supplier stage) |
-| TLS | ACM public cert — both domains | DNS validation via Route 53. Auto-renewal. CloudWatch alarm: `CertificateDaysToExpiry < 30` → L1 alert. |
-| WAFv2 | One web ACL per custom domain | OWASP Core Rule Set 3.2, rate-based rules, SQLi/XSS managed rules. Separate rate limit per stage (see §6.8.6). |
-| VPC Link | 1 shared VPC Link | Backed by NLB in private app subnets. All `HTTP_PROXY` integrations share this link. |
-| No ALB | Confirmed | VPC Link to NLB is the only ingress path into ECS tasks. No Application Load Balancer is provisioned. |
+| Property         | Value                          | Rationale                                                                                                                               |
+| ---------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| API type         | REST API                       | Required for VPC Link (NLB target) and AWS service integrations. HTTP API supports neither.                                             |
+| Deployment model | Regional                       | Paired with CloudFront for MFE assets. API Gateway itself is regional; CloudFront adds edge caching for GET responses where applicable. |
+| Stage count      | 4                              | `internal`, `supplier`, `ingest`, `system` — each with independent throttle, auth, and WAF override settings.                           |
+| Custom domains   | 2                              | `api.smartretail.com` (internal + ingest + system stages) · `supplier-api.smartretail.com` (supplier stage)                             |
+| TLS              | ACM public cert — both domains | DNS validation via Route 53. Auto-renewal. CloudWatch alarm: `CertificateDaysToExpiry < 30` → L1 alert.                                 |
+| WAFv2            | One web ACL per custom domain  | OWASP Core Rule Set 3.2, rate-based rules, SQLi/XSS managed rules. Separate rate limit per stage (see §6.8.6).                          |
+| VPC Link         | 1 shared VPC Link              | Backed by NLB in private app subnets. All `HTTP_PROXY` integrations share this link.                                                    |
+| No ALB           | Confirmed                      | VPC Link to NLB is the only ingress path into ECS tasks. No Application Load Balancer is provisioned.                                   |
 
 ---
 
@@ -58,18 +54,18 @@ api.smartretail.com / supplier-api.smartretail.com
 
 ### 6.8.3.1 Staff APIs — `internal` stage
 
-| Property | Value |
-|---|---|
-| Stage | `internal` |
-| Domain | `api.smartretail.com` |
-| Path prefixes | `/v1/dashboard/**` · `/v1/inventory/**` · `/v1/forecast/**` · `/v1/replenishment/**` |
-| Integration type | `HTTP_PROXY` |
-| Connection | VPC Link → NLB → ECS target groups |
-| Backend port | `:8080` per service |
-| Authoriser | Cognito JWT — Internal User Pool (`smartretail-internal-{env}`) |
-| Token source | `Authorization` header — `Bearer {jwt}` |
+| Property              | Value                                                                                                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage                 | `internal`                                                                                                                                                                                    |
+| Domain                | `api.smartretail.com`                                                                                                                                                                         |
+| Path prefixes         | `/v1/dashboard/**` · `/v1/inventory/**` · `/v1/forecast/**` · `/v1/replenishment/**`                                                                                                          |
+| Integration type      | `HTTP_PROXY`                                                                                                                                                                                  |
+| Connection            | VPC Link → NLB → ECS target groups                                                                                                                                                            |
+| Backend port          | `:8080` per service                                                                                                                                                                           |
+| Authoriser            | Cognito JWT — Internal User Pool (`smartretail-internal-{env}`)                                                                                                                               |
+| Token source          | `Authorization` header — `Bearer {jwt}`                                                                                                                                                       |
 | Group claims enforced | Yes — JWT group claim (`STORE_MANAGER`, `SC_PLANNER`, `SC_PLANNER_ADMIN`, `EXECUTIVE`) validated by ECS service at the use-case layer. API Gateway validates token signature and expiry only. |
-| Health endpoint | `GET /actuator/health` — no authoriser, bypass rule in API Gateway resource policy |
+| Health endpoint       | `GET /actuator/health` — no authoriser, bypass rule in API Gateway resource policy                                                                                                            |
 
 **CDK integration (per resource):**
 ```typescript
@@ -96,35 +92,35 @@ imsResource.addProxy({ defaultIntegration: vpcLinkIntegration(imsServiceDns), an
 
 ### 6.8.3.2 Supplier APIs — `supplier` stage
 
-| Property | Value |
-|---|---|
-| Stage | `supplier` |
-| Domain | `supplier-api.smartretail.com` |
-| Path prefix | `/v1/supplier/**` |
-| Integration type | `HTTP_PROXY` |
-| Connection | VPC Link → NLB → SUP ECS target group |
-| Authoriser | Cognito JWT — Supplier User Pool (`smartretail-supplier-{env}`) |
-| Custom claim | `custom:supplierId` (UUID) — extracted by SUP service to scope all data access |
+| Property           | Value                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stage              | `supplier`                                                                                                                                                         |
+| Domain             | `supplier-api.smartretail.com`                                                                                                                                     |
+| Path prefix        | `/v1/supplier/**`                                                                                                                                                  |
+| Integration type   | `HTTP_PROXY`                                                                                                                                                       |
+| Connection         | VPC Link → NLB → SUP ECS target group                                                                                                                              |
+| Authoriser         | Cognito JWT — Supplier User Pool (`smartretail-supplier-{env}`)                                                                                                    |
+| Custom claim       | `custom:supplierId` (UUID) — extracted by SUP service to scope all data access                                                                                     |
 | Supplier isolation | Enforced at SUP service layer. `JWT.supplierId` must match `supplierPO.supplierId` on every mutation. API Gateway does not enforce this — it validates token only. |
-| MFA | TOTP required on Supplier Cognito Pool — enforced at authentication, not at API Gateway. |
+| MFA                | TOTP required on Supplier Cognito Pool — enforced at authentication, not at API Gateway.                                                                           |
 
 ---
 
 ### 6.8.3.3 Firehose Ingest — `ingest` stage
 
-| Property | Value |
-|---|---|
-| Stage | `ingest` |
-| Domain | `api.smartretail.com` |
-| Path | `POST /ingest/v1/ingest/events` |
-| Integration type | `HTTP_PROXY` |
-| Connection | VPC Link → NLB → SIS ECS target group |
-| Caller | Amazon Data Firehose HTTP endpoint destination (not a human user, not an MFE) |
-| Auth mechanism | Static access key — Firehose sends `X-Amz-Firehose-Access-Key` header on every request |
-| Key storage | AWS Secrets Manager: `/smartretail/{env}/firehose/ingest-access-key` |
-| Key validation | API Gateway validates the header via a Lambda authoriser or usage plan API key. SIS also validates the key on receipt as a second check. |
-| Auth note | Firehose HTTP endpoint destination does not support IAM SigV4. The static access key is the standard mechanism for this integration. This is a known trade-off — see ADR-003. |
-| Retry behaviour | On non-2xx response, Firehose retries for up to 24 hours, then writes to S3 `firehose-backup/` prefix. SIS must return 200 for all outcomes (accepted, duplicate, validation failure). Individual record failures route to SQS DLQ within SIS — they do not cause a non-2xx to Firehose. |
+| Property         | Value                                                                                                                                                                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage            | `ingest`                                                                                                                                                                                                                                                                                 |
+| Domain           | `api.smartretail.com`                                                                                                                                                                                                                                                                    |
+| Path             | `POST /ingest/v1/ingest/events`                                                                                                                                                                                                                                                          |
+| Integration type | `HTTP_PROXY`                                                                                                                                                                                                                                                                             |
+| Connection       | VPC Link → NLB → SIS ECS target group                                                                                                                                                                                                                                                    |
+| Caller           | Amazon Data Firehose HTTP endpoint destination (not a human user, not an MFE)                                                                                                                                                                                                            |
+| Auth mechanism   | Static access key — Firehose sends `X-Amz-Firehose-Access-Key` header on every request                                                                                                                                                                                                   |
+| Key storage      | AWS Secrets Manager: `/smartretail/{env}/firehose/ingest-access-key`                                                                                                                                                                                                                     |
+| Key validation   | API Gateway validates the header via a Lambda authoriser or usage plan API key. SIS also validates the key on receipt as a second check.                                                                                                                                                 |
+| Auth note        | Firehose HTTP endpoint destination does not support IAM SigV4. The static access key is the standard mechanism for this integration. This is a known trade-off — see ADR-003.                                                                                                            |
+| Retry behaviour  | On non-2xx response, Firehose retries for up to 24 hours, then writes to S3 `firehose-backup/` prefix. SIS must return 200 for all outcomes (accepted, duplicate, validation failure). Individual record failures route to SQS DLQ within SIS — they do not cause a non-2xx to Firehose. |
 
 **Request headers Firehose sends:**
 ```
@@ -142,16 +138,16 @@ Content-Type: application/json
 
 ### 6.8.3.4 External Event Ingestion — `system` stage
 
-| Property | Value |
-|---|---|
-| Stage | `system` |
-| Domain | `api.smartretail.com` |
-| Path | `POST /system/v1/events/promotions` |
-| Integration type | `AWS` service integration |
-| Backend | EventBridge `PutEvents` — **no Lambda, no VPC Link, no ECS** |
-| Auth mechanism | API key — `x-api-key` header, API Gateway Usage Plan |
-| API key storage | Secrets Manager — shared securely with Campaign Management System out of band |
-| Caller | Campaign Management System (external enterprise system — no AWS credentials) |
+| Property         | Value                                                                         |
+| ---------------- | ----------------------------------------------------------------------------- |
+| Stage            | `system`                                                                      |
+| Domain           | `api.smartretail.com`                                                         |
+| Path             | `POST /system/v1/events/promotions`                                           |
+| Integration type | `AWS` service integration                                                     |
+| Backend          | EventBridge `PutEvents` — **no Lambda, no VPC Link, no ECS**                  |
+| Auth mechanism   | API key — `x-api-key` header, API Gateway Usage Plan                          |
+| API key storage  | Secrets Manager — shared securely with Campaign Management System out of band |
+| Caller           | Campaign Management System (external enterprise system — no AWS credentials)  |
 
 **Why AWS service integration, not VPC Link:**
 External systems without AWS credentials cannot call AWS APIs directly. API Gateway
@@ -217,26 +213,26 @@ Campaign Management System
 
 One VPC Link backs all three `HTTP_PROXY` route groups (staff, supplier, ingest).
 
-| Property | Value |
-|---|---|
-| VPC Link type | REST API VPC Link (backed by NLB — not ALB) |
-| NLB scheme | Internal |
-| NLB subnets | Private app subnets (all 3 AZs) |
-| Listener | TCP `:8080` |
-| Target groups | One per ECS service — path-based routing at NLB level |
-| Health check | `GET /actuator/health` → HTTP 200 |
-| Deregistration delay | 30s (prototype) · 60s (production) |
+| Property             | Value                                                 |
+| -------------------- | ----------------------------------------------------- |
+| VPC Link type        | REST API VPC Link (backed by NLB — not ALB)           |
+| NLB scheme           | Internal                                              |
+| NLB subnets          | Private app subnets (all 3 AZs)                       |
+| Listener             | TCP `:8080`                                           |
+| Target groups        | One per ECS service — path-based routing at NLB level |
+| Health check         | `GET /actuator/health` → HTTP 200                     |
+| Deregistration delay | 30s (prototype) · 60s (production)                    |
 
 **NLB target group routing (path prefix → target group):**
 
-| Path prefix | NLB target group | ECS service |
-|---|---|---|
-| `/v1/dashboard/**` | `tg-ars-{env}` | ARS |
-| `/v1/inventory/**` | `tg-ims-{env}` | IMS |
-| `/v1/forecast/**` | `tg-dfs-{env}` | DFS |
-| `/v1/replenishment/**` | `tg-re-{env}` | RE |
-| `/v1/supplier/**` | `tg-sup-{env}` | SUP |
-| `/ingest/v1/ingest/events` | `tg-sis-{env}` | SIS |
+| Path prefix                | NLB target group | ECS service |
+| -------------------------- | ---------------- | ----------- |
+| `/v1/dashboard/**`         | `tg-ars-{env}`   | ARS         |
+| `/v1/inventory/**`         | `tg-ims-{env}`   | IMS         |
+| `/v1/forecast/**`          | `tg-dfs-{env}`   | DFS         |
+| `/v1/replenishment/**`     | `tg-re-{env}`    | RE          |
+| `/v1/supplier/**`          | `tg-sup-{env}`   | SUP         |
+| `/ingest/v1/ingest/events` | `tg-sis-{env}`   | SIS         |
 
 **CDK VPC Link definition:**
 ```typescript
@@ -319,12 +315,12 @@ systemUsagePlan.addApiStage({ stage: systemStage });
 
 ## 6.8.6 Stage Configuration and Throttling
 
-| Stage | Default throttle | Burst | Quota | WAF override |
-|---|---|---|---|---|
-| `internal` | 500 req/s | 1000 | None | Rate rule: 1000 req/5 min per IP |
-| `supplier` | 100 req/s | 200 | None | Rate rule: 200 req/5 min per IP |
-| `ingest` | 1000 req/s | 2000 | None | Rate rule: Firehose source IPs only (allowlist) |
-| `system` | 50 req/s | 100 | 10,000/day | Rate rule: 100 req/5 min per IP |
+| Stage      | Default throttle | Burst | Quota      | WAF override                                    |
+| ---------- | ---------------- | ----- | ---------- | ----------------------------------------------- |
+| `internal` | 500 req/s        | 1000  | None       | Rate rule: 1000 req/5 min per IP                |
+| `supplier` | 100 req/s        | 200   | None       | Rate rule: 200 req/5 min per IP                 |
+| `ingest`   | 1000 req/s       | 2000  | None       | Rate rule: Firehose source IPs only (allowlist) |
+| `system`   | 50 req/s         | 100   | 10,000/day | Rate rule: 100 req/5 min per IP                 |
 
 Stage-level throttle applies to the entire stage. Method-level overrides can be added
 per route if specific endpoints need tighter limits (e.g. `POST /v1/replenishment/orders`
@@ -337,12 +333,12 @@ vs `GET /v1/dashboard`).
 CORS headers are required on all routes accessed by the React MFEs (staff and supplier stages).
 The ingest and system stages do not require CORS — their callers are server-side.
 
-| Stage | Allowed origins | Allowed methods | Allowed headers |
-|---|---|---|---|
+| Stage      | Allowed origins             | Allowed methods           | Allowed headers                                 |
+| ---------- | --------------------------- | ------------------------- | ----------------------------------------------- |
 | `internal` | `https://*.smartretail.com` | `GET, POST, PUT, OPTIONS` | `Authorization, Content-Type, X-Correlation-ID` |
-| `supplier` | `https://*.smartretail.com` | `GET, POST, OPTIONS` | `Authorization, Content-Type, X-Correlation-ID` |
-| `ingest` | None (no browser callers) | `POST` | N/A |
-| `system` | None (no browser callers) | `POST` | `x-api-key, Content-Type` |
+| `supplier` | `https://*.smartretail.com` | `GET, POST, OPTIONS`      | `Authorization, Content-Type, X-Correlation-ID` |
+| `ingest`   | None (no browser callers)   | `POST`                    | N/A                                             |
+| `system`   | None (no browser callers)   | `POST`                    | `x-api-key, Content-Type`                       |
 
 ```typescript
 // Applied at resource level on each ECS-backed proxy resource
@@ -360,24 +356,24 @@ resource.addCorsPreflight({
 
 API Gateway request validation is a first-line defence before requests reach ECS services.
 
-| Stage | Validation applied |
-|---|---|
-| `internal` | Query string parameters validated for known GET endpoints. Request body schema validated for all POST/PUT mutations (JSON Schema linked to API Gateway models). |
-| `supplier` | Request body schema validated for `POST /v1/supplier/orders/{poId}/acknowledge` and `POST /v1/supplier/orders/{poId}/ship`. |
-| `ingest` | Firehose envelope structure validated (required fields: `requestId`, `timestamp`, `records`). Individual record validation done at SIS service layer — not at API Gateway to allow partial batch acceptance. |
-| `system` | Request body validated against `PromotionActivatedEvent` schema (required: `promotionId`, `skuIds`, `discountPct`, `validFrom`, `validTo`). API Gateway rejects malformed bodies before the mapping template executes. |
+| Stage      | Validation applied                                                                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal` | Query string parameters validated for known GET endpoints. Request body schema validated for all POST/PUT mutations (JSON Schema linked to API Gateway models).                                                        |
+| `supplier` | Request body schema validated for `POST /v1/supplier/orders/{poId}/acknowledge` and `POST /v1/supplier/orders/{poId}/ship`.                                                                                            |
+| `ingest`   | Firehose envelope structure validated (required fields: `requestId`, `timestamp`, `records`). Individual record validation done at SIS service layer — not at API Gateway to allow partial batch acceptance.           |
+| `system`   | Request body validated against `PromotionActivatedEvent` schema (required: `promotionId`, `skuIds`, `discountPct`, `validFrom`, `validTo`). API Gateway rejects malformed bodies before the mapping template executes. |
 
 ---
 
 ## 6.8.9 Parameter Store Entries (CDK outputs)
 
-| Parameter | Value written by CDK | Consumer |
-|---|---|---|
-| `/smartretail/{env}/apigw/internal-endpoint` | `https://api.smartretail.com` | MFE config, CDK references |
-| `/smartretail/{env}/apigw/supplier-endpoint` | `https://supplier-api.smartretail.com` | Supplier MFE config |
-| `/smartretail/{env}/apigw/ingest-endpoint` | `https://api.smartretail.com/ingest` | Firehose delivery stream config |
-| `/smartretail/{env}/apigw/system-endpoint` | `https://api.smartretail.com/system` | Campaign Management integration doc |
-| `/smartretail/{env}/apigw/vpc-link-id` | VPC Link resource ID | CDK cross-stack reference |
+| Parameter                                    | Value written by CDK                   | Consumer                            |
+| -------------------------------------------- | -------------------------------------- | ----------------------------------- |
+| `/smartretail/{env}/apigw/internal-endpoint` | `https://api.smartretail.com`          | MFE config, CDK references          |
+| `/smartretail/{env}/apigw/supplier-endpoint` | `https://supplier-api.smartretail.com` | Supplier MFE config                 |
+| `/smartretail/{env}/apigw/ingest-endpoint`   | `https://api.smartretail.com/ingest`   | Firehose delivery stream config     |
+| `/smartretail/{env}/apigw/system-endpoint`   | `https://api.smartretail.com/system`   | Campaign Management integration doc |
+| `/smartretail/{env}/apigw/vpc-link-id`       | VPC Link resource ID                   | CDK cross-stack reference           |
 
 ---
 
@@ -385,15 +381,15 @@ API Gateway request validation is a first-line defence before requests reach ECS
 
 CloudWatch metrics are emitted per stage and per route by API Gateway natively.
 
-| Metric | Alarm threshold | Alert level | Action |
-|---|---|---|---|
-| `5XXError` — ingest stage | > 10 errors in 5 min | L1 | Page on-call — Firehose delivery failure |
-| `5XXError` — internal stage | > 20 errors in 5 min | L2 | Team notification |
-| `Latency` p99 — internal stage | > 3000 ms | L2 | Team notification |
-| `Latency` p99 — ingest stage | > 5000 ms | L2 | Investigate SIS batch processing |
-| `4XXError` — supplier stage | > 50 errors in 5 min | L2 | Possible Supplier Cognito issue |
-| `Count` — system stage | 0 requests in 24 h | L3 | Campaign Management connectivity check |
-| `CacheHitCount` / `CacheMissCount` | Informational only | — | Used for throttle tuning |
+| Metric                             | Alarm threshold      | Alert level | Action                                   |
+| ---------------------------------- | -------------------- | ----------- | ---------------------------------------- |
+| `5XXError` — ingest stage          | > 10 errors in 5 min | L1          | Page on-call — Firehose delivery failure |
+| `5XXError` — internal stage        | > 20 errors in 5 min | L2          | Team notification                        |
+| `Latency` p99 — internal stage     | > 3000 ms            | L2          | Team notification                        |
+| `Latency` p99 — ingest stage       | > 5000 ms            | L2          | Investigate SIS batch processing         |
+| `4XXError` — supplier stage        | > 50 errors in 5 min | L2          | Possible Supplier Cognito issue          |
+| `Count` — system stage             | 0 requests in 24 h   | L3          | Campaign Management connectivity check   |
+| `CacheHitCount` / `CacheMissCount` | Informational only   | —           | Used for throttle tuning                 |
 
 All alarms route to SNS → Alerting Platform. Log groups: `/aws/apigateway/smartretail-{stage}-{env}`.
 
