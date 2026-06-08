@@ -17,11 +17,15 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
 public class SupplierPerformanceUseCase implements SupplierPerformancePort {
 
+    private static final Executor VIRTUAL = Executors.newVirtualThreadPerTaskExecutor();
     private static final int LOOKBACK_DAYS = 90;
 
     private final SupplierReadPort supplierReadPort;
@@ -36,14 +40,24 @@ public class SupplierPerformanceUseCase implements SupplierPerformancePort {
 
     @Override
     public SupplierPerformanceDashboard assemble() {
-        // Sequential reads — free-tier RDS has limited connections; one connection reused per request
-        Map<UUID, String>       names      = supplierReadPort.findActiveSupplierNames();
-        Map<UUID, PoMetricsRow> poMetrics  = replenishmentReadPort.findPoMetricsBySupplierId(LOOKBACK_DAYS).stream()
-                .collect(Collectors.toMap(PoMetricsRow::supplierId, r -> r));
-        Map<UUID, ShipmentMetricsRow> shipMetrics = supplierReadPort.findShipmentMetricsBySupplierId().stream()
-                .collect(Collectors.toMap(ShipmentMetricsRow::supplierId, r -> r));
-        Map<UUID, BigDecimal>   variances  = supplierReadPort.findAvgLeadTimeVarianceBySupplierId();
-        Map<UUID, Integer>      exceptions = supplierReadPort.findOpenExceptionsBySupplierId();
+        // Parallel reads — each query targets a single schema (Architecture rule #1).
+        CompletableFuture<Map<UUID, String>>            namesF      = CompletableFuture.supplyAsync(supplierReadPort::findActiveSupplierNames, VIRTUAL);
+        CompletableFuture<Map<UUID, PoMetricsRow>>      poF         = CompletableFuture.supplyAsync(
+                () -> replenishmentReadPort.findPoMetricsBySupplierId(LOOKBACK_DAYS).stream()
+                        .collect(Collectors.toMap(PoMetricsRow::supplierId, r -> r)), VIRTUAL);
+        CompletableFuture<Map<UUID, ShipmentMetricsRow>> shipF      = CompletableFuture.supplyAsync(
+                () -> supplierReadPort.findShipmentMetricsBySupplierId().stream()
+                        .collect(Collectors.toMap(ShipmentMetricsRow::supplierId, r -> r)), VIRTUAL);
+        CompletableFuture<Map<UUID, BigDecimal>>        variancesF  = CompletableFuture.supplyAsync(supplierReadPort::findAvgLeadTimeVarianceBySupplierId, VIRTUAL);
+        CompletableFuture<Map<UUID, Integer>>           exceptionsF = CompletableFuture.supplyAsync(supplierReadPort::findOpenExceptionsBySupplierId, VIRTUAL);
+
+        CompletableFuture.allOf(namesF, poF, shipF, variancesF, exceptionsF).join();
+
+        Map<UUID, String>             names      = namesF.join();
+        Map<UUID, PoMetricsRow>       poMetrics  = poF.join();
+        Map<UUID, ShipmentMetricsRow> shipMetrics = shipF.join();
+        Map<UUID, BigDecimal>         variances  = variancesF.join();
+        Map<UUID, Integer>            exceptions = exceptionsF.join();
 
         // Merge in Java — supplierId is the join key, never SQL
         List<SupplierEntry> entries = new ArrayList<>();

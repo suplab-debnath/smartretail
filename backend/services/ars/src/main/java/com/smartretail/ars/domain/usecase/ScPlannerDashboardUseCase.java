@@ -12,10 +12,14 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 public class ScPlannerDashboardUseCase implements ScPlannerDashboardPort {
 
+    private static final Executor VIRTUAL = Executors.newVirtualThreadPerTaskExecutor();
     private static final BigDecimal MAPE_THRESHOLD = BigDecimal.valueOf(0.15);
 
     private final ForecastReadPort forecastReadPort;
@@ -33,10 +37,16 @@ public class ScPlannerDashboardUseCase implements ScPlannerDashboardPort {
 
     @Override
     public ScPlannerDashboard assemble() {
-        // Sequential reads — free-tier RDS has limited connections; one connection reused per request
-        int pendingCount  = replenishmentReadPort.countPendingApprovals();
-        int alertCount    = inventoryReadPort.countActiveAlerts();
-        LatestMape latest = forecastReadPort.findLatestMape();
+        // Parallel reads — each query targets a single schema (Architecture rule #1).
+        CompletableFuture<Integer>   pendingF = CompletableFuture.supplyAsync(replenishmentReadPort::countPendingApprovals, VIRTUAL);
+        CompletableFuture<Integer>   alertF   = CompletableFuture.supplyAsync(inventoryReadPort::countActiveAlerts, VIRTUAL);
+        CompletableFuture<LatestMape> mapeF   = CompletableFuture.supplyAsync(forecastReadPort::findLatestMape, VIRTUAL);
+
+        CompletableFuture.allOf(pendingF, alertF, mapeF).join();
+
+        int pendingCount  = pendingF.join();
+        int alertCount    = alertF.join();
+        LatestMape latest = mapeF.join();
 
         MapeStatus status = latest.mape().compareTo(MAPE_THRESHOLD) > 0
                 ? MapeStatus.ABOVE_THRESHOLD

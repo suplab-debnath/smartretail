@@ -34,6 +34,7 @@ export class ApiStack extends cdk.Stack {
       vpc: network.vpc,
       internetFacing: false,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      crossZoneEnabled: true,
     });
 
     // ── VPC Link (REST API type — backed by NLB) ──────────────────────────────

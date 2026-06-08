@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { InventoryPosition, InventoryPositionListResponse, PurchaseOrder, PurchaseOrderListResponse } from '../types'
+import { getApiBase } from '@smartretail/auth'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { ReplenishmentFlowDiagram } from './ReplenishmentFlowDiagram'
 
@@ -67,7 +68,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
   useEffect(() => {
     if (phase !== 'idle' || !form.skuId || !form.dcId) return
     let cancelled = false
-    fetch(`/v1/inventory/positions?skuId=${encodeURIComponent(form.skuId)}&dcId=${encodeURIComponent(form.dcId)}`, {
+    fetch(`${getApiBase()}/v1/inventory/positions?skuId=${encodeURIComponent(form.skuId)}&dcId=${encodeURIComponent(form.dcId)}`, {
       headers: { 'X-Dev-Role': 'SC_PLANNER' },
     })
       .then(r => r.ok ? r.json() as Promise<InventoryPositionListResponse> : null)
@@ -98,7 +99,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
       return
     }
     try {
-      const res = await fetch('/v1/replenishment/orders?status=PENDING_APPROVAL&size=20', {
+      const res = await fetch(`${getApiBase()}/v1/replenishment/orders?status=PENDING_APPROVAL&size=20`, {
         headers: { 'X-Dev-Role': 'SC_PLANNER' },
       })
       if (!res.ok) return
@@ -122,7 +123,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
     setCompleted(0)
 
     try {
-      const snap = await fetch('/v1/replenishment/orders?status=PENDING_APPROVAL&size=100', {
+      const snap = await fetch(`${getApiBase()}/v1/replenishment/orders?status=PENDING_APPROVAL&size=100`, {
         headers: { 'X-Dev-Role': 'SC_PLANNER' },
       })
       if (snap.ok) {
@@ -132,7 +133,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
     } catch { /* proceed without snapshot */ }
 
     try {
-      const res = await fetch('/v1/ingest/events', {
+      const res = await fetch(`${getApiBase()}/v1/ingest/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Dev-Role': 'SC_PLANNER' },
         body: JSON.stringify({
@@ -183,7 +184,7 @@ export function DemoTab({ onSwitchToApprovals, onDataChanged }: Props) {
       })
       if (res.ok) {
         // Notify the SUP service so the order appears in the Supplier Orders tab
-        await fetch('/v1/supplier/orders', {
+        await fetch(`${getApiBase()}/v1/supplier/orders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Dev-Role': 'SC_PLANNER' },
           body: JSON.stringify({

@@ -19,10 +19,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
 
+    private static final Executor VIRTUAL = Executors.newVirtualThreadPerTaskExecutor();
     private static final int HISTORY_LIMIT = 30;
     private static final int TREND_WINDOW_DAYS = 7;
     private static final BigDecimal TREND_THRESHOLD = BigDecimal.valueOf(0.005);
@@ -45,18 +49,29 @@ public class ExecutiveDashboardUseCase implements ExecutiveDashboardPort {
 
     @Override
     public ExecutiveDashboard assemble() {
-        // Sequential reads — free-tier RDS has limited connections; one connection reused per request
-        List<MapeDataPoint>         history        = forecastReadPort.findRecentMapeHistory(HISTORY_LIMIT);
-        int[]                       stockoutCounts = new int[]{
-                inventoryReadPort.countCriticalAlerts(30),
-                inventoryReadPort.countCriticalAlerts(60)
-        };
-        Optional<BigDecimal>        cycleTime      = replenishmentReadPort.averageCycleTimeDays(90);
-        List<StockoutDataPoint>     stockoutHistory = inventoryReadPort.findDailyCriticalAlertHistory(30);
-        List<CycleTimeDataPoint>    cycleHistory    = replenishmentReadPort.findWeeklyCycleTimeHistory(90);
-        List<SupplierDeliveryStats> deliveryStats   = supplierReadPort.findDeliveryStats();
-        Map<UUID, int[]>            fillRates       = replenishmentReadPort.fillRateBySupplier(90);
-        Map<UUID, String>           supplierNames   = supplierReadPort.findActiveSupplierNames();
+        // Parallel reads — each query targets a single schema (Architecture rule #1).
+        // Virtual threads (Java 21) are used so blocking JDBC calls never pin OS threads.
+        CompletableFuture<List<MapeDataPoint>>         historyF        = CompletableFuture.supplyAsync(() -> forecastReadPort.findRecentMapeHistory(HISTORY_LIMIT), VIRTUAL);
+        CompletableFuture<Integer>                     stockout30F     = CompletableFuture.supplyAsync(() -> inventoryReadPort.countCriticalAlerts(30), VIRTUAL);
+        CompletableFuture<Integer>                     stockout60F     = CompletableFuture.supplyAsync(() -> inventoryReadPort.countCriticalAlerts(60), VIRTUAL);
+        CompletableFuture<Optional<BigDecimal>>        cycleTimeF      = CompletableFuture.supplyAsync(() -> replenishmentReadPort.averageCycleTimeDays(90), VIRTUAL);
+        CompletableFuture<List<StockoutDataPoint>>     stockoutHistF   = CompletableFuture.supplyAsync(() -> inventoryReadPort.findDailyCriticalAlertHistory(30), VIRTUAL);
+        CompletableFuture<List<CycleTimeDataPoint>>    cycleHistF      = CompletableFuture.supplyAsync(() -> replenishmentReadPort.findWeeklyCycleTimeHistory(90), VIRTUAL);
+        CompletableFuture<List<SupplierDeliveryStats>> deliveryStatsF  = CompletableFuture.supplyAsync(() -> supplierReadPort.findDeliveryStats(), VIRTUAL);
+        CompletableFuture<Map<UUID, int[]>>            fillRatesF      = CompletableFuture.supplyAsync(() -> replenishmentReadPort.fillRateBySupplier(90), VIRTUAL);
+        CompletableFuture<Map<UUID, String>>           supplierNamesF  = CompletableFuture.supplyAsync(() -> supplierReadPort.findActiveSupplierNames(), VIRTUAL);
+
+        CompletableFuture.allOf(historyF, stockout30F, stockout60F, cycleTimeF,
+                stockoutHistF, cycleHistF, deliveryStatsF, fillRatesF, supplierNamesF).join();
+
+        List<MapeDataPoint>         history        = historyF.join();
+        int[]                       stockoutCounts = { stockout30F.join(), stockout60F.join() };
+        Optional<BigDecimal>        cycleTime      = cycleTimeF.join();
+        List<StockoutDataPoint>     stockoutHistory = stockoutHistF.join();
+        List<CycleTimeDataPoint>    cycleHistory    = cycleHistF.join();
+        List<SupplierDeliveryStats> deliveryStats   = deliveryStatsF.join();
+        Map<UUID, int[]>            fillRates       = fillRatesF.join();
+        Map<UUID, String>           supplierNames   = supplierNamesF.join();
 
         List<SupplierPerformanceEntry> suppliers = buildSupplierPerformance(supplierNames, deliveryStats, fillRates);
 

@@ -8,13 +8,17 @@ export function isFetchError(e: unknown): e is FetchError {
   return typeof e === 'object' && e !== null && 'kind' in e
 }
 
+/** Returns the API Gateway base URL (AWS) or '' (local dev, Vite proxy handles routing). */
+export function getApiBase(): string {
+  const config = (window as any).SMARTRETAIL_CONFIG ?? {}
+  const base: string = config.apiGatewayEndpoint ?? ''
+  return base ? base.replace(/\/$/, '') : ''
+}
+
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   // In AWS the apiGatewayEndpoint is injected via config.js at deploy time.
   // In local dev it is empty — Vite's proxy handles routing by path.
-  const config = (window as any).SMARTRETAIL_CONFIG ?? {}
-  const base: string = config.apiGatewayEndpoint ?? ''
-  // Strip trailing slash from base to avoid double-slash with leading-slash paths.
-  const resolvedUrl = base ? `${base.replace(/\/$/, '')}${url}` : url
+  const resolvedUrl = getApiBase() ? `${getApiBase()}${url}` : url
 
   // AWS mode only: mutate headers to add Bearer token and strip X-Dev-Role
   // (blocked by API Gateway CORS). In local/test mode pass init unchanged so

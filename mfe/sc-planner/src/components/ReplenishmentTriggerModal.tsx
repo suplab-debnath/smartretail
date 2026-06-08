@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getApiBase } from '@smartretail/auth'
 
 interface Props {
   skuId: string
@@ -20,7 +21,7 @@ export function ReplenishmentTriggerModal({ skuId, dcId, onClose, onSuccess }: P
     setInlineError(null)
 
     try {
-      const res = await fetch('/v1/replenishment/orders', {
+      const res = await fetch(`${getApiBase()}/v1/replenishment/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

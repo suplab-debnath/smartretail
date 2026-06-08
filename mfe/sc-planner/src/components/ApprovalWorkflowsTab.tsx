@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { ErrorBanner, Tooltip } from '@smartretail/auth'
+import { ErrorBanner, Tooltip, getApiBase } from '@smartretail/auth'
 import { usePendingApprovals } from '../hooks/usePendingApprovals'
 import { useSuppliers } from '../hooks/useSuppliers'
 
@@ -32,7 +32,7 @@ export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
   async function handleApprove(poId: string, version: number) {
     setApprovingIds(prev => new Set(prev).add(poId))
     try {
-      const res = await fetch(`/v1/replenishment/orders/${poId}/approve`, {
+      const res = await fetch(`${getApiBase()}/v1/replenishment/orders/${poId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
 
   async function handleRejectConfirm(poId: string, version: number) {
     try {
-      const res = await fetch(`/v1/replenishment/orders/${poId}/reject`, {
+      const res = await fetch(`${getApiBase()}/v1/replenishment/orders/${poId}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
