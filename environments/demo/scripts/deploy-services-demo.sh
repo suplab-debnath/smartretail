@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build Java services, push Docker images to ECR, force ECS redeployment.
-# cdk-demo target: IMS, RE, ARS, DFS, SUP only. No SIS. No Lambda (SQS-only).
+# cdk-demo target: SIS, IMS, RE, ARS, DFS, SUP. No Lambda (SQS-only).
 #
 # Usage:
 #   ./environments/demo/scripts/deploy-services-demo.sh [OPTIONS]
@@ -9,8 +9,8 @@
 #   --env       <dev|prod>          Environment name (default: $SMARTRETAIL_ENV or dev)
 #   --profile   <aws-profile>       AWS CLI profile (default: smartretail-dev)
 #   --region    <region>            AWS region (default: us-east-1)
-#   --services  <ims,re,...>        Comma-separated subset of services to deploy
-#                                   (default: all five: ims,re,ars,dfs,sup)
+#   --services  <sis,ims,re,...>     Comma-separated subset of services to deploy
+#                                   (default: all six: sis,ims,re,ars,dfs,sup)
 #   --skip-build                    Skip Maven build (use existing JARs in target/)
 #   --skip-push                     Build Docker images locally but skip ECR push + ECS update
 #   --deploy-cdk                    Also redeploy Min-ComputeStack via CDK to update the ECS
@@ -27,7 +27,7 @@ set -euo pipefail
 ENV="${SMARTRETAIL_ENV:-dev}"
 PROFILE="${AWS_PROFILE:-smartretail-dev}"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
-SERVICES="ims re ars dfs sup"
+SERVICES="sis ims re ars dfs sup"
 SKIP_BUILD=false
 SKIP_PUSH=false
 DEPLOY_CDK=false
@@ -81,7 +81,7 @@ if [[ "$SKIP_BUILD" == false ]]; then
   echo ""
   echo "▶  Building service JARs (Maven)..."
   mvn clean package -DskipTests \
-    -pl backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
+    -pl backend/services/sis,backend/services/ims,backend/services/re,backend/services/ars,backend/services/dfs,backend/services/sup \
     -am --no-transfer-progress
 else
   echo "▶  Skipping Maven build (--skip-build)"

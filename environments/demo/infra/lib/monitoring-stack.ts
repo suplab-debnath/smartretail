@@ -19,7 +19,7 @@ export interface MonitoringStackProps extends cdk.StackProps {
   alertEmail?: string;
 }
 
-const SERVICES = ['ims', 're', 'ars', 'dfs', 'sup'] as const;
+const SERVICES = ['sis', 'ims', 're', 'ars', 'dfs', 'sup'] as const;
 
 export class MonitoringStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: MonitoringStackProps) {

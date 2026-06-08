@@ -11,9 +11,5 @@ spring:
           issuer-uri: ${COGNITO_ISSUER_URI}
 
 smartretail:
-  dynamodb:
-    idempotency-table: ${IDEMPOTENCY_TABLE_NAME}
-  s3:
-    events-bucket: ${EVENTS_BUCKET_NAME}
   eventbridge:
     bus-name: ${EVENTBRIDGE_BUS_NAME}

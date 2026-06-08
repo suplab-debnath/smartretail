@@ -13,7 +13,7 @@ export interface DataStackProps extends cdk.StackProps {
 }
 
 // Services whose ECR repos must exist before ComputeStack deploys ECS services.
-const DEMO_SERVICES = ['ims', 're', 'ars', 'dfs', 'sup'] as const;
+const DEMO_SERVICES = ['sis', 'ims', 're', 'ars', 'dfs', 'sup'] as const;
 
 export class DataStack extends cdk.Stack {
   public readonly dbEndpoint: string;

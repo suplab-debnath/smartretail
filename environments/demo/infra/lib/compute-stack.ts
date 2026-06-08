@@ -29,12 +29,12 @@ interface ServiceConfig {
 }
 
 /**
- * Demo compute stack — SC Planner backend only (IMS, RE, ARS, DFS, SUP).
- * SIS is intentionally absent; all sales data is pre-seeded.
+ * Demo compute stack — SC Planner backend (SIS, IMS, RE, ARS, DFS, SUP).
  * Container Insights enabled for CloudWatch observability.
  */
 export class ComputeStack extends cdk.Stack {
   public readonly cluster: ecs.Cluster;
+  public readonly sisService: ecs.FargateService;
   public readonly imsService: ecs.FargateService;
   public readonly reService: ecs.FargateService;
   public readonly arsService: ecs.FargateService;
@@ -83,6 +83,29 @@ export class ComputeStack extends cdk.Stack {
     // DB_PASSWORD injected via Secrets Manager at task launch — not a plain env var
     const commonSecrets: Record<string, ecs.Secret> = {
       DB_PASSWORD: ecs.Secret.fromSecretsManager(data.rdsInstance.secret!, "password"),
+    };
+
+    const sisConfig: ServiceConfig = {
+      name: "sis",
+      port: 8080,
+      ecrRepo: data.ecrRepos["sis"],
+      envVars: {
+        ...commonEnv,
+        DB_SCHEMA: "sales",
+        DB_USERNAME: "smartretail_admin",
+        EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
+      },
+      secrets: commonSecrets,
+      policies: [
+        new iam.PolicyStatement({
+          actions: ["events:PutEvents"],
+          resources: [messaging.eventBus.eventBusArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ["rds-db:connect"],
+          resources: [`arn:aws:rds-db:${this.region}:${this.account}:dbuser:*/smartretail_admin`],
+        }),
+      ],
     };
 
     const imsConfig: ServiceConfig = {
@@ -204,6 +227,7 @@ export class ComputeStack extends cdk.Stack {
       ],
     };
 
+    this.sisService = this.createFargateService(sisConfig, network, ecsExecutionRole, srEnv);
     this.imsService = this.createFargateService(imsConfig, network, ecsExecutionRole, srEnv);
     this.reService = this.createFargateService(reConfig, network, ecsExecutionRole, srEnv);
     this.arsService = this.createFargateService(arsConfig, network, ecsExecutionRole, srEnv);
