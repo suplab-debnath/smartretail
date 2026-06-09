@@ -1,4 +1,4 @@
-package com.smartretail.sis.adapter.inbound.rest;
+package com.smartretail.sup.adapter.inbound.rest;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
