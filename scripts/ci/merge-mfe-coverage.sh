@@ -8,7 +8,7 @@ ROOT="$SCRIPT_DIR/../.."
 OUT_DIR="$ROOT/dist/coverage/frontend"
 HTML_DIR="$OUT_DIR/html"
 
-MFE_DIRS=(store-manager sc-planner executive supplier demo)
+MFE_DIRS=(store-manager sc-planner executive supplier)
 
 mkdir -p "$OUT_DIR" "$HTML_DIR"
 

@@ -25,6 +25,7 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   // callers' plain-object headers are preserved as-is (tests can assert on them).
   let requestInit: RequestInit | undefined = init
 
+  const config = (window as any).SMARTRETAIL_CONFIG ?? {}
   if (config.cognitoPoolId) {
     const headers = new Headers(init?.headers)
     headers.delete('X-Dev-Role')
