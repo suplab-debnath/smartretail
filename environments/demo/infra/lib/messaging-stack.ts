@@ -22,6 +22,7 @@ export class MessagingStack extends cdk.Stack {
   public readonly reAlertDlq: sqs.Queue;
   public readonly arsUpdatesQueue: sqs.Queue;
   public readonly arsUpdatesDlq: sqs.Queue;
+  public readonly salesToImsRule: events.Rule;
   public readonly alertToReRule: events.Rule;
   public readonly allToArsRule: events.Rule;
 
@@ -50,6 +51,8 @@ export class MessagingStack extends cdk.Stack {
     this.reAlertDlq = new sqs.Queue(this, 'ReAlertDlq', {
       queueName: `smartretail-re-alert-${srEnv}-dlq.fifo`,
       fifo: true,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: cdk.Duration.days(14),
     });
     this.reAlertQueue = new sqs.Queue(this, 'ReAlertQueue', {
       queueName: `smartretail-re-alert-${srEnv}.fifo`,
@@ -62,12 +65,21 @@ export class MessagingStack extends cdk.Stack {
 
     this.arsUpdatesDlq = new sqs.Queue(this, 'ArsUpdatesDlq', {
       queueName: `smartretail-ars-updates-${srEnv}-dlq`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: cdk.Duration.days(14),
     });
     this.arsUpdatesQueue = new sqs.Queue(this, 'ArsUpdatesQueue', {
       queueName: `smartretail-ars-updates-${srEnv}`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       deadLetterQueue: { queue: this.arsUpdatesDlq, maxReceiveCount: 3 },
+    });
+
+    // SIS raises SalesTransactionProcessed → IMS picks up for stock decrement
+    this.salesToImsRule = new events.Rule(this, 'SalesToIms', {
+      eventBus: this.eventBus,
+      ruleName: `smartretail-sales-to-ims-${srEnv}`,
+      eventPattern: { source: ['smartretail.sis'], detailType: ['SalesTransactionProcessed'] },
+      targets: [new eventsTargets.SqsQueue(this.imsSalesQueue)],
     });
 
     // IMS raises InventoryAlertEvent → RE picks up for PO creation
