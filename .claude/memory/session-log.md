@@ -1,3 +1,133 @@
+## 2026-06-09 06:25 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/pps/src/main/java/com/smartretail/pps/adapter/inbound/rest/GlobalExceptionHandler.java
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-09 06:02 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/pps/src/main/java/com/smartretail/pps/adapter/inbound/rest/GlobalExceptionHandler.java
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-09 05:56 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/pps/src/main/java/com/smartretail/pps/adapter/inbound/rest/GlobalExceptionHandler.java
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-09 05:48 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/dfs/src/main/java/com/smartretail/dfs/adapter/inbound/rest/GlobalExceptionHandler.java
+  M backend/services/pps/src/main/java/com/smartretail/pps/adapter/inbound/rest/GlobalExceptionHandler.java
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-08 14:21 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/GlobalExceptionHandler.java
+  M mfe/sc-planner/src/components/DemoTab.tsx
+ ?? backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/RequestResponseLoggingFilter.java
+ ?? backend/services/ars/src/main/java/com/smartretail/ars/adapter/inbound/rest/TraceIdFilter.java
+```
+
+## 2026-06-08 12:24 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-08 11:13 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 11:05 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 11:03 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 11:02 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 08:57 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 08:33 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ExecutiveDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/ScPlannerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/StoreManagerDashboardUseCase.java
+  M backend/services/ars/src/main/java/com/smartretail/ars/domain/usecase/SupplierPerformanceUseCase.java
+```
+
+## 2026-06-08 07:40 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+```
+
+## 2026-06-08 07:30 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-08 07:22 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-08 07:10 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-08 07:06 UTC
+```
+ (no git changes this session)
+```
+
 ## 2026-06-07 10:44 UTC
 ```
   M .claude/memory/session-log.md
