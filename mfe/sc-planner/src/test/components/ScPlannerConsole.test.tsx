@@ -19,6 +19,7 @@ vi.mock('@smartretail/auth', () => ({
   useAuth: mockedUseAuth,
   ErrorBanner: () => null,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  getApiBase: () => '',   // local/test mode — Vite proxy handles routing, no base URL needed
 }))
 vi.mock('../../hooks/useScPlannerDashboard')
 vi.mock('../../hooks/useExceptionQueue')
