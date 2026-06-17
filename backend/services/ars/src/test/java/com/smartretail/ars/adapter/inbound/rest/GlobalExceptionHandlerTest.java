@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.sql.SQLException;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,6 +18,11 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
     private final MockHttpServletRequest request =
             new MockHttpServletRequest("GET", "/v1/dashboard/store-manager");
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> detailsOf(ErrorResponse body) {
+        return (Map<String, String>) body.getDetails();
+    }
 
     @Test
     void handleDataAccess_returns500WithMostSpecificCause() {
@@ -30,8 +36,8 @@ class GlobalExceptionHandlerTest {
         assertThat(body).isNotNull();
         assertThat(body.getErrorCode()).isEqualTo(ErrorResponse.ErrorCodeEnum.INTERNAL_ERROR);
         // short cause → truncate returns it unchanged (length <= 500 branch)
-        assertThat(body.getDetails()).containsEntry("cause", "duplicate key value");
-        assertThat(body.getDetails()).containsEntry("exceptionType", "DataIntegrityViolationException");
+        assertThat(detailsOf(body)).containsEntry("cause", "duplicate key value");
+        assertThat(detailsOf(body)).containsEntry("exceptionType", "DataIntegrityViolationException");
     }
 
     @Test
@@ -43,7 +49,7 @@ class GlobalExceptionHandlerTest {
         ErrorResponse body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.getErrorCode()).isEqualTo(ErrorResponse.ErrorCodeEnum.INTERNAL_ERROR);
-        assertThat(body.getDetails()).containsEntry("detail", "null");
+        assertThat(detailsOf(body)).containsEntry("detail", "null");
     }
 
     @Test
@@ -53,7 +59,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response =
                 handler.handleUnexpected(new RuntimeException(longMessage), request);
 
-        String detail = response.getBody().getDetails().get("detail");
+        String detail = detailsOf(response.getBody()).get("detail");
         // length > 500 branch: first 500 chars + the ellipsis character
         assertThat(detail).hasSize(501);
         assertThat(detail).endsWith("…");
