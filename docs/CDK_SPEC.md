@@ -2,8 +2,9 @@
  
 All CDK stacks are in TypeScript.
 
-- **Demo / dev stack** (`environments/demo/infra/`) — SQS + Firehose, reuses default VPC (no NAT gateway). **This is the stack to run.** Stack names: `Min-*`.
-- **Production stack** (`environments/prod/infra/`) — Firehose, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
+- **Demo stack** (`environments/demo/infra/`) — Firehose ingestion + SageMaker pipeline (dormant), reuses the default VPC (no NAT gateway), ARM64. **This is the stack to run.** Stack names: `Min-*`.
+- **Dev stack** (`environments/dev/infra/`) — Firehose, 2-AZ VPC + RDS Proxy + CloudFront, ML pipeline active. Deployed via `make dev-*` targets. Stack names: `Dev-*`.
+- **Production stack** (`environments/prod/infra/`) — Firehose, 3-AZ Multi-AZ VPC. Not wired into Makefile; manual deploys only. Stack names: `Prod-*`.
 
 The specifications below describe `environments/demo/infra/` (the demo stack).
 Deploy in order: Network → Data → Messaging → Identity → Compute → API.
@@ -14,33 +15,42 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 
 | Stack        | Path                       | Purpose                                                              | CPU arch | Stack prefix |
 | ------------ | -------------------------- | -------------------------------------------------------------------- | -------- | ------------ |
-| **cdk-demo** | `environments/demo/infra/` | Demo — SQS + Firehose, default VPC (no NAT), X86_64, cheap           | X86_64   | `Min-*`      |
-| **cdk-dev**  | `environments/dev/infra/`  | Full dev — Firehose, 2-AZ VPC, RDS Proxy, CloudFront, X86_64         | X86_64   | `Dev-*`      |
+| **cdk-demo** | `environments/demo/infra/` | Demo — Firehose + SageMaker (dormant), default VPC (no NAT), cheap   | ARM64    | `Min-*`      |
+| **cdk-dev**  | `environments/dev/infra/`  | Full dev — Firehose, 2-AZ VPC, RDS Proxy, CloudFront, ML nightly     | X86_64   | `Dev-*`      |
 | **cdk-prod** | `environments/prod/infra/` | Production — Firehose, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64   | `Prod-*`     |
 
 **cdk-demo** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
 **cdk-dev** and **cdk-prod** are deployed manually from their respective directories.
 
-### Dev vs Prod Sizing Comparison
+### Demo vs Dev vs Prod Sizing Comparison
 
-`cdk-dev` and `cdk-prod` use the same services and AWS config patterns. Only sizing differs:
+All three stacks deploy the **same topology** (Firehose ingestion, SageMaker pipeline, post-processing
+Lambdas). Only sizing, redundancy, and whether the ML pipeline is active differ:
 
-| Dimension            | cdk-dev      | cdk-prod      |
-| -------------------- | ------------ | ------------- |
-| VPC AZs              | 2            | 3             |
-| NAT Gateways         | 1            | 3             |
-| RDS instance         | t4g.small    | r6g.large     |
-| RDS Multi-AZ         | No           | Yes           |
-| RDS backup retention | 1 day        | 7 days        |
-| ECS task CPU/mem     | 256 / 512 MB | 512 / 1024 MB |
-| ECS desired count    | 1            | 2             |
-| ECS autoscale max    | 3            | 6             |
-| Container insights   | Disabled     | Enabled       |
-| Log retention        | 1 week       | 1 month       |
+| Dimension            | cdk-demo            | cdk-dev      | cdk-prod      |
+| -------------------- | ------------------- | ------------ | ------------- |
+| CPU architecture     | ARM64 (Graviton)    | X86_64       | X86_64        |
+| VPC                  | default (no NAT)    | 2 AZ, 1 NAT  | 3 AZ, 3 NAT   |
+| VPC interface endpts | None                | 6 (×2 AZ)    | 6 (×3 AZ)     |
+| RDS instance         | t4g.micro           | t4g.small    | r6g.large     |
+| RDS Multi-AZ         | No                  | No           | Yes           |
+| RDS Proxy            | No (direct)         | Yes          | Yes           |
+| RDS backup retention | 0 days              | 1 day        | 7 days        |
+| ECS task CPU/mem     | 256 / 512 MB        | 256 / 512 MB | 512 / 1024 MB |
+| ECS desired count    | 1                   | 1            | 2             |
+| ECS autoscale max    | 2                   | 3            | 6             |
+| Fargate Spot         | No (on-demand)      | Yes (wt 4)   | Yes (wt 2)    |
+| SageMaker pipeline   | Dormant (cron off)  | Nightly      | Nightly       |
+| Lambdas (ml/batch)   | Outside VPC, throttled | In-VPC, active | In-VPC, active |
+| Backend services     | 6 (no PPS)          | 7            | 7             |
+| Log retention        | 2 weeks             | 1 month      | 3 months      |
+| Removal policy       | DESTROY             | DESTROY      | RETAIN        |
+| ~Cost / month (24×7) | ~$80                | ~$230        | ~$850         |
 
-Both stacks deploy 7 ECS services (SIS, IMS, RE, ARS, DFS, SUP, PPS), 4 MFE CloudFront
+`cdk-dev` and `cdk-prod` each deploy 7 ECS services (SIS, IMS, RE, ARS, DFS, SUP, PPS), 4 MFE CloudFront
 distributions (store-manager, sc-planner, executive, supplier), 2 Cognito pools
-(internal + supplier), Firehose delivery stream, and RDS Proxy.
+(internal + supplier), Firehose delivery stream, and RDS Proxy. `cdk-demo` deploys the same Firehose
+stream and SageMaker pipeline but omits PPS, RDS Proxy, and three of the MFEs (SC Planner only).
 
 ---
 

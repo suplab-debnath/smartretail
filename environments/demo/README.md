@@ -108,7 +108,7 @@ make demo-create-users DEMO_ENV=demo
 Scale ECS to zero and stop RDS without destroying any infrastructure or data.
 
 ```bash
-# Stop everything before you leave (saves ~$0.90/night for 9 hours)
+# Stop everything before you leave (saves ~$1.90/night for ~9 hours)
 make demo-stop
 
 # Resume the next morning
@@ -119,14 +119,14 @@ make demo-start
 
 | Resource               | Action             | Resumes in |
 | ---------------------- | ------------------ | ---------- |
-| ECS Fargate tasks (×5) | Desired count → 0  | ~30 s      |
+| ECS Fargate tasks (×6) | Desired count → 0  | ~30 s      |
 | RDS `t4g.micro`        | `stop-db-instance` | ~2 min     |
 
 **What keeps running (serverless / no idle cost):**
 
 | Resource                                                    | Idle cost                                      |
 | ----------------------------------------------------------- | ---------------------------------------------- |
-| NLB                                                         | ~$0.008/hr — unavoidable without destroying it |
+| NLB                                                         | ~$0.0225/hr — unavoidable without destroying it |
 | CloudFront, API Gateway, SQS, Cognito, S3, Firehose, Lambda | $0 at idle                                     |
 
 > RDS will auto-start after 7 days if you forget — AWS enforces this limit on stopped instances.
@@ -168,26 +168,26 @@ Here's the full breakdown pulled directly from all 7 demo CDK stacks:
 
 | Service                                 | Config                                                     | $/month        |
 | --------------------------------------- | ---------------------------------------------------------- | -------------- |
-| RDS                                     | t4g.micro, PostgreSQL 16, 20 GB, single-AZ                 | ~$14           |
 | ECS Fargate                             | 6 tasks × 0.25 vCPU / 0.5 GB, ARM64 (Graviton2), on-demand | ~$43           |
-| NLB                                     | 1 internal NLB, 6 listeners, low traffic                   | ~$7            |
-| CloudWatch                              | 1 dashboard, 6 alarms, 6 log groups                        | ~$4            |
+| NLB                                     | 1 internal NLB ($0.0225/hr base + minimal LCU)             | ~$17           |
+| RDS                                     | t4g.micro, PostgreSQL 16, 20 GB, single-AZ, no backups     | ~$14           |
+| CloudWatch                              | 1 dashboard, 6 alarms, 6 log groups (2-wk retention)       | ~$4            |
 | Secrets Manager                         | 2 secrets (RDS password + Firehose access key)             | ~$0.80         |
 | API Gateway (REST)                      | Low demo traffic (~100k calls)                             | ~$0.50         |
 | Kinesis Data Firehose                   | Low event volume (<1 GB/month)                             | ~$0.03         |
 | S3                                      | events bucket + SageMaker bucket, minimal data             | ~$0.05         |
 | ECR                                     | 8 repos (6 services + 2 Lambdas), ~1.5 GB images           | ~$0.15         |
-| Lambda                                  | 2 functions, minimal invocations                           | ~$0.00         |
+| Lambda                                  | 2 functions, throttled (`reservedConcurrentExecutions: 0`) | ~$0.00         |
 | SageMaker pipeline definition           | `CfnPipeline`, cron disabled (`enabled: false`)            | $0.00          |
 | SQS / EventBridge / Cognito / SNS / SSM | Minimal usage, within free tiers                           | ~$0.50         |
-| **Total**                               |                                                            | **~$56/month** |
+| **Total**                               |                                                            | **~$80/month** |
 
 **Key points:**
-- RDS + Fargate = 79% of the bill. Pure on-demand FARGATE trades ~$19/month in savings for reliable deployments — worth it for a 1-2 day demo.
-- No NAT Gateway — tasks use public IPs in the default VPC, saving ~$32/month vs a private-subnet setup.
-- At ~$1.87/day, a 2-day demo costs ~$3.75. **Run `make demo-destroy` after every demo session.**
-- Running `make demo-stop` each evening (9 h off) cuts RDS + Fargate cost by ~37%, saving ~$0.60/night.
-- SageMaker `CfnPipeline` is deployed but the EventBridge cron is disabled. Zero standing cost — charges only occur when `StartPipelineExecution` is called (~$0.54/run: training ~$0.48 + transform ~$0.06). To activate: `aws events enable-rule --name smartretail-ml-trigger-daily-demo` or set `enabled: true` in CDK and redeploy `Min-ApiStack`.
+- ECS Fargate + NLB + RDS = ~92% of the bill. The NLB (~$17/mo) is the one cost that cannot drop to zero without destroying it — it bills hourly even when ECS is scaled to zero.
+- No NAT Gateway — tasks use public IPs in the default VPC, saving ~$33/month vs a private-subnet setup.
+- The stack is **ephemeral**. At ~$2.65/day, a 2-day demo run costs ~$5 (less with overnight pause). **Run `make demo-destroy` after every demo session.**
+- Running `make demo-stop` each evening scales ECS to 0 and stops RDS — saving ~$1.90/night across the ~9 idle hours.
+- SageMaker `CfnPipeline` is deployed but the EventBridge cron is disabled and the ml-trigger Lambda is throttled to zero. Zero standing cost — charges only occur when `StartPipelineExecution` is called (~$0.54/run: training ~$0.48 + transform ~$0.06). To activate: `aws events enable-rule --name smartretail-ml-trigger-daily-demo` **and** remove the `reservedConcurrentExecutions: 0` on the Lambda (set `enabled: true` in CDK and redeploy `Min-ApiStack`).
 
 ---
 

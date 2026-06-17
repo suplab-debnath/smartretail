@@ -966,18 +966,23 @@
     <div class="card">
       <h2>Why a separate demo environment?</h2>
       <p style="margin-top:8px; color:#64748b; font-size:13px">
-        The demo is not a simplified mock. It runs the same service code on real AWS infrastructure.
-        Three constraints make a full production stack impractical for a 1–2 day prototype demonstration.
+        The demo is not a simplified mock. It runs the <strong>same service code and the same pipeline
+          topology</strong> as production on real AWS infrastructure — Firehose ingestion, the SageMaker
+        forecasting pipeline, and the post-processing Lambdas are all deployed. What changes is
+        <strong>sizing and durability</strong>, not shape. Three constraints drive that right-sizing for a
+        1–2 day prototype demonstration.
       </p>
     </div>
 
     <div class="reason blue" style="padding:16px 18px; border-radius:0 8px 8px 0; margin-bottom:12px">
       <strong>&#128176; 1 — Cost</strong>
       <p style="margin-top:6px">
-        A production-grade deployment runs <strong>~$200–400/month</strong>: Multi-AZ RDS (db.t3.medium),
-        three NAT Gateways, RDS Proxy, 7 ECS services at full size, Kinesis Firehose, and periodic SageMaker
-        training jobs. That is not justified for a 1–2 day prototype demo. The demo stack runs at
-        <strong>~$63/day</strong> and can be paused overnight with a single <code>make demo-stop</code> command.
+        A production deployment runs <strong>~$850/month</strong> 24&times;7: Multi-AZ RDS (r6g.large),
+        three NAT Gateways, multiple VPC interface endpoints, RDS Proxy, 7 ECS services at full size, and a
+        nightly SageMaker training + batch-transform job. That is not justified for a 1–2 day prototype.
+        The demo deploys the <em>same pipeline topology</em> for <strong>~$80/month</strong> if left running
+        24&times;7 — and because it is ephemeral and torn down after each session, a paused 2-day run costs
+        <strong>~$5</strong> (<code>make demo-stop</code> overnight, <code>make demo-destroy</code> when done).
       </p>
     </div>
 
@@ -989,126 +994,236 @@
         That data does not yet exist — this is a prototype. Forecast outputs in the demo are represented by
         <strong>pre-seeded placeholder values</strong> (Flyway migration V7) that stand in for what a
         trained model would produce once live transaction data has been collected over a sufficient window.
+        The SageMaker pipeline, its execution role, and the S3 buckets are <strong>deployed in demo but
+          dormant</strong>: the EventBridge schedule is disabled (<code>enabled: false</code>) and the trigger
+        Lambda is throttled to zero (<code>reservedConcurrentExecutions: 0</code>), so standing ML cost is
+        <strong>$0</strong> — charges only accrue if a run is started manually.
       </p>
     </div>
 
     <div class="reason purple" style="padding:16px 18px; border-radius:0 8px 8px 0; margin-bottom:18px">
-      <strong>&#9201; 3 — Bootstrap Complexity</strong>
+      <strong>&#9201; 3 — Right-sized, not stripped down</strong>
       <p style="margin-top:6px">
-        Wiring a Kinesis Firehose delivery stream through API Gateway, configuring S3 archival, and
-        bootstrapping a SageMaker training pipeline adds ~30–45 minutes to cold-start and requires
-        persistent S3 buckets and IAM roles. The demo stack bootstraps from cold in <strong>~15 minutes</strong>
-        (<code>make demo-full-deploy</code>) using SQS in place of Firehose and seed data in place of ML outputs.
+        The demo deploys the <strong>full ingestion + ML topology</strong> — Kinesis Firehose → API Gateway →
+        SIS, the S3 events &amp; SageMaker buckets, the batch-post-processor and ml-trigger Lambdas, and the
+        SageMaker pipeline definition — so the architecture is demonstrable end to end. What changes is
+        <em>sizing and durability</em>: a default VPC (no NAT), a single-AZ <code>t4g.micro</code> with no
+        RDS Proxy, one ARM64 Fargate task per service, and ML compute gated off. The result bootstraps from
+        cold in <strong>~15 minutes</strong> (<code>make demo-full-deploy</code>) instead of the ~30–45 min a
+        Multi-AZ, multi-NAT production stack needs.
       </p>
     </div>
 
     <!-- Cost breakdown table -->
     <div class="card">
-      <div class="card-title">&#128200; Demo Cost Breakdown (ephemeral, ~2-day run)</div>
+      <div class="card-title">&#128200; Demo Cost Breakdown (us-east-1, on-demand, 24&times;7)</div>
       <table class="tbl">
         <thead>
           <tr>
             <th>Component</th>
             <th>Configuration</th>
-            <th style="text-align:right">~Cost / day</th>
+            <th style="text-align:right">~$ / month</th>
           </tr>
         </thead>
         <tbody>
           <tr>
+            <td>ECS Fargate (6 services)</td>
+            <td>0.25 vCPU / 0.5 GiB, ARM64 (Graviton), 1 task each, on-demand</td>
+            <td style="text-align:right">$43</td>
+          </tr>
+          <tr>
+            <td>Network Load Balancer</td>
+            <td>1 internal NLB ($0.0225/hr base + minimal LCU)</td>
+            <td style="text-align:right">$17</td>
+          </tr>
+          <tr>
             <td>RDS PostgreSQL</td>
-            <td>t4g.micro, single-AZ, 20 GiB gp3</td>
+            <td>t4g.micro, single-AZ, 20 GiB gp3, no backups</td>
             <td style="text-align:right">$14</td>
           </tr>
           <tr>
-            <td>ECS Fargate (6 services)</td>
-            <td>256 vCPU / 512 MiB, ARM64, 1 task each</td>
-            <td style="text-align:right">$36</td>
+            <td>CloudWatch</td>
+            <td>1 dashboard + alarms + log groups (2-week retention)</td>
+            <td style="text-align:right">$4</td>
           </tr>
           <tr>
-            <td>NLB + CloudFront + CloudWatch</td>
-            <td>internal NLB, 1 CF distribution, basic metrics</td>
-            <td style="text-align:right">$11</td>
-          </tr>
-          <tr>
-            <td>ECR, S3, SQS, EventBridge, Cognito</td>
-            <td>usage-based, low volume</td>
+            <td>Firehose &middot; S3 &middot; ECR &middot; Secrets &middot; SQS &middot; EventBridge &middot; Cognito
+            </td>
+            <td>low volume, partly within free tier</td>
             <td style="text-align:right">$2</td>
           </tr>
           <tr>
-            <td colspan="2"><strong>Total</strong> &nbsp;<span style="font-size:12px; color:#94a3b8">(stop overnight
-                saves ~$0.60/night)</span></td>
-            <td style="text-align:right"><strong>~$63 / day</strong></td>
+            <td>Lambdas (throttled) + SageMaker pipeline</td>
+            <td>dormant — $0 standing cost</td>
+            <td style="text-align:right">$0</td>
+          </tr>
+          <tr>
+            <td colspan="2"><strong>Total (24&times;7)</strong> &nbsp;<span
+                style="font-size:12px; color:#94a3b8">ephemeral
+                — a paused 2-day demo costs ~$5; always <code>make demo-destroy</code> when done</span></td>
+            <td style="text-align:right"><strong>~$80 / month</strong></td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Comparison table -->
+    <!-- Cost by environment -->
     <div class="card">
-      <div class="card-title">&#9878;&#65039; Deployed vs Omitted</div>
+      <div class="card-title">&#128181; Cost by Environment (us-east-1, on-demand, 24&times;7 estimate)</div>
       <table class="tbl">
         <thead>
           <tr>
-            <th>Component</th>
-            <th>Demo</th>
-            <th>Production</th>
-            <th>Reason for omission in demo</th>
+            <th>Environment</th>
+            <th>Footprint</th>
+            <th style="text-align:right">~$ / month</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>SIS, IMS, RE, ARS, DFS, SUP</td>
-            <td><span class="badge badge-green">&#10003; deployed</span></td>
-            <td><span class="badge badge-green">&#10003; deployed</span></td>
-            <td>&mdash;</td>
+            <td><strong>Demo</strong> <span style="color:#94a3b8">(Min-*)</span></td>
+            <td>default VPC (0 NAT), single-AZ t4g.micro, 6 ARM64 tasks, ML dormant</td>
+            <td style="text-align:right">~$80</td>
           </tr>
           <tr>
-            <td>PPS (Promotions &amp; Pricing)</td>
-            <td><span class="badge badge-red">&#10007; stub only</span></td>
-            <td><span class="badge badge-green">&#10003; deployed</span></td>
-            <td>Flows 5–7 not in prototype scope</td>
+            <td><strong>Dev</strong> <span style="color:#94a3b8">(Dev-*)</span></td>
+            <td>2-AZ VPC + 1 NAT + VPC endpoints, RDS Proxy → t4g.small, 7 tasks (Spot), ML nightly</td>
+            <td style="text-align:right">~$230</td>
           </tr>
           <tr>
-            <td>Kinesis Data Firehose</td>
-            <td><span class="badge badge-amber">&#9888; simulated</span></td>
-            <td><span class="badge badge-green">&#10003; POS → Firehose → SIS</span></td>
-            <td>MFE Demo Tab calls SIS REST directly</td>
+            <td><strong>Prod</strong> <span style="color:#94a3b8">(Prod-*)</span></td>
+            <td>3-AZ VPC + 3 NAT + VPC endpoints, Multi-AZ r6g.large + RDS Proxy, 7 tasks &times;2 (Spot+OD), ML nightly
+            </td>
+            <td style="text-align:right">~$850</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:8px; color:#94a3b8; font-size:12px">
+        Estimates exclude data egress and per-run SageMaker charges (~$0.54/run: training ~$0.48 +
+        batch-transform ~$0.06). Dev/prod use a FARGATE_SPOT-weighted capacity provider to trim ECS cost.
+      </p>
+    </div>
+
+    <!-- 3-way comparison table -->
+    <div class="card">
+      <div class="card-title">&#9878;&#65039; Demo vs Dev vs Prod — what's deployed</div>
+      <p style="margin-top:4px; margin-bottom:10px; color:#64748b; font-size:13px">
+        All three environments run the <strong>same topology</strong>. They differ in sizing, redundancy, and
+        whether the ML pipeline is active.
+      </p>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Demo <span style="color:#94a3b8">(Min-*)</span></th>
+            <th>Dev <span style="color:#94a3b8">(Dev-*)</span></th>
+            <th>Prod <span style="color:#94a3b8">(Prod-*)</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Backend services</td>
+            <td><span class="badge badge-amber">6 (no PPS)</span></td>
+            <td><span class="badge badge-green">7</span></td>
+            <td><span class="badge badge-green">7</span></td>
           </tr>
           <tr>
-            <td>SageMaker DeepAR</td>
-            <td><span class="badge badge-amber">&#9888; seed data</span></td>
-            <td><span class="badge badge-green">&#10003; trained model</span></td>
-            <td>No real transaction data to train on yet</td>
+            <td>POS ingestion</td>
+            <td><span class="badge badge-green">Firehose → API GW → SIS</span></td>
+            <td><span class="badge badge-green">Firehose → VPC Link → SIS</span></td>
+            <td><span class="badge badge-green">Firehose → VPC Link → SIS</span></td>
           </tr>
           <tr>
-            <td>RDS Proxy</td>
-            <td><span class="badge badge-red">&#10007; direct RDS</span></td>
-            <td><span class="badge badge-green">&#10003; RDS Proxy</span></td>
-            <td>Single demo task; proxy adds cost</td>
+            <td>SageMaker pipeline</td>
+            <td><span class="badge badge-amber">deployed, dormant (cron off)</span></td>
+            <td><span class="badge badge-green">nightly 02:00 UTC</span></td>
+            <td><span class="badge badge-green">nightly 02:00 UTC</span></td>
           </tr>
           <tr>
-            <td>Multi-AZ RDS</td>
-            <td><span class="badge badge-red">&#10007; single-AZ t4g.micro</span></td>
-            <td><span class="badge badge-green">&#10003; Multi-AZ</span></td>
-            <td>Ephemeral demo; HA not required</td>
+            <td>Post-processor + ml-trigger Lambdas</td>
+            <td><span class="badge badge-amber">deployed, outside VPC, throttled</span></td>
+            <td><span class="badge badge-green">in-VPC, active</span></td>
+            <td><span class="badge badge-green">in-VPC, active</span></td>
           </tr>
           <tr>
-            <td>3-AZ VPC + NAT Gateways</td>
-            <td><span class="badge badge-red">&#10007; default VPC</span></td>
-            <td><span class="badge badge-green">&#10003; custom 3-AZ VPC</span></td>
-            <td>Default VPC simplifies demo setup; saves ~$100/mo</td>
+            <td>RDS</td>
+            <td><span class="badge badge-amber">t4g.micro, single-AZ, no proxy</span></td>
+            <td><span class="badge badge-green">t4g.small + RDS Proxy</span></td>
+            <td><span class="badge badge-green">r6g.large Multi-AZ + RDS Proxy</span></td>
           </tr>
           <tr>
-            <td>Batch Post-Processor Lambda</td>
-            <td><span class="badge badge-red">&#10007; not wired</span></td>
-            <td><span class="badge badge-green">&#10003; S3 → Lambda → DFS</span></td>
-            <td>No SageMaker output to process</td>
+            <td>VPC / NAT</td>
+            <td><span class="badge badge-amber">default VPC, 0 NAT</span></td>
+            <td><span class="badge badge-green">2-AZ + 1 NAT</span></td>
+            <td><span class="badge badge-green">3-AZ + 3 NAT</span></td>
           </tr>
           <tr>
-            <td>CloudWatch Alarms + SNS</td>
-            <td><span class="badge badge-amber">&#9888; dashboard only</span></td>
-            <td><span class="badge badge-green">&#10003; alarms + email</span></td>
-            <td>Reduced monitoring for ephemeral stack</td>
+            <td>ECS Fargate</td>
+            <td><span class="badge badge-amber">1 ARM64 task / svc</span></td>
+            <td><span class="badge badge-green">1 x86 task + Spot</span></td>
+            <td><span class="badge badge-green">2 x86 tasks (larger) + Spot</span></td>
+          </tr>
+          <tr>
+            <td>Monitoring</td>
+            <td><span class="badge badge-amber">dashboard only</span></td>
+            <td><span class="badge badge-green">alarms + SNS</span></td>
+            <td><span class="badge badge-green">alarms + SNS</span></td>
+          </tr>
+          <tr>
+            <td>Removal policy</td>
+            <td><span class="badge badge-red">DESTROY</span></td>
+            <td><span class="badge badge-red">DESTROY</span></td>
+            <td><span class="badge badge-green">RETAIN</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Per-config justification -->
+    <div class="card">
+      <div class="card-title">&#127919; Why each demo config choice</div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Demo choice</th>
+            <th>Rationale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Default VPC, no NAT Gateway</td>
+            <td>Public subnets + public-IP tasks reach ECR/S3 directly. Saves ~$33/NAT-month and several minutes
+              of provisioning. HA and egress isolation are irrelevant for a throwaway stack.</td>
+          </tr>
+          <tr>
+            <td>t4g.micro, single-AZ, no RDS Proxy, no backups</td>
+            <td>One presenter's load fits a micro; a single task per service creates no connection-pool pressure
+              that a proxy would relieve. Data is reproducible from Flyway seed (V7), so backups and Multi-AZ add
+              cost with no benefit.</td>
+          </tr>
+          <tr>
+            <td>ARM64 (Graviton) Fargate, 1 task / service</td>
+            <td>~20% cheaper than x86 at equal performance. One task per service covers single-presenter
+              throughput; min/max 1/2 absorbs a restart.</td>
+          </tr>
+          <tr>
+            <td>SageMaker pipeline deployed but dormant</td>
+            <td>Proves the ML wiring is real (role, buckets, pipeline definition) at $0 standing cost. No real POS
+              history exists to train on yet, so the cron stays off and forecasts use seed data.</td>
+          </tr>
+          <tr>
+            <td>Lambdas outside the VPC</td>
+            <td>With no NAT, a VPC-bound Lambda couldn't reach the S3 or SageMaker APIs. Running them outside the
+              VPC keeps the S3 → Lambda → DFS path reachable via the API Gateway URL.</td>
+          </tr>
+          <tr>
+            <td>Firehose → public API GW (not VPC Link)</td>
+            <td>Same delivery contract and SIS ingest endpoint (<code>/v1/ingest/events</code>) as prod, but
+              targets the public NLB so no private networking is required.</td>
+          </tr>
+          <tr>
+            <td>RemovalPolicy.DESTROY everywhere</td>
+            <td>Ephemeral by design — <code>make demo-destroy</code> leaves nothing behind, with no manual S3/ECR
+              cleanup.</td>
           </tr>
         </tbody>
       </table>
@@ -1439,11 +1554,12 @@
     <div class="callout amber">
       <span class="callout-icon">&#8505;&#65039;</span>
       <span>
-        <strong>Production vs demo difference:</strong> In production, the pipeline starts at <strong>POS hardware →
-          Kinesis Data Firehose → API Gateway → SIS</strong>.
-        In this demo, the SC Planner Demo Tab sends a direct <code>POST /v1/ingest/events</code> to simulate a checkout.
-        All downstream services (IMS → EventBridge → RE → ARS) run the <strong>identical code path</strong> in both
-        modes.
+        <strong>Production vs demo difference:</strong> The <strong>POS hardware → Kinesis Data Firehose →
+          API Gateway → SIS</strong> pipeline is deployed in <em>all</em> environments. For an interactive demo,
+        the SC Planner Demo Tab posts a checkout directly to <code>POST /v1/ingest/events</code> so events appear
+        instantly rather than waiting for Firehose's 60-second buffer — the Firehose stream itself is wired and
+        functional. All downstream services (IMS → EventBridge → RE → ARS) run the <strong>identical code
+          path</strong> in both modes.
       </span>
     </div>
 

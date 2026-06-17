@@ -2,12 +2,44 @@
 
 > Three deployment environments: Demo (1-2 day showcase), Dev (full-stack development), Production (HA, 3-AZ).
 
+All three run the **same service code and the same pipeline topology** (Firehose ingestion → SIS,
+SageMaker demand-forecast pipeline, post-processing Lambdas). They differ only in **sizing, redundancy,
+and whether the ML pipeline is active**.
+
+---
+
+## Cost & FinOps Summary
+
+Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run SageMaker charges of
+~$0.54/run — training ~$0.48 + batch-transform ~$0.06):
+
+| Environment | Footprint                                                                                     | ~$/month |
+|-------------|-----------------------------------------------------------------------------------------------|----------|
+| **Demo**    | Default VPC (0 NAT), single-AZ `t4g.micro`, 6 ARM64 tasks, ML pipeline dormant                | **~$80** |
+| **Dev**     | 2-AZ VPC + 1 NAT + VPC endpoints, RDS Proxy → `t4g.small`, 7 tasks (Spot), nightly ML         | **~$230** |
+| **Prod**    | 3-AZ VPC + 3 NAT + VPC endpoints, Multi-AZ `r6g.large` + RDS Proxy, 7 tasks ×2 (Spot+OD), ML  | **~$850** |
+
+**Key drivers and levers:**
+- **NAT Gateways** are the biggest fixed cost above demo: ~$33/gateway/month + data. Demo avoids them
+  entirely with a default VPC and public-IP tasks.
+- **RDS** dominates prod: a Multi-AZ `r6g.large` (~$370/mo for two instances) + RDS Proxy. Demo's
+  `t4g.micro` single-AZ is ~$14 because the data is reproducible from Flyway seed.
+- **VPC interface endpoints** (ECR, SQS, EventBridge, CloudWatch, Secrets Manager) cost ~$7.3/AZ/month
+  each — material in dev (×2 AZ) and prod (×3 AZ); demo has none.
+- **ECS** uses a FARGATE_SPOT-weighted capacity provider in dev/prod to trim compute cost; demo uses
+  on-demand ARM64 (Graviton) for predictable single-task deploys.
+- **SageMaker** standing cost is **$0** in all environments — charges accrue only per pipeline run. The
+  demo cron is disabled (`enabled: false`); dev/prod run nightly at 02:00 UTC.
+- The demo is **ephemeral**: all resources are `RemovalPolicy.DESTROY` and tagged `Lifecycle=ephemeral`.
+  A paused 2-day run (`make demo-stop` overnight) costs ~$5; always `make demo-destroy` when done.
+
 ---
 
 ## Demo Environment (Min-* CDK stacks)
 
-> **Purpose:** SC Planner showcase. Five backend services, pre-seeded data (no real-time POS
-> ingestion), single-MFE deployment. Intended lifespan: 1–2 days. CDK stack prefix: `Min-*`.
+> **Purpose:** SC Planner showcase. Six backend services (SIS, IMS, RE, ARS, DFS, SUP), the full
+> Firehose ingestion + SageMaker forecasting topology (ML pipeline deployed but dormant), pre-seeded
+> forecast data, single-MFE deployment. Intended lifespan: 1–2 days. CDK stack prefix: `Min-*`.
 
 ---
 
@@ -22,7 +54,10 @@
 | VPC type              | Default account VPC (looked up by CDK, not created)                                       |
 | Subnet tier           | Public only (no private subnets in default VPC)                                           |
 | RDS proxy             | None — ECS tasks connect directly to the RDS instance                                     |
-| SIS / Firehose        | Absent — sales data pre-seeded via Flyway V7–V9                                           |
+| POS ingestion         | Kinesis Data Firehose → API Gateway → SIS `/v1/ingest/events` (S3 backup bucket)          |
+| SageMaker pipeline    | Deployed but **dormant** — EventBridge cron `enabled: false`, ml-trigger throttled to 0   |
+| Lambdas               | `batch-post-processor` + `ml-trigger` (ARM64, **outside VPC**, reach DFS via API GW URL)  |
+| Forecast data         | Pre-seeded via Flyway V7 (stands in for trained-model output)                             |
 | MFEs deployed         | SC Planner only (:5174)                                                                   |
 | ECS task min / max    | 1 / 2 (CPU scaling at 70%)                                                                |
 | ECS task size         | 256 CPU units · 512 MiB                                                                   |

@@ -2,7 +2,7 @@
 
 > **Production deployments are intentional manual operations.** This environment is deliberately NOT wired into the Makefile. Every command below must be run explicitly.
 
-Deploys the full SmartRetail stack to production-grade AWS infrastructure: 3-AZ VPC, Multi-AZ RDS (r6g.large), 3 NAT Gateways, Container Insights, `RemovalPolicy.RETAIN` on all stateful resources. Uses `environments/prod/infra/` (Prod-* stack names).
+Deploys the full SmartRetail stack to production-grade AWS infrastructure: 7 backend services + 2 Lambdas (`ml-trigger`, `batch-post-processor`), Kinesis Data Firehose → API Gateway (VPC Link) → SIS ingestion, the SageMaker demand-forecast pipeline (nightly, active), 3-AZ VPC + VPC interface endpoints, Multi-AZ RDS (r6g.large) + RDS Proxy, 3 NAT Gateways, Container Insights, `RemovalPolicy.RETAIN` on all stateful resources. Uses `environments/prod/infra/` (Prod-* stack names).
 
 > For the full CDK stack spec and resource table see `environments/prod/infra/README.md`.
 
@@ -56,10 +56,10 @@ for svc in sis ims re ars dfs sup pps; do
   aws ecs update-service --cluster smartretail-prod --service smartretail-$svc-prod --force-new-deployment
 done
 
-# Kinesis Consumer Lambda
-mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod:latest backend/adapters/kinesis-consumer
-docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-prod:latest
+# ML Trigger Lambda (starts the SageMaker pipeline on the nightly schedule)
+mvn clean package -DskipTests -pl backend/adapters/ml-trigger --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-ml-trigger-prod:latest backend/adapters/ml-trigger
+docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-ml-trigger-prod:latest
 
 # Batch Post-Processor Lambda
 mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
@@ -143,6 +143,18 @@ After CDK destroy:
 1. Manually empty and delete each S3 bucket
 2. Manually delete ECR repositories
 3. Manually delete CloudFront distributions and OAC
+
+---
+
+## Cost estimate
+
+Rough us-east-1, on-demand, 24×7: **~$850/month**. The largest line items are Multi-AZ RDS `r6g.large`
+(~$370/mo for the two instances) + RDS Proxy, 3 NAT Gateways (~$99/mo + data), ~18 VPC interface
+endpoints (~$7.3/AZ/mo each across 3 AZs), and 7 services at 2× larger Fargate tasks (Spot-weighted).
+The nightly SageMaker run adds ~$0.54/run; standing ML cost is $0. Storage grows over time — S3 buckets
+are versioned with multi-year lifecycle retention.
+
+See `docs/ENVIRONMENTS.md` → **Cost & FinOps Summary** for the full demo/dev/prod comparison.
 
 ---
 
