@@ -111,9 +111,9 @@ export function ApprovalWorkflowsTab({ refreshKey = 0 }: Props) {
                   { label: 'Supplier' },
                   { label: 'SKU', term: 'SKU' },
                   { label: 'DC', term: 'DC' },
-                  { label: 'Qty' },
+                  { label: 'Order Qty' },
                   { label: 'Total Value' },
-                  { label: 'Created At' },
+                  { label: 'PO Date' },
                   { label: 'Actions' },
                 ].map(h => (
                   <th key={h.label} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

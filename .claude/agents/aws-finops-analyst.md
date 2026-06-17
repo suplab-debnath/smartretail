@@ -24,33 +24,33 @@ for cost allocation. Bridges engineering decisions and cloud spend accountabilit
 The codebase has three CDK stack variants. The user term "stg" (staging) does not yet exist
 as a CDK stack — it would sit between dev and prod in both sizing and cost.
 
-| User term | CDK stack prefix | Path | Architecture | Status |
-|-----------|-----------------|------|-------------|--------|
-| poc | `Min-*` | `environments/demo/infra/` | ARM64, default VPC, SQS-only | Deployed via Makefile |
-| dev | `Dev-*` | `environments/dev/infra/` | x86_64, 2-AZ VPC, Firehose, CloudFront | Manual deploy |
-| stg | _(not yet defined)_ | would be `environments/stg/infra/` | x86_64, 2-AZ VPC, same as dev + Multi-AZ RDS | Proposed |
-| prod | `Prod-*` | `environments/prod/infra/` | x86_64, 3-AZ VPC, Multi-AZ RDS, 3 NAT GWs | Manual deploy |
+| User term | CDK stack prefix    | Path                               | Architecture                                 | Status                |
+| --------- | ------------------- | ---------------------------------- | -------------------------------------------- | --------------------- |
+| poc       | `Min-*`             | `environments/demo/infra/`         | ARM64, default VPC, Firehose, CloudFront     | Deployed via Makefile |
+| dev       | `Dev-*`             | `environments/dev/infra/`          | x86_64, 2-AZ VPC, Firehose, CloudFront       | Manual deploy         |
+| stg       | _(not yet defined)_ | would be `environments/stg/infra/` | x86_64, 2-AZ VPC, same as dev + Multi-AZ RDS | Proposed              |
+| prod      | `Prod-*`            | `environments/prod/infra/`         | x86_64, 3-AZ VPC, Multi-AZ RDS, 3 NAT GWs    | Manual deploy         |
 
 ---
 
 ## Infrastructure Sizing Comparison
 
-| Dimension | poc (Min-*) | dev (Dev-*) | stg (proposed) | prod (Prod-*) |
-|-----------|------------|------------|----------------|--------------|
-| CPU arch | ARM64 | x86_64 | x86_64 | x86_64 |
-| VPC | Default (shared) | Dedicated, 2 AZs | Dedicated, 2 AZs | Dedicated, 3 AZs |
-| NAT Gateways | 0 (default VPC) | 1 | 2 | 3 |
-| RDS instance | t4g.medium | t4g.small | t4g.large | r6g.large |
-| RDS Multi-AZ | No | No | Yes | Yes |
-| RDS backup retention | 1 day | 1 day | 3 days | 7 days |
-| RDS Proxy | No | Yes | Yes | Yes |
-| ECS task CPU/mem | 256 / 512 MB | 256 / 512 MB | 512 / 1024 MB | 512 / 1024 MB |
-| ECS desired count | 1 | 1 | 1 | 2 |
-| ECS autoscale max | 2 | 3 | 4 | 6 |
-| Firehose | No | Yes | Yes | Yes |
-| CloudFront (4 MFEs) | No | Yes | Yes | Yes |
-| Container Insights | No | No | Yes | Yes |
-| Log retention | 1 week | 1 week | 2 weeks | 1 month |
+| Dimension            | poc (Min-*)      | dev (Dev-*)      | stg (proposed)   | prod (Prod-*)    |
+| -------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
+| CPU arch             | ARM64            | x86_64           | x86_64           | x86_64           |
+| VPC                  | Default (shared) | Dedicated, 2 AZs | Dedicated, 2 AZs | Dedicated, 3 AZs |
+| NAT Gateways         | 0 (default VPC)  | 1                | 2                | 3                |
+| RDS instance         | t4g.medium       | t4g.small        | t4g.large        | r6g.large        |
+| RDS Multi-AZ         | No               | No               | Yes              | Yes              |
+| RDS backup retention | 1 day            | 1 day            | 3 days           | 7 days           |
+| RDS Proxy            | No               | Yes              | Yes              | Yes              |
+| ECS task CPU/mem     | 256 / 512 MB     | 256 / 512 MB     | 512 / 1024 MB    | 512 / 1024 MB    |
+| ECS desired count    | 1                | 1                | 1                | 2                |
+| ECS autoscale max    | 2                | 3                | 4                | 6                |
+| Firehose             | No               | Yes              | Yes              | Yes              |
+| CloudFront (4 MFEs)  | No               | Yes              | Yes              | Yes              |
+| Container Insights   | No               | No               | Yes              | Yes              |
+| Log retention        | 1 week           | 1 week           | 2 weeks          | 1 month          |
 
 Services deployed per environment: SIS, IMS, RE, ARS, DFS, SUP, PPS (7 total).
 MFEs per environment: store-manager, sc-planner, executive, supplier (4 total).
@@ -61,82 +61,82 @@ MFEs per environment: store-manager, sc-planner, executive, supplier (4 total).
 
 ### POC / Demo (Min-*)
 
-| Service | Units | Unit cost | Monthly est. |
-|---------|-------|-----------|-------------|
-| ECS Fargate ARM64 | 7 tasks x 0.25 vCPU x 0.5 GB | $0.0324/vCPU-hr, $0.00356/GB-hr | ~$50 |
-| RDS t4g.medium Single-AZ | 1 instance | ~$0.068/hr | ~$49 |
-| RDS storage (100 GB gp3) | 100 GB | $0.115/GB-month | ~$12 |
-| SQS (standard + FIFO) | Low volume | $0.40/1M msgs | ~$1 |
-| EventBridge | Low volume | $1.00/1M events | ~$1 |
-| Secrets Manager | 3 secrets | $0.40/secret/month | ~$1 |
-| CloudWatch Logs | 1-week retention, low volume | $0.50/GB ingested | ~$5 |
-| API Gateway | Low volume | $3.50/1M calls | ~$2 |
-| S3 (events + SageMaker + MFE) | ~10 GB | $0.023/GB | ~$1 |
-| Cognito | Dev usage | Free tier / $0.0055/MAU | ~$0 |
-| **Total estimate** | | | **~$120/month** |
+| Service                       | Units                        | Unit cost                       | Monthly est.    |
+| ----------------------------- | ---------------------------- | ------------------------------- | --------------- |
+| ECS Fargate ARM64             | 7 tasks x 0.25 vCPU x 0.5 GB | $0.0324/vCPU-hr, $0.00356/GB-hr | ~$50            |
+| RDS t4g.medium Single-AZ      | 1 instance                   | ~$0.068/hr                      | ~$49            |
+| RDS storage (100 GB gp3)      | 100 GB                       | $0.115/GB-month                 | ~$12            |
+| SQS (standard + FIFO)         | Low volume                   | $0.40/1M msgs                   | ~$1             |
+| EventBridge                   | Low volume                   | $1.00/1M events                 | ~$1             |
+| Secrets Manager               | 3 secrets                    | $0.40/secret/month              | ~$1             |
+| CloudWatch Logs               | 1-week retention, low volume | $0.50/GB ingested               | ~$5             |
+| API Gateway                   | Low volume                   | $3.50/1M calls                  | ~$2             |
+| S3 (events + SageMaker + MFE) | ~10 GB                       | $0.023/GB                       | ~$1             |
+| Cognito                       | Dev usage                    | Free tier / $0.0055/MAU         | ~$0             |
+| **Total estimate**            |                              |                                 | **~$120/month** |
 
 > POC has no NAT Gateways (uses default VPC public routing), no VPC interface endpoints, no
 > Firehose, no CloudFront. This is the cheapest deployable environment.
 
 ### Dev (Dev-*)
 
-| Service | Units | Unit cost | Monthly est. |
-|---------|-------|-----------|-------------|
-| ECS Fargate x86_64 | 7 tasks x 0.25 vCPU x 0.5 GB | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$62 |
-| RDS t4g.small Single-AZ | 1 instance | ~$0.034/hr | ~$25 |
-| RDS Proxy | 10% of DB cost | Per-endpoint | ~$3 |
-| RDS storage (100 GB gp3) | 100 GB | $0.115/GB-month | ~$12 |
-| NAT Gateway | 1 x $0.045/hr | + $0.045/GB processed | ~$33 |
-| VPC Interface Endpoints | 7 endpoints x 2 AZs x $0.01/hr | 24h x 30d | ~$101 |
-| Firehose | Low ingest volume | $0.029/GB | ~$2 |
-| CloudFront (4 MFEs) | Low traffic | $0.0085/10k reqs | ~$5 |
-| CloudWatch Logs | 1-week retention | $0.50/GB ingested | ~$8 |
-| API Gateway | Low volume | $3.50/1M calls | ~$3 |
-| S3 | ~20 GB | $0.023/GB | ~$2 |
-| Secrets Manager | 5 secrets | $0.40/secret/month | ~$2 |
-| **Total estimate** | | | **~$258/month** |
+| Service                  | Units                          | Unit cost                       | Monthly est.    |
+| ------------------------ | ------------------------------ | ------------------------------- | --------------- |
+| ECS Fargate x86_64       | 7 tasks x 0.25 vCPU x 0.5 GB   | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$62            |
+| RDS t4g.small Single-AZ  | 1 instance                     | ~$0.034/hr                      | ~$25            |
+| RDS Proxy                | 10% of DB cost                 | Per-endpoint                    | ~$3             |
+| RDS storage (100 GB gp3) | 100 GB                         | $0.115/GB-month                 | ~$12            |
+| NAT Gateway              | 1 x $0.045/hr                  | + $0.045/GB processed           | ~$33            |
+| VPC Interface Endpoints  | 7 endpoints x 2 AZs x $0.01/hr | 24h x 30d                       | ~$101           |
+| Firehose                 | Low ingest volume              | $0.029/GB                       | ~$2             |
+| CloudFront (4 MFEs)      | Low traffic                    | $0.0085/10k reqs                | ~$5             |
+| CloudWatch Logs          | 1-week retention               | $0.50/GB ingested               | ~$8             |
+| API Gateway              | Low volume                     | $3.50/1M calls                  | ~$3             |
+| S3                       | ~20 GB                         | $0.023/GB                       | ~$2             |
+| Secrets Manager          | 5 secrets                      | $0.40/secret/month              | ~$2             |
+| **Total estimate**       |                                |                                 | **~$258/month** |
 
 > VPC interface endpoints (~$101/month) are the biggest non-obvious cost driver in dev.
 > Consider consolidating or using NAT-only routing for non-production environments.
 
 ### Staging (proposed)
 
-| Service | Units | Unit cost | Monthly est. |
-|---------|-------|-----------|-------------|
-| ECS Fargate x86_64 | 7 tasks x 0.5 vCPU x 1 GB | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$124 |
-| RDS t4g.large Multi-AZ | 1 instance | ~$0.152/hr | ~$110 |
-| RDS Proxy | 10% of DB cost | Per-endpoint | ~$11 |
-| RDS storage (200 GB gp3) | 200 GB | $0.115/GB-month | ~$23 |
-| NAT Gateways | 2 x $0.045/hr | + data | ~$66 |
-| VPC Interface Endpoints | 7 endpoints x 2 AZs x $0.01/hr | 24h x 30d | ~$101 |
-| Firehose | Moderate volume | $0.029/GB | ~$5 |
-| CloudFront | Moderate traffic | $0.0085/10k reqs | ~$10 |
-| Container Insights | 7 services | $0.50/metric/month | ~$35 |
-| CloudWatch Logs | 2-week retention | $0.50/GB ingested | ~$15 |
-| API Gateway | Moderate volume | $3.50/1M calls | ~$8 |
-| S3 | ~50 GB | $0.023/GB | ~$2 |
-| **Total estimate** | | | **~$510/month** |
+| Service                  | Units                          | Unit cost                       | Monthly est.    |
+| ------------------------ | ------------------------------ | ------------------------------- | --------------- |
+| ECS Fargate x86_64       | 7 tasks x 0.5 vCPU x 1 GB      | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$124           |
+| RDS t4g.large Multi-AZ   | 1 instance                     | ~$0.152/hr                      | ~$110           |
+| RDS Proxy                | 10% of DB cost                 | Per-endpoint                    | ~$11            |
+| RDS storage (200 GB gp3) | 200 GB                         | $0.115/GB-month                 | ~$23            |
+| NAT Gateways             | 2 x $0.045/hr                  | + data                          | ~$66            |
+| VPC Interface Endpoints  | 7 endpoints x 2 AZs x $0.01/hr | 24h x 30d                       | ~$101           |
+| Firehose                 | Moderate volume                | $0.029/GB                       | ~$5             |
+| CloudFront               | Moderate traffic               | $0.0085/10k reqs                | ~$10            |
+| Container Insights       | 7 services                     | $0.50/metric/month              | ~$35            |
+| CloudWatch Logs          | 2-week retention               | $0.50/GB ingested               | ~$15            |
+| API Gateway              | Moderate volume                | $3.50/1M calls                  | ~$8             |
+| S3                       | ~50 GB                         | $0.023/GB                       | ~$2             |
+| **Total estimate**       |                                |                                 | **~$510/month** |
 
 ### Prod (Prod-*)
 
-| Service | Units | Unit cost | Monthly est. |
-|---------|-------|-----------|-------------|
-| ECS Fargate x86_64 | 14 tasks (2 desired) x 0.5 vCPU x 1 GB | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$248 |
-| RDS r6g.large Multi-AZ | 1 instance | ~$0.399/hr | ~$287 |
-| RDS Proxy | 10% of DB cost | Per-endpoint | ~$29 |
-| RDS storage (500 GB gp3) | 500 GB | $0.115/GB-month | ~$58 |
-| RDS Performance Insights | Enabled | Free (7-day retention) | ~$0 |
-| NAT Gateways | 3 x $0.045/hr | + $0.045/GB processed | ~$99 |
-| VPC Interface Endpoints | 7 endpoints x 3 AZs x $0.01/hr | 24h x 30d | ~$151 |
-| Firehose | Production volume | $0.029/GB | ~$15 |
-| CloudFront | Production traffic | $0.0085/10k reqs | ~$30 |
-| Container Insights | 7 services, full metrics | $0.50/metric/month | ~$70 |
-| CloudWatch Logs | 1-month retention | $0.50/GB ingested | ~$40 |
-| API Gateway | Production volume | $3.50/1M calls | ~$25 |
-| S3 | ~200 GB | $0.023/GB | ~$5 |
-| Secrets Manager | 8 secrets | $0.40/secret/month | ~$3 |
-| Cognito | Production MAUs | $0.0055/MAU | ~$10 |
-| **Total estimate** | | | **~$1,070/month** |
+| Service                  | Units                                  | Unit cost                       | Monthly est.      |
+| ------------------------ | -------------------------------------- | ------------------------------- | ----------------- |
+| ECS Fargate x86_64       | 14 tasks (2 desired) x 0.5 vCPU x 1 GB | $0.0405/vCPU-hr, $0.00445/GB-hr | ~$248             |
+| RDS r6g.large Multi-AZ   | 1 instance                             | ~$0.399/hr                      | ~$287             |
+| RDS Proxy                | 10% of DB cost                         | Per-endpoint                    | ~$29              |
+| RDS storage (500 GB gp3) | 500 GB                                 | $0.115/GB-month                 | ~$58              |
+| RDS Performance Insights | Enabled                                | Free (7-day retention)          | ~$0               |
+| NAT Gateways             | 3 x $0.045/hr                          | + $0.045/GB processed           | ~$99              |
+| VPC Interface Endpoints  | 7 endpoints x 3 AZs x $0.01/hr         | 24h x 30d                       | ~$151             |
+| Firehose                 | Production volume                      | $0.029/GB                       | ~$15              |
+| CloudFront               | Production traffic                     | $0.0085/10k reqs                | ~$30              |
+| Container Insights       | 7 services, full metrics               | $0.50/metric/month              | ~$70              |
+| CloudWatch Logs          | 1-month retention                      | $0.50/GB ingested               | ~$40              |
+| API Gateway              | Production volume                      | $3.50/1M calls                  | ~$25              |
+| S3                       | ~200 GB                                | $0.023/GB                       | ~$5               |
+| Secrets Manager          | 8 secrets                              | $0.40/secret/month              | ~$3               |
+| Cognito                  | Production MAUs                        | $0.0055/MAU                     | ~$10              |
+| **Total estimate**       |                                        |                                 | **~$1,070/month** |
 
 > Prod cost is dominated by: RDS r6g.large Multi-AZ (~27%), ECS Fargate 14 tasks (~23%),
 > NAT Gateways (~9%), VPC Endpoints (~14%). Address these first.
@@ -229,15 +229,15 @@ Enable AWS Cost Explorer tag-based grouping on `Environment` and `Service` to tr
 
 ## FinOps KPIs for SmartRetail
 
-| KPI | Formula | Target |
-|-----|---------|--------|
-| Cost per POS event ingested | Total SIS + Firehose cost / events/month | < $0.001/event |
-| Cost per forecast run | DFS + SageMaker cost / runs/month | < $2.00/run |
-| Cost per PO processed | RE cost / POs/month | < $0.05/PO |
-| Fargate Spot adoption (non-prod) | Spot tasks / total tasks | > 80% in poc/dev |
-| RDS utilization | Avg CPU% + RAM% over 30d | 30-60% target |
-| Idle environment hours | Hours env running with 0 API traffic | < 20% of total uptime |
-| CloudWatch cost ratio | CloudWatch spend / total spend | < 8% |
+| KPI                              | Formula                                  | Target                |
+| -------------------------------- | ---------------------------------------- | --------------------- |
+| Cost per POS event ingested      | Total SIS + Firehose cost / events/month | < $0.001/event        |
+| Cost per forecast run            | DFS + SageMaker cost / runs/month        | < $2.00/run           |
+| Cost per PO processed            | RE cost / POs/month                      | < $0.05/PO            |
+| Fargate Spot adoption (non-prod) | Spot tasks / total tasks                 | > 80% in poc/dev      |
+| RDS utilization                  | Avg CPU% + RAM% over 30d                 | 30-60% target         |
+| Idle environment hours           | Hours env running with 0 API traffic     | < 20% of total uptime |
+| CloudWatch cost ratio            | CloudWatch spend / total spend           | < 8%                  |
 
 ---
 
@@ -272,12 +272,12 @@ Enable AWS Cost Explorer tag-based grouping on `Environment` and `Service` to tr
 
 ## Environment Lifecycle Recommendations
 
-| Environment | When to run | Cost optimization priority |
-|-------------|------------|--------------------------|
-| poc | Demo sessions only + CI smoke tests | Fargate Spot, schedule off-hours, no VPC endpoints |
-| dev | Business hours only | Fargate Spot, remove unused VPC endpoints |
-| stg | Full-time during pre-prod testing cycles, off otherwise | 1 NAT GW, schedule off outside sprint |
-| prod | Always on | Savings Plans, right-size RDS before r6g.large, review Container Insights metrics |
+| Environment | When to run                                             | Cost optimization priority                                                        |
+| ----------- | ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| poc         | Demo sessions only + CI smoke tests                     | Fargate Spot, schedule off-hours, no VPC endpoints                                |
+| dev         | Business hours only                                     | Fargate Spot, remove unused VPC endpoints                                         |
+| stg         | Full-time during pre-prod testing cycles, off otherwise | 1 NAT GW, schedule off outside sprint                                             |
+| prod        | Always on                                               | Savings Plans, right-size RDS before r6g.large, review Container Insights metrics |
 
 ---
 

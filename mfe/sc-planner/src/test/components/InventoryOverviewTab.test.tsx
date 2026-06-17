@@ -59,11 +59,11 @@ describe('InventoryOverviewTab', () => {
     expect(screen.getByText('OK')).toBeInTheDocument()
   })
 
-  it('shows REORDER SOON when 0 < ATP < reorderPoint', () => {
+  it('shows BELOW REORDER POINT when 0 < ATP < reorderPoint', () => {
     const pos = makePos({ onHand: 150, inTransit: 0, reserved: 0, reorderPoint: 200 }) // ATP=150 < 200
     mockedHook.mockReturnValue({ data: { positions: [pos], dataFreshness: '' }, loading: false, error: null, refetch: vi.fn() })
     render(<InventoryOverviewTab />)
-    expect(screen.getByText('REORDER SOON')).toBeInTheDocument()
+    expect(screen.getByText('BELOW REORDER POINT')).toBeInTheDocument()
   })
 
   it('shows CRITICAL when ATP <= 0', () => {

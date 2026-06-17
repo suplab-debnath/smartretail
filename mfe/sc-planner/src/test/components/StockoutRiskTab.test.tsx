@@ -73,7 +73,7 @@ describe('StockoutRiskTab', () => {
     const pos = makePos({ onHand: 0 }) // CRITICAL
     mockedHook.mockReturnValue({ data: { positions: [pos], dataFreshness: '' }, loading: false, error: null, refetch: vi.fn() })
     render(<StockoutRiskTab onTriggerReplenishment={trigger} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Trigger' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create PO' }))
     expect(trigger).toHaveBeenCalledWith('SKU-001', 'DC-LONDON')
   })
 
@@ -94,7 +94,7 @@ describe('StockoutRiskTab', () => {
     render(<StockoutRiskTab onTriggerReplenishment={trigger} />)
     const checkbox = screen.getByRole('checkbox', { name: '' })
     await userEvent.click(checkbox)
-    await userEvent.click(screen.getByRole('button', { name: /Bulk Trigger/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Raise POs/ }))
     expect(trigger).toHaveBeenCalledWith('SKU-001', 'DC-LONDON')
   })
 })

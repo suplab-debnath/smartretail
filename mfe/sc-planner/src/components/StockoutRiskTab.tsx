@@ -81,7 +81,7 @@ export function StockoutRiskTab({ onTriggerReplenishment }: Props) {
                 onClick={handleBulkTrigger}
                 className="px-4 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700"
               >
-                Bulk Trigger ({selected.size} selected)
+                Raise POs for {selected.size} selected
               </button>
             )}
           </div>
@@ -144,7 +144,7 @@ export function StockoutRiskTab({ onTriggerReplenishment }: Props) {
                               onClick={() => onTriggerReplenishment(pos.skuId, pos.dcId)}
                               className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                             >
-                              Trigger
+                              Create PO
                             </button>
                           )}
                         </td>
