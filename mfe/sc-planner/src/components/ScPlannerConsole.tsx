@@ -104,7 +104,7 @@ export function ScPlannerConsole() {
           <div className="flex items-center gap-4">
             {dashData?.forecastAccuracy && (
               <div className="text-xs text-gray-500">
-                <Tooltip term="MAPE">Forecast MAPE</Tooltip>:{' '}
+                <Tooltip term="MAPE">Forecast Error</Tooltip>:{' '}
                 <span className={
                   dashData.forecastAccuracy.latestMape < 0.10 ? 'text-green-600 font-semibold' :
                   dashData.forecastAccuracy.latestMape <= 0.20 ? 'text-amber-600 font-semibold' :

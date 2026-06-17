@@ -112,7 +112,7 @@ export function DemandForecastTab() {
                 formatter={(value) => {
                   const labels: Record<string, string> = {
                     P90: 'P90 — Optimistic',
-                    P50: 'P50 — Midpoint',
+                    P50: 'P50 — Expected Demand',
                     P10: 'P10 — Cautious',
                     Actual: 'Actual Units',
                   }
@@ -127,7 +127,7 @@ export function DemandForecastTab() {
           </ResponsiveContainer>
           <div className="mt-3 flex gap-4 text-xs text-gray-500">
             <span><Tooltip term="P10">P10</Tooltip> — cautious estimate</span>
-            <span><Tooltip term="P50">P50</Tooltip> — midpoint</span>
+            <span><Tooltip term="P50">P50</Tooltip> — expected demand</span>
             <span><Tooltip term="P90">P90</Tooltip> — optimistic estimate</span>
           </div>
           <p className="mt-2 text-xs text-gray-400">

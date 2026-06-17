@@ -12,7 +12,7 @@ function computeAtp(pos: InventoryPosition): number {
 function reorderStatus(pos: InventoryPosition): { label: string; cls: string } {
   const atp = computeAtp(pos)
   if (atp <= 0) return { label: 'CRITICAL', cls: 'bg-red-100 text-red-700' }
-  if (atp < pos.reorderPoint) return { label: 'REORDER SOON', cls: 'bg-amber-100 text-amber-700' }
+  if (atp < pos.reorderPoint) return { label: 'BELOW REORDER POINT', cls: 'bg-amber-100 text-amber-700' }
   return { label: 'OK', cls: 'bg-green-100 text-green-700' }
 }
 
@@ -36,7 +36,7 @@ function PositionCard({ pos }: PositionCardProps) {
         <dd className="text-right font-medium">{pos.onHand.toLocaleString()}</dd>
         <dt className="text-gray-500"><Tooltip term="IN_TRANSIT">In-Transit</Tooltip></dt>
         <dd className="text-right font-medium">{pos.inTransit.toLocaleString()}</dd>
-        <dt className="text-gray-500"><Tooltip term="RESERVED">Reserved</Tooltip></dt>
+        <dt className="text-gray-500"><Tooltip term="RESERVED">Allocated</Tooltip></dt>
         <dd className="text-right font-medium">{pos.reserved.toLocaleString()}</dd>
         <dt className="text-gray-500"><Tooltip term="ATP">ATP</Tooltip></dt>
         <dd className={`text-right font-bold ${atp <= 0 ? 'text-red-600' : atp < pos.reorderPoint ? 'text-amber-600' : 'text-green-600'}`}>

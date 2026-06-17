@@ -38,7 +38,7 @@ const TABLE_HEADERS: { label: string; term?: string }[] = [
   { label: 'Severity' },
   { label: 'On-Hand', term: 'ON_HAND' },
   { label: 'Reorder Point', term: 'REORDER_POINT' },
-  { label: 'Raised At' },
+  { label: 'Flagged At' },
   { label: 'Action' },
 ]
 
@@ -99,7 +99,7 @@ export function ExceptionQueueTab({ onTriggerReplenishment, refreshKey = 0 }: Pr
                       onClick={() => onTriggerReplenishment(alert.skuId, alert.dcId)}
                       className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                     >
-                      Trigger Replenishment
+                      Raise Purchase Order
                     </button>
                   </td>
                 </tr>

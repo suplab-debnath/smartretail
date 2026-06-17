@@ -1,8 +1,8 @@
 # AWS Dev Environment — Deployment Guide
 
-Deploys the full SmartRetail stack to a dedicated dev-tier AWS account. Mirrors production in all service and CDK patterns — same VPC topology, RDS Proxy, CloudFront, Kinesis, and supplier Cognito pool. Differs only in sizing and compute targets.
+Deploys the full SmartRetail stack to a dedicated dev-tier AWS account. Mirrors production in all service and CDK patterns — same VPC topology, RDS Proxy, CloudFront, Kinesis Data Firehose, SageMaker pipeline, and supplier Cognito pool. Differs only in sizing and compute targets.
 
-**What's deployed:** 7 backend services + 2 Lambda functions (Kinesis consumer, Batch Post-Processor), 2-AZ VPC with dedicated private subnets, RDS Proxy → RDS t4g.small single-AZ, 5 private MFE S3 buckets with CloudFront OAC, SQS + Kinesis + EventBridge. Uses `environments/dev/infra/` (Dev-* stack names).
+**What's deployed:** 7 backend services + 2 Lambda functions (`ml-trigger`, `batch-post-processor`), Kinesis Data Firehose → API Gateway (VPC Link) → SIS ingestion, the SageMaker demand-forecast pipeline (nightly, active), 2-AZ VPC with dedicated private subnets + VPC interface endpoints, RDS Proxy → RDS t4g.small single-AZ, 5 private MFE S3 buckets with CloudFront OAC, SQS + EventBridge. Uses `environments/dev/infra/` (Dev-* stack names).
 
 > For the full CDK stack spec and resource table see `environments/dev/infra/README.md`.
 
@@ -51,12 +51,12 @@ make dev-push-all
 
 # Both Lambda images
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-# Kinesis Consumer
-mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer --no-transfer-progress
-docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev:latest backend/adapters/kinesis-consumer
-docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev:latest
+# ML Trigger (starts the SageMaker pipeline on the nightly schedule)
+mvn clean package -DskipTests -pl backend/adapters/ml-trigger --no-transfer-progress
+docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-ml-trigger-dev:latest backend/adapters/ml-trigger
+docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-ml-trigger-dev:latest
 
-# Batch Post-Processor
+# Batch Post-Processor (S3 SageMaker output → DFS)
 mvn clean package -DskipTests -pl backend/adapters/batch-post-processor --no-transfer-progress
 docker build --platform linux/amd64 -t $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev:latest backend/adapters/batch-post-processor
 docker push $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-batch-post-processor-dev:latest
@@ -114,6 +114,17 @@ make dev-destroy
 ```
 
 All resources have `RemovalPolicy.DESTROY` — RDS, S3, and ECR are deleted automatically.
+
+---
+
+## Cost estimate
+
+Rough us-east-1, on-demand, 24×7: **~$230/month**. The main cost drivers above demo are the 1 NAT
+Gateway (~$33/mo + data), ~12 VPC interface endpoints (~$7.3/AZ/mo each), RDS Proxy on top of the
+`t4g.small`, and the nightly SageMaker run (~$0.54/run). ECS cost is trimmed by a FARGATE_SPOT-weighted
+capacity provider. SageMaker standing cost is $0 — charges accrue only per pipeline run.
+
+See `docs/ENVIRONMENTS.md` → **Cost & FinOps Summary** for the full demo/dev/prod comparison.
 
 ---
 

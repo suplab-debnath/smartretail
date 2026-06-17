@@ -613,7 +613,7 @@ CDK creates **one CloudFront distribution** with OAC per S3 origin. Distribution
 **Port (local dev):** 5177
 **Auth:** Supplier Cognito pool (separate from internal pool)
 **Allowed role:** `SUPPLIER_ADMIN`
-**Data source:** `GET /v1/supplier/orders` on the SUP service (port 8085 locally, ALB `/v1/supplier/*` in AWS)
+**Data source:** `GET /v1/supplier/orders` on the SUP service (port 8085 locally, API Gateway `/v1/supplier/*` in AWS)
 
 ### Purpose
 

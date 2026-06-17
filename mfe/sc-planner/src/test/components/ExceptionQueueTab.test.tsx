@@ -65,7 +65,7 @@ describe('ExceptionQueueTab', () => {
     const trigger = vi.fn()
     mockedHook.mockReturnValue({ data: mockData, loading: false, error: null, refetch: vi.fn() })
     render(<ExceptionQueueTab onTriggerReplenishment={trigger} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Trigger Replenishment' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Raise Purchase Order' }))
     expect(trigger).toHaveBeenCalledWith('SKU-001', 'DC-LONDON')
   })
 

@@ -120,7 +120,7 @@ describe('ScPlannerConsole', () => {
     mockedUseAuth.mockReturnValue(authWithRole())
     mockedDash.mockReturnValue({ ...defaultDashReturn, data: { pendingApprovalCount: 2, activeAlertCount: 3, forecastAccuracy: { latestMape: 0.12, mapeThreshold: 0.15, lastRunAt: '', status: 'WITHIN_THRESHOLD' }, dataFreshness: '' } })
     render(<ScPlannerConsole />)
-    expect(screen.getByText(/Forecast MAPE/)).toBeInTheDocument()
+    expect(screen.getByText(/Forecast Error/)).toBeInTheDocument()
     expect(screen.getByText('12.0%')).toBeInTheDocument()
   })
 

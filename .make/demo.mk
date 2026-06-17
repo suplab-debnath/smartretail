@@ -44,6 +44,16 @@ demo-deploy-services: demo-push-services ## Build, push and force ECS redeployme
 	        --query 'service.serviceName' --output text; \
 	done
 
+demo-push-lambda: aws-ecr-login docker-build-lambda ## Build arm64 Lambda images and push to demo ECR
+	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
+	for fn in batch-post-processor ml-trigger; do \
+	    echo "Pushing $$fn ($(DEMO_ENV))..."; \
+	    docker tag smartretail-$$fn:local \
+	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$fn-$(DEMO_ENV):latest; \
+	    docker push \
+	        $$ACCOUNT.dkr.ecr.$(REGION).amazonaws.com/smartretail-$$fn-$(DEMO_ENV):latest; \
+	done
+
 demo-push-flyway: aws-ecr-login docker-build-flyway-amd64 ## Build amd64 Flyway image and push to demo ECR
 	@ACCOUNT=$(shell AWS_PROFILE=$(DEMO_PROFILE) aws sts get-caller-identity --query Account --output text); \
 	docker tag smartretail-flyway:local \

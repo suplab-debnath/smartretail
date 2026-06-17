@@ -1,16 +1,24 @@
-import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
-import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
-import { Construct } from 'constructs';
-import { NetworkStack } from './network-stack';
-import { ComputeStack } from './compute-stack';
+import * as cdk from "aws-cdk-lib";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
+import * as apigw from "aws-cdk-lib/aws-apigateway";
+import * as firehose from "aws-cdk-lib/aws-kinesisfirehose";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as events from "aws-cdk-lib/aws-events";
+import * as eventsTargets from "aws-cdk-lib/aws-events-targets";
+import * as sagemaker from "aws-cdk-lib/aws-sagemaker";
+import * as ssm from "aws-cdk-lib/aws-ssm";
+import { Construct } from "constructs";
+import { NetworkStack } from "./network-stack";
+import { ComputeStack } from "./compute-stack";
+import { DataStack } from "./data-stack";
 
 export interface ApiStackProps extends cdk.StackProps {
   srEnv: string;
   network: NetworkStack;
+  data: DataStack;
   compute: ComputeStack;
 }
 
@@ -18,18 +26,20 @@ export class ApiStack extends cdk.Stack {
   public readonly apiEndpoint: string;
   /** REST API name — used by MonitoringStack for CloudWatch metric dimensions (ApiName + Stage) */
   public readonly restApiName: string;
+  public readonly firehoseStreamName: string;
+  public readonly batchPostProcessorFn: lambda.DockerImageFunction;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    cdk.Tags.of(this).add('Name', 'smartretail-api-demo');
+    cdk.Tags.of(this).add("Name", "smartretail-api-demo");
 
-    const { srEnv, network, compute } = props;
+    const { srEnv, network, data, compute } = props;
 
     // ── Internal NLB ─────────────────────────────────────────────────────────
     // Demo uses the default VPC which has only public subnets — place NLB there.
     // REST API VpcLink is backed by NLB; all HTTP_PROXY routes share one link.
-    const nlb = new elbv2.NetworkLoadBalancer(this, 'Nlb', {
+    const nlb = new elbv2.NetworkLoadBalancer(this, "Nlb", {
       loadBalancerName: `smartretail-nlb-${srEnv}`,
       vpc: network.vpc,
       internetFacing: false,
@@ -38,17 +48,13 @@ export class ApiStack extends cdk.Stack {
     });
 
     // ── VPC Link (REST API type — backed by NLB) ──────────────────────────────
-    const vpcLink = new apigw.VpcLink(this, 'VpcLink', {
+    const vpcLink = new apigw.VpcLink(this, "VpcLink", {
       targets: [nlb],
       vpcLinkName: `smartretail-vpclink-${srEnv}`,
     });
 
     // ── NLB listeners + ECS target groups ────────────────────────────────────
-    const addNlbListener = (
-      name: string,
-      port: number,
-      service: ecs.FargateService,
-    ): void => {
+    const addNlbListener = (name: string, port: number, service: ecs.FargateService): void => {
       const pascal = name.charAt(0).toUpperCase() + name.slice(1);
       const listener = nlb.addListener(`${pascal}Listener`, {
         port,
@@ -61,7 +67,7 @@ export class ApiStack extends cdk.Stack {
         healthCheck: {
           enabled: true,
           protocol: elbv2.Protocol.HTTP,
-          path: '/actuator/health',
+          path: "/actuator/health",
           port: String(port),
           interval: cdk.Duration.seconds(30),
           healthyThresholdCount: 2,
@@ -71,12 +77,12 @@ export class ApiStack extends cdk.Stack {
       });
     };
 
-    addNlbListener('sis', 8080, compute.sisService);
-    addNlbListener('ims', 8081, compute.imsService);
-    addNlbListener('re',  8082, compute.reService);
-    addNlbListener('ars', 8083, compute.arsService);
-    addNlbListener('dfs', 8084, compute.dfsService);
-    addNlbListener('sup', 8085, compute.supService);
+    addNlbListener("sis", 8080, compute.sisService);
+    addNlbListener("ims", 8081, compute.imsService);
+    addNlbListener("re", 8082, compute.reService);
+    addNlbListener("ars", 8083, compute.arsService);
+    addNlbListener("dfs", 8084, compute.dfsService);
+    addNlbListener("sup", 8085, compute.supService);
 
     // ── HTTP_PROXY integration helper ─────────────────────────────────────────
     // URI: http://{nlb-dns}:{port}{pathPrefix}/{proxy} — NLB routes to correct ECS TG.
@@ -87,24 +93,24 @@ export class ApiStack extends cdk.Stack {
     const nlbProxyIntegration = (port: number, pathPrefix: string) =>
       new apigw.Integration({
         type: apigw.IntegrationType.HTTP_PROXY,
-        integrationHttpMethod: 'ANY',
+        integrationHttpMethod: "ANY",
         uri: `http://${nlb.loadBalancerDnsName}:${port}${pathPrefix}/{proxy}`,
         options: {
           connectionType: apigw.ConnectionType.VPC_LINK,
           vpcLink,
           requestParameters: {
-            'integration.request.path.proxy': 'method.request.path.proxy',
+            "integration.request.path.proxy": "method.request.path.proxy",
           },
         },
       });
 
     // ── REST API ──────────────────────────────────────────────────────────────
     const apiName = `smartretail-api-${srEnv}`;
-    const restApi = new apigw.RestApi(this, 'RestApi', {
+    const restApi = new apigw.RestApi(this, "RestApi", {
       restApiName: apiName,
-      description: 'SmartRetail Demo REST API — NLB VPC Link to ECS services',
+      description: "SmartRetail Demo REST API — NLB VPC Link to ECS services",
       endpointTypes: [apigw.EndpointType.REGIONAL],
-      deployOptions: { stageName: 'internal' },
+      deployOptions: { stageName: "internal" },
     });
 
     // Helper: add /v1/{pathPart}/{proxy+} with ANY → NLB HTTP_PROXY.
@@ -114,23 +120,18 @@ export class ApiStack extends cdk.Stack {
     const corsOptions: apigw.CorsOptions = {
       allowOrigins: apigw.Cors.ALL_ORIGINS,
       allowMethods: apigw.Cors.ALL_METHODS,
-      allowHeaders: ['Authorization', 'Content-Type', 'X-Correlation-ID'],
+      allowHeaders: ["Authorization", "Content-Type", "X-Correlation-ID"],
       maxAge: cdk.Duration.hours(1),
     };
 
-    const addProxyResource = (
-      parent: apigw.IResource,
-      pathPart: string,
-      port: number,
-      pathPrefix: string,
-    ): void => {
+    const addProxyResource = (parent: apigw.IResource, pathPart: string, port: number, pathPrefix: string): void => {
       const resource = parent.addResource(pathPart);
       resource.addCorsPreflight(corsOptions);
       resource.addProxy({
         defaultIntegration: nlbProxyIntegration(port, pathPrefix),
         anyMethod: true,
         defaultMethodOptions: {
-          requestParameters: { 'method.request.path.proxy': true },
+          requestParameters: { "method.request.path.proxy": true },
         },
         defaultCorsPreflightOptions: corsOptions,
       });
@@ -138,7 +139,7 @@ export class ApiStack extends cdk.Stack {
 
     // Gateway Responses — inject CORS header on API GW-generated 4xx/5xx so the
     // browser doesn't report a CORS error when the real problem is auth/routing.
-    const corsHeaders = { 'Access-Control-Allow-Origin': "'*'" };
+    const corsHeaders = { "Access-Control-Allow-Origin": "'*'" };
     for (const type of [
       apigw.ResponseType.DEFAULT_4XX,
       apigw.ResponseType.DEFAULT_5XX,
@@ -152,26 +153,263 @@ export class ApiStack extends cdk.Stack {
     }
 
     // Staff APIs — six services, one proxy resource each
-    const v1 = restApi.root.addResource('v1');
-    addProxyResource(v1, 'ingest',        8080, '/v1/ingest');        // SIS
-    addProxyResource(v1, 'dashboard',     8083, '/v1/dashboard');     // ARS
-    addProxyResource(v1, 'inventory',     8081, '/v1/inventory');     // IMS
-    addProxyResource(v1, 'forecast',      8084, '/v1/forecast');      // DFS
-    addProxyResource(v1, 'replenishment', 8082, '/v1/replenishment'); // RE
-    addProxyResource(v1, 'supplier',      8085, '/v1/supplier');      // SUP
+    const v1 = restApi.root.addResource("v1");
+    addProxyResource(v1, "ingest", 8080, "/v1/ingest"); // SIS
+    addProxyResource(v1, "dashboard", 8083, "/v1/dashboard"); // ARS
+    addProxyResource(v1, "inventory", 8081, "/v1/inventory"); // IMS
+    addProxyResource(v1, "forecast", 8084, "/v1/forecast"); // DFS
+    addProxyResource(v1, "replenishment", 8082, "/v1/replenishment"); // RE
+    addProxyResource(v1, "supplier", 8085, "/v1/supplier"); // SUP
 
     this.apiEndpoint = restApi.url;
     this.restApiName = restApi.restApiName;
 
-    // ── SSM outputs ───────────────────────────────────────────────────────────
-    new ssm.StringParameter(this, 'ApiEndpointParam', {
-      parameterName: `/smartretail/${srEnv}/api/endpoint`,
-      stringValue: restApi.url,
+    // ── Firehose delivery stream ───────────────────────────────────────────────
+    // Delivers POS events to SIS via the existing /v1/ingest/{proxy+} API GW route.
+    // No API GW changes needed — Firehose targets the same URL as direct REST calls.
+    const firehoseRole = new iam.Role(this, "FirehoseRole", {
+      roleName: `smartretail-firehose-${srEnv}`,
+      assumedBy: new iam.ServicePrincipal("firehose.amazonaws.com"),
+    });
+    data.eventsBucket.grantWrite(firehoseRole);
+
+    this.firehoseStreamName = `smartretail-ingest-${srEnv}`;
+    new firehose.CfnDeliveryStream(this, "IngestStream", {
+      deliveryStreamName: this.firehoseStreamName,
+      deliveryStreamType: "DirectPut",
+      httpEndpointDestinationConfiguration: {
+        endpointConfiguration: {
+          url: `${restApi.url}v1/ingest/events`,
+          name: `smartretail-ingest-${srEnv}`,
+          accessKey: data.firehoseAccessKeySecret.secretValue.unsafeUnwrap(),
+        },
+        bufferingHints: { sizeInMBs: 1, intervalInSeconds: 60 },
+        retryOptions: { durationInSeconds: 7200 },
+        s3BackupMode: "AllData",
+        s3Configuration: {
+          bucketArn: data.eventsBucket.bucketArn,
+          roleArn: firehoseRole.roleArn,
+          bufferingHints: { sizeInMBs: 1, intervalInSeconds: 60 },
+          compressionFormat: "GZIP",
+          prefix: "firehose/!{timestamp:yyyy/MM/dd}/",
+          errorOutputPrefix: "firehose-errors/!{firehose:error-output-type}/!{timestamp:yyyy/MM/dd}/",
+        },
+        roleArn: firehoseRole.roleArn,
+      },
     });
 
-    new cdk.CfnOutput(this, 'ApiEndpoint', {
+    // ── batch-post-processor Lambda ────────────────────────────────────────────
+    // Triggered by SageMaker transform output CSV landing in S3.
+    // Runs outside VPC — demo has no NAT gateway, so DFS is reached via API GW URL.
+    const batchProcessorRole = new iam.Role(this, "BatchProcessorRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")],
+    });
+    batchProcessorRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [data.sagemakerBucket.arnForObjects("sagemaker/output/*")],
+      }),
+    );
+
+    this.batchPostProcessorFn = new lambda.DockerImageFunction(this, "BatchPostProcessor", {
+      functionName: `smartretail-batch-post-processor-${srEnv}`,
+      code: lambda.DockerImageCode.fromEcr(data.ecrRepos["batch-post-processor"]),
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(180),
+      memorySize: 512,
+      role: batchProcessorRole,
+      environment: {
+        DFS_ENDPOINT: `${restApi.url}v1/forecast`,
+        ENV: srEnv,
+      },
+    });
+    // S3EventSource writes a BucketNotification into DataStack (where the bucket lives),
+    // which would reference this Lambda's ARN — creating a Min-DataStack → Min-ApiStack
+    // dependency that cycles back. Instead, the sagemakerBucket has eventBridgeEnabled:true
+    // and we create an EventBridge rule here in ApiStack with no cross-stack reference.
+    const sagemakerOutputRule = new events.Rule(this, "SageMakerOutputCreated", {
+      ruleName: `smartretail-sagemaker-output-${srEnv}`,
+      eventPattern: {
+        source: ["aws.s3"],
+        detailType: ["Object Created"],
+        detail: {
+          bucket: { name: [data.sagemakerBucket.bucketName] },
+          object: { key: [{ prefix: "sagemaker/output/" }, { suffix: ".csv" }] },
+        },
+      },
+      description: "Fires when SageMaker transform output CSV lands in S3; triggers batch-post-processor",
+    });
+    sagemakerOutputRule.addTarget(new eventsTargets.LambdaFunction(this.batchPostProcessorFn));
+
+    // ── ml-trigger Lambda ─────────────────────────────────────────────────────
+    // Runs on a daily EventBridge schedule; starts the SageMaker demand-forecast pipeline.
+    // Runs outside VPC for the same NAT reason as batch-post-processor above.
+    const sagemakerPipelineName = `smartretail-demand-forecast-${srEnv}`;
+    const mlTriggerRole = new iam.Role(this, "MlTriggerRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")],
+    });
+    mlTriggerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["sagemaker:StartPipelineExecution"],
+        resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}`],
+      }),
+    );
+    data.eventsBucket.grantRead(mlTriggerRole);
+    data.sagemakerBucket.grantWrite(mlTriggerRole);
+
+    const mlTriggerFn = new lambda.DockerImageFunction(this, "MlTrigger", {
+      functionName: `smartretail-ml-trigger-${srEnv}`,
+      code: lambda.DockerImageCode.fromEcr(data.ecrRepos["ml-trigger"]),
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(300),
+      memorySize: 512,
+      reservedConcurrentExecutions: 0, // throttles all invocations; set to 1 (or remove) to enable
+      role: mlTriggerRole,
+      environment: {
+        DFS_ENDPOINT: `${restApi.url}v1/forecast`,
+        SAGEMAKER_PIPELINE_NAME: sagemakerPipelineName,
+        EVENTS_BUCKET: data.eventsBucket.bucketName,
+        SAGEMAKER_BUCKET: data.sagemakerBucket.bucketName,
+        ENV: srEnv,
+      },
+    });
+
+    mlTriggerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["sagemaker:DescribePipelineExecution"],
+        resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}/*`],
+      }),
+    );
+
+    const mlTriggerRule = new events.Rule(this, "MlTriggerSchedule", {
+      ruleName: `smartretail-ml-trigger-daily-${srEnv}`,
+      schedule: events.Schedule.cron({ hour: "2", minute: "0" }),
+      description: "Daily SageMaker demand forecast pipeline trigger",
+      enabled: false,
+    });
+    mlTriggerRule.addTarget(new eventsTargets.LambdaFunction(mlTriggerFn));
+
+    // pipelineDefinitionBody is not converted to PascalCase by CDK's cfn synthesiser for this
+    // union-typed property — use addPropertyOverride to emit the correct CloudFormation key.
+    const demandForecastPipeline = new sagemaker.CfnPipeline(this, "DemandForecastPipeline", {
+      pipelineName: sagemakerPipelineName,
+      roleArn: data.sagemakerExecutionRole.roleArn,
+      pipelineDefinition: {} as sagemaker.CfnPipeline.PipelineDefinitionProperty, // overridden below
+      tags: [
+        { key: "Environment", value: srEnv },
+        { key: "Project", value: "SmartRetail" },
+        { key: "Lifecycle", value: "ephemeral" },
+      ],
+    });
+    demandForecastPipeline.addPropertyOverride("PipelineDefinition", {
+      PipelineDefinitionBody: JSON.stringify(buildDemandForecastPipelineDefinition(data.sagemakerBucket.bucketName)),
+    });
+
+    // ── SSM outputs ───────────────────────────────────────────────────────────
+    const put = (name: string, value: string) =>
+      new ssm.StringParameter(this, name.replace(/[/-]/g, ""), {
+        parameterName: `/smartretail/${srEnv}/${name}`,
+        stringValue: value,
+      });
+
+    put("api/endpoint", restApi.url);
+    put("firehose/stream-name", this.firehoseStreamName);
+    put("sagemaker/pipeline-name", sagemakerPipelineName);
+
+    new cdk.CfnOutput(this, "ApiEndpoint", {
       value: restApi.url,
-      description: 'SmartRetail Demo REST API endpoint (internal stage)',
+      description: "SmartRetail Demo REST API endpoint (internal stage)",
+    });
+    new cdk.CfnOutput(this, "FirehoseStreamName", {
+      value: this.firehoseStreamName,
+      description: "Kinesis Firehose delivery stream name for POS event ingestion",
     });
   }
+}
+
+function buildDemandForecastPipelineDefinition(sagemakerBucket: string) {
+  return {
+    Version: "2020-12-01",
+    Parameters: [{ Name: "RunId", Type: "String" }],
+    Steps: [
+      {
+        Name: "TrainDeepAR",
+        Type: "Training",
+        Arguments: {
+          AlgorithmSpecification: {
+            TrainingImage: "382416733822.dkr.ecr.us-east-1.amazonaws.com/forecasting-deepar:1",
+            TrainingInputMode: "File",
+          },
+          InputDataConfig: [
+            {
+              ChannelName: "train",
+              DataSource: {
+                S3DataSource: {
+                  S3Uri: `s3://${sagemakerBucket}/sagemaker/training/train.jsonl`,
+                  S3DataType: "S3Prefix",
+                },
+              },
+              ContentType: "application/jsonlines",
+            },
+            {
+              ChannelName: "test",
+              DataSource: {
+                S3DataSource: {
+                  S3Uri: `s3://${sagemakerBucket}/sagemaker/training/test.jsonl`,
+                  S3DataType: "S3Prefix",
+                },
+              },
+              ContentType: "application/jsonlines",
+            },
+          ],
+          OutputDataConfig: { S3OutputPath: `s3://${sagemakerBucket}/sagemaker/model/` },
+          ResourceConfig: { InstanceType: "ml.c5.xlarge", InstanceCount: 1, VolumeSizeInGB: 20 },
+          StoppingCondition: { MaxRuntimeInSeconds: 7200 },
+          HyperParameters: {
+            prediction_length: "30",
+            context_length: "90",
+            epochs: "100",
+            num_cells: "40",
+            num_layers: "2",
+            likelihood: "gaussian",
+          },
+        },
+      },
+      {
+        Name: "BatchTransform",
+        Type: "Transform",
+        DependsOn: ["TrainDeepAR"],
+        Arguments: {
+          ModelName: { Get: "Steps.TrainDeepAR.ModelArtifacts.S3ModelArtifacts" },
+          TransformInput: {
+            DataSource: {
+              S3DataSource: {
+                S3Uri: {
+                  "Std:Join": {
+                    On: "/",
+                    Values: [`s3://${sagemakerBucket}/sagemaker/transform-input`, { Get: "Parameters.RunId" }],
+                  },
+                },
+                S3DataType: "S3Prefix",
+              },
+            },
+            ContentType: "application/jsonlines",
+            SplitType: "Line",
+          },
+          TransformOutput: {
+            S3OutputPath: {
+              "Std:Join": {
+                On: "/",
+                Values: [`s3://${sagemakerBucket}/sagemaker/output`, { Get: "Parameters.RunId" }],
+              },
+            },
+            AssembleWith: "Line",
+          },
+          TransformResources: { InstanceType: "ml.m5.large", InstanceCount: 1 },
+        },
+      },
+    ],
+  };
 }

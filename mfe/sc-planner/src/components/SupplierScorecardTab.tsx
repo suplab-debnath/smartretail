@@ -21,8 +21,8 @@ function formatVariance(days: number): string {
 
 const SCORECARD_HEADERS: { label: string; term?: string }[] = [
   { label: 'Supplier' },
-  { label: 'OTD Rate', term: 'OTD_RATE' },
-  { label: 'PO SLA Compliance', term: 'PO_SLA' },
+  { label: 'On-Time Delivery %', term: 'OTD_RATE' },
+  { label: 'PO Acknowledgement Rate', term: 'PO_SLA' },
   { label: 'Open Exceptions', term: 'OPEN_EXCEPTIONS' },
   { label: 'Avg Lead Time Variance', term: 'LEAD_TIME_VARIANCE' },
   { label: 'Total POs', term: 'PO' },

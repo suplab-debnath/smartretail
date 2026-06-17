@@ -1,6 +1,6 @@
 # cdk-dev — Development Infrastructure
 
-Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS config patterns — same VPC topology, RDS Proxy, CloudFront, VPC endpoints, Kinesis, and supplier Cognito pool. Differs only in sizing, compute, and autoscaling targets.
+Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS config patterns — same VPC topology, RDS Proxy, CloudFront, VPC endpoints, Kinesis Data Firehose, SageMaker pipeline, and supplier Cognito pool. Differs only in sizing, compute, and autoscaling targets.
 
 ## Stack names
 
@@ -13,10 +13,10 @@ Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS 
 |-------|----------|
 | Network | New VPC (2 AZs, public + private-app + isolated subnets, 1 NAT Gateway, 6 interface VPC endpoints) |
 | Data | RDS PostgreSQL t4g.small single-AZ (via RDS Proxy), DynamoDB idempotency table, S3 events bucket, S3 SageMaker bucket, 5 private MFE S3 buckets |
-| Messaging | Kinesis stream (POS ingestion) + EventBridge bus + IMS/RE/ARS SQS queues |
+| Messaging | Kinesis Data Firehose (POS ingestion → API GW → SIS) + EventBridge bus + IMS/RE/ARS SQS queues |
 | Identity | Internal Cognito pool (STORE\_MANAGER / SC\_PLANNER / EXECUTIVE) + Supplier Cognito pool (SUPPLIER\_ADMIN) |
-| Compute | 7 ECS Fargate services (X86\_64, 0.25 vCPU / 512 MB, FARGATE\_SPOT 80/20) + Kinesis consumer Lambda (X86\_64) + Batch Post-Processor Lambda (X86\_64) |
-| API | ALB with path-based routing to all 7 services |
+| Compute | 7 ECS Fargate services (X86\_64, 0.25 vCPU / 512 MB, FARGATE\_SPOT 80/20) + ml-trigger Lambda (X86\_64) + Batch Post-Processor Lambda (X86\_64) + SageMaker demand-forecast pipeline (nightly 02:00 UTC) |
+| API | API Gateway (REST, Cognito authorizer) → VPC Link → internal NLB (one listener per service), routing `/v1/{service}/{proxy+}` to all 7 services |
 | Hosting | CloudFront distributions (×5 MFEs) with private S3 origin using OAC (SIGV4) |
 
 ## Architecture
@@ -25,8 +25,8 @@ Dev-tier SmartRetail infrastructure. Mirrors `cdk-prod` in all services and AWS 
                         ┌──────────────────────────────────────────────────────────────────┐
                         │  Dedicated VPC  (2 AZs)                                          │
                         │                                                                  │
-                        │  ┌─ public subnets ──────────────────────────────────────────┐  │
-Internet ── ALB :80 ───►│  │  path-based routing (single listener)                     │  │
+                        │  ┌─ NLB (private)  ──────────────────────────────────────────┐  │
+Internet ─► API GW ────►│  │  VPC Link ─► NLB, 1 listener per svc                     │  │
                         │  │  /v1/ingest/*        ──► SIS :8080 ─────────────────┐     │  │
                         │  └──────────────────────────────────────────────────────┼─────┘  │
                         │                                                         │         │
@@ -38,7 +38,7 @@ Internet ── ALB :80 ───►│  │  path-based routing (single listene
                         │  │  /v1/supplier/*      ──► SUP :8085                  │      │  │
                         │  │  /v1/promotions/*    ──► PPS :8086                  │      │  │
                         │  │                                                      ▼      │  │
-                        │  │  Kinesis consumer Lambda ─► SIS (CloudMap discovery) │      │  │
+                        │  │  ml-trigger Lambda ─► SageMaker StartPipelineExec.   │      │  │
                         │  │  Batch post-processor Lambda ◄─ S3 SageMaker bucket  │      │  │
                         │  │                          └──► DFS (CloudMap discovery)│      │  │
                         │  │                                          │            │      │  │
@@ -53,7 +53,8 @@ Internet ── ALB :80 ───►│  │  path-based routing (single listene
                         │  CloudWatch, Secrets Manager) · Gateway endpoints (S3, DDB)      │
                         └──────────────────────────────────────────────────────────────────┘
 
-Kinesis stream (POS ingestion)  ──► Kinesis consumer Lambda  ──► SIS :8080
+POS events ──► Kinesis Data Firehose ──► API Gateway (VPC Link) ──► SIS :8080
+EventBridge cron (nightly) ──► ml-trigger Lambda ──► SageMaker pipeline (train + batch-transform)
 S3 SageMaker bucket (ObjectCreated) ──► Batch Post-Processor Lambda ──► DFS :8084
 
 EventBridge bus (smartretail-events-dev)
@@ -67,9 +68,9 @@ CloudFront (HTTPS, OAC/SigV4) ──► private S3 buckets
   store-manager / sc-planner / executive / supplier / demo
 ```
 
-> **One ALB, not one-per-service.** All seven backend services share a single ALB with
-> path-based listener rules. SIS is the only ingest-facing service; the Lambda Kinesis
-> consumer forwards POS events to SIS via CloudMap service discovery.
+> **Shared ingress, not one-per-service.** All seven backend services sit behind a single
+> ingress with path-based routing. SIS is the only ingest-facing service; Kinesis Data Firehose
+> delivers POS event batches to SIS's `/v1/ingest/events` endpoint via API Gateway.
 
 ## Sizing vs prod
 
@@ -115,7 +116,7 @@ Stacks deployed in dependency order:
 ## After deploy
 
 ```bash
-# API endpoint (ALB)
+# API endpoint (API Gateway, backed by internal NLB via VPC Link)
 aws cloudformation describe-stacks --stack-name Dev-ApiStack \
   --query 'Stacks[0].Outputs[?OutputKey==`AlbEndpoint`].OutputValue' --output text
 
@@ -146,10 +147,10 @@ aws ecs update-service --cluster smartretail-dev --service smartretail-$SERVICE-
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 aws ecr get-login-password | docker login --username AWS --password-stdin $ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
 
-# Kinesis Consumer Lambda
-mvn clean package -DskipTests -pl backend/adapters/kinesis-consumer
-REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-kinesis-consumer-dev
-docker build --platform linux/amd64 -t $REPO:latest backend/adapters/kinesis-consumer
+# ML Trigger Lambda
+mvn clean package -DskipTests -pl backend/adapters/ml-trigger
+REPO=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/smartretail-ml-trigger-dev
+docker build --platform linux/amd64 -t $REPO:latest backend/adapters/ml-trigger
 docker push $REPO:latest
 
 # Batch Post-Processor Lambda
