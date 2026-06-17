@@ -33,7 +33,7 @@ class MlTriggerHandlerTest {
 
     @BeforeEach
     void setUp() {
-        when(context.getLogger()).thenReturn(logger);
+        lenient().when(context.getLogger()).thenReturn(logger);
         handler = new MlTriggerHandler(registrar, trainingDataPreparer, starter);
         event   = new ScheduledEvent();
         event.setSource("aws.events");
