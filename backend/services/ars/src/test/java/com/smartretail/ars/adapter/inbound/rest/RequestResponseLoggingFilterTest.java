@@ -106,4 +106,40 @@ class RequestResponseLoggingFilterTest {
 
         verify(chain).doFilter(any(), any());
     }
+
+    @Test
+    void responseBodyLargerThanLimit_isStillCopiedBackInFull() throws Exception {
+        // > MAX_BODY_BYTES (4096) exercises the truncation branch in readBody
+        String big = "y".repeat(5000);
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/v1/dashboard/store-manager");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+
+        doAnswer(inv -> {
+            HttpServletResponse r = (HttpServletResponse) inv.getArguments()[1];
+            r.getWriter().write(big);
+            return null;
+        }).when(chain).doFilter(any(), any());
+
+        filter.doFilter(req, resp, chain);
+
+        // The log is truncated, but the actual response is preserved in full
+        assertThat(resp.getContentAsString()).isEqualTo(big);
+    }
+
+    @Test
+    void responseHeaders_areIteratedWhenPresent() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/v1/dashboard/executive");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+
+        doAnswer(inv -> {
+            HttpServletResponse r = (HttpServletResponse) inv.getArguments()[1];
+            r.setHeader("X-Custom-Header", "value");
+            r.getWriter().write("{}");
+            return null;
+        }).when(chain).doFilter(any(), any());
+
+        filter.doFilter(req, resp, chain);
+
+        assertThat(resp.getHeader("X-Custom-Header")).isEqualTo("value");
+    }
 }
