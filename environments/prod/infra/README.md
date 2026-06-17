@@ -24,8 +24,8 @@ Production-grade SmartRetail infrastructure. Full footprint with Multi-AZ RDS, R
 ```
 Internet
   │
-  ├── ALB (:80) ──── ECS Fargate tasks (PRIVATE_WITH_EGRESS, X86_64)
-  │      path-based routing
+  ├── API Gateway (REST · Cognito authz) ── VPC Link ──► internal NLB ──► ECS Fargate
+  │      (PRIVATE_WITH_EGRESS, X86_64, desiredCount 2) · routing /v1/{service}/{proxy+}
   │      /v1/ingest/*        → SIS :8080
   │      /v1/inventory/*     → IMS :8081
   │      /v1/replenishment/* → RE  :8082
@@ -40,7 +40,7 @@ Internet
        store-manager / sc-planner / executive / supplier / demo
 ```
 
-VPC: 3 AZs · public subnets (ALB) · private-app subnets (ECS + Lambda) · isolated subnets (RDS Proxy + RDS) · 3 NAT Gateways · free Gateway endpoints (S3, DynamoDB) · interface endpoints (ECR API, ECR Docker, SQS, EventBridge, CloudWatch Logs, Secrets Manager)
+VPC: 3 AZs · public subnets (NAT gateways) · private-app subnets (internal NLB + ECS + Lambda) · isolated subnets (RDS Proxy + RDS) · 3 NAT Gateways · free Gateway endpoints (S3, DynamoDB) · interface endpoints (ECR API, ECR Docker, SQS, EventBridge, CloudWatch Logs, Secrets Manager)
 
 ## Sizing vs dev
 
@@ -88,7 +88,7 @@ Stacks deployed in dependency order:
 ## After deploy
 
 ```bash
-# API endpoint (ALB)
+# API endpoint (API Gateway, backed by internal NLB via VPC Link)
 aws cloudformation describe-stacks --stack-name Prod-ApiStack \
   --query 'Stacks[0].Outputs[?OutputKey==`AlbEndpoint`].OutputValue' --output text
 
