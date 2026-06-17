@@ -55,8 +55,8 @@ Six end-to-end flows on real AWS infrastructure (or LocalStack locally). Build i
 > **Note on flow numbering**: Flows 5–7 are reserved for future phases. Flows 8 and 9 are dashboard/reporting flows that use pre-populated seed data and can be built independently after Flows 1–4. Flow 9 also exercises a write path for manual replenishment triggers.
 
 | Flow | Name                                                                                                                                                                                                                                                                     | Depends on |
-|------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
-| 1    | POS event → Firehose → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                                                                                      | —          |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 1    | POS event → Firehose → SIS → RDS → IMS → stock alert → EventBridge                                                                                                                                                                                                       | —          |
 | 2    | Inventory alert → RE auto-approve → RDS state transition                                                                                                                                                                                                                 | Flow 1     |
 | 3    | SC Planner MFE → RE approve/reject → RDS → EventBridge                                                                                                                                                                                                                   | Flow 2     |
 | 4    | ARS → Store Manager Dashboard MFE                                                                                                                                                                                                                                        | Flows 1–3  |
@@ -67,20 +67,20 @@ Six end-to-end flows on real AWS infrastructure (or LocalStack locally). Build i
 
 ## Document Map
 
-| #   | Document                   | Contents                                                                            |
-|-----|----------------------------|-------------------------------------------------------------------------------------|
-| 1   | `CLAUDE.md`                | Overview, rules, repository structure                                               |
-| 2   | `docs/ARCHITECTURE.md`     | Confirmed architecture decisions                                                    |
-| 3   | `docs/SCHEMAS.md`          | All 6 RDS schemas + idempotency_keys table (sales schema)                           |
-| 4   | `docs/API_CONTRACTS.md`    | REST endpoints, request/response shapes, EventBridge events                         |
-| 5   | `docs/FLOWS.md`            | Flow specifications + observable evidence checklists                                |
-| 6   | `docs/SEED_DATA.md`        | Reference data, test users, seed SQL                                                |
-| 7   | `docs/CDK_SPEC.md`         | CDK TypeScript stack specifications                                                 |
-| 8   | `docs/SERVICE_SPECS.md`    | Per-service hexagonal package structure + key code patterns                         |
-| 9   | `docs/MFE_SPECS.md`        | React MFE components, API calls, auth library                                       |
-| 10  | `docs/LOCAL_DEV.md`        | Local development with Docker Compose + LocalStack                                  |
-| 11  | `docs/BUILD_SEQUENCE.md`   | Exact commands for local and AWS build/deploy                                       |
-| 12  | `docs/DEVELOPER_GUIDE.md`  | Developer onboarding, daily workflow, debugging                                     |
+| #   | Document                   | Contents                                                                               |
+| --- | -------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | `CLAUDE.md`                | Overview, rules, repository structure                                                  |
+| 2   | `docs/ARCHITECTURE.md`     | Confirmed architecture decisions                                                       |
+| 3   | `docs/SCHEMAS.md`          | All 6 RDS schemas + idempotency_keys table (sales schema)                              |
+| 4   | `docs/API_CONTRACTS.md`    | REST endpoints, request/response shapes, EventBridge events                            |
+| 5   | `docs/FLOWS.md`            | Flow specifications + observable evidence checklists                                   |
+| 6   | `docs/SEED_DATA.md`        | Reference data, test users, seed SQL                                                   |
+| 7   | `docs/CDK_SPEC.md`         | CDK TypeScript stack specifications                                                    |
+| 8   | `docs/SERVICE_SPECS.md`    | Per-service hexagonal package structure + key code patterns                            |
+| 9   | `docs/MFE_SPECS.md`        | React MFE components, API calls, auth library                                          |
+| 10  | `docs/LOCAL_DEV.md`        | Local development with Docker Compose + LocalStack                                     |
+| 11  | `docs/BUILD_SEQUENCE.md`   | Exact commands for local and AWS build/deploy                                          |
+| 12  | `docs/DEVELOPER_GUIDE.md`  | Developer onboarding, daily workflow, debugging                                        |
 | 13  | `docs/EVENT_ASYNC_SPEC.md` | Canonical async contract: event schemas, SQS config, idempotency, ordering, DLQ policy |
 
 ---
@@ -179,7 +179,7 @@ smartretail/
 ## Technology Stack
 
 | Layer       | Technology         | Version  |
-|-------------|--------------------|----------|
+| ----------- | ------------------ | -------- |
 | Language    | Java               | 21       |
 | Framework   | Spring Boot        | 3.3.x    |
 | Build       | Maven              | 3.9.x    |
@@ -199,7 +199,7 @@ smartretail/
 ## Run Modes
 
 | Mode  | Profile | AWS services     | Database              | Auth        |
-|-------|---------|------------------|-----------------------|-------------|
+| ----- | ------- | ---------------- | --------------------- | ----------- |
 | LOCAL | `local` | LocalStack :4566 | Postgres Docker :5432 | Mock bypass |
 | AWS   | `aws`   | Real AWS         | RDS via RDS Proxy     | Cognito JWT |
 
@@ -217,12 +217,12 @@ mvn spring-boot:run
 
 **Known LOCAL vs AWS differences:**
 
-| Behaviour              | LOCAL (LocalStack)                        | AWS                              |
-|------------------------|-------------------------------------------|----------------------------------|
-| Firehose               | LocalStack Firehose → SIS direct HTTP (`localhost:8080`) | Real Firehose → SIS via API Gateway + VPC Link |
-| Auth                   | Mock JWT bypass (`X-Mock-User` header)    | Cognito JWT validation           |
-| JDBC URL               | Direct Postgres `localhost:5432`          | RDS Proxy endpoint               |
-| EventBridge            | LocalStack EventBridge (no real targets)  | Real EventBridge with SQS targets|
+| Behaviour   | LOCAL (LocalStack)                                       | AWS                                            |
+| ----------- | -------------------------------------------------------- | ---------------------------------------------- |
+| Firehose    | LocalStack Firehose → SIS direct HTTP (`localhost:8080`) | Real Firehose → SIS via API Gateway + VPC Link |
+| Auth        | Mock JWT bypass (`X-Mock-User` header)                   | Cognito JWT validation                         |
+| JDBC URL    | Direct Postgres `localhost:5432`                         | RDS Proxy endpoint                             |
+| EventBridge | LocalStack EventBridge (no real targets)                 | Real EventBridge with SQS targets              |
 
 ---
 
@@ -255,7 +255,7 @@ If an API shape changes → change the YAML first, then regenerate.
 Enforced by ArchUnit tests. Violations fail the build.
 
 | #   | Rule                                                                                |
-|-----|-------------------------------------------------------------------------------------|
+| --- | ----------------------------------------------------------------------------------- |
 | 1   | No cross-schema SQL joins. ARS uses separate queries merged in Java.                |
 | 2   | No service writes to another service's schema.                                      |
 | 3   | All ECS services connect to RDS via RDS Proxy only.                                 |
@@ -269,21 +269,21 @@ Enforced by ArchUnit tests. Violations fail the build.
 
 **Forbidden patterns:**
 
-| Rule | Forbidden                                                              |
-|------|------------------------------------------------------------------------|
-| R1   | `software.amazon.*` in `..domain..**` packages                         |
-| R2   | SQL JOINs across schema boundaries in ARS                              |
-| R3   | UPDATE `purchase_orders` without `WHERE version = :v`                  |
-| R4   | Approve endpoint proceeding if status ≠ `PENDING_APPROVAL`             |
-| R5   | Direct RDS endpoint in JDBC URL (AWS mode)                             |
-| R6   | JWT checked only at API Gateway — must also be checked in service      |
-| R7   | `WorkflowStatus.CANCELLED` for a planner rejection                     |
-| R8   | Hand-written DTO classes that duplicate openapi-generator output       |
-| R9   | `JpaRepository` or any Spring Data JPA annotation anywhere             |
-| R10  | `@Transactional` in domain services (only in application service layer)|
-| R11  | `RestTemplate` or `WebClient` in domain-layer code                     |
-| R12  | Hardcoded AWS region or account ID in any source file                  |
-| R13  | Business logic inside a Lambda handler                                 |
+| Rule | Forbidden                                                               |
+| ---- | ----------------------------------------------------------------------- |
+| R1   | `software.amazon.*` in `..domain..**` packages                          |
+| R2   | SQL JOINs across schema boundaries in ARS                               |
+| R3   | UPDATE `purchase_orders` without `WHERE version = :v`                   |
+| R4   | Approve endpoint proceeding if status ≠ `PENDING_APPROVAL`              |
+| R5   | Direct RDS endpoint in JDBC URL (AWS mode)                              |
+| R6   | JWT checked only at API Gateway — must also be checked in service       |
+| R7   | `WorkflowStatus.CANCELLED` for a planner rejection                      |
+| R8   | Hand-written DTO classes that duplicate openapi-generator output        |
+| R9   | `JpaRepository` or any Spring Data JPA annotation anywhere              |
+| R10  | `@Transactional` in domain services (only in application service layer) |
+| R11  | `RestTemplate` or `WebClient` in domain-layer code                      |
+| R12  | Hardcoded AWS region or account ID in any source file                   |
+| R13  | Business logic inside a Lambda handler                                  |
 
 ---
 
@@ -291,13 +291,13 @@ Enforced by ArchUnit tests. Violations fail the build.
 
 Read `.claude/standards/testing.md` before writing any test.
 
-| Layer              | Approach                                                                 | Minimum coverage |
-|--------------------|--------------------------------------------------------------------------|-----------------|
-| Domain unit tests  | Plain JUnit 5, no Spring context, no mocks of domain objects             | 90% line        |
-| Application tests  | Mockito for port interfaces, no Spring context                           | 85% line        |
-| Integration tests  | `@SpringBootTest` + Testcontainers (PostgreSQL + LocalStack)             | Key flows only  |
-| Flow tests         | `make test-flow1` … `make test-flow4` must all pass before merging       | N/A             |
-| MFE unit tests     | Vitest + React Testing Library, no real API calls                        | 80% line        |
+| Layer             | Approach                                                           | Minimum coverage |
+| ----------------- | ------------------------------------------------------------------ | ---------------- |
+| Domain unit tests | Plain JUnit 5, no Spring context, no mocks of domain objects       | 90% line         |
+| Application tests | Mockito for port interfaces, no Spring context                     | 85% line         |
+| Integration tests | `@SpringBootTest` + Testcontainers (PostgreSQL + LocalStack)       | Key flows only   |
+| Flow tests        | `make test-flow1` … `make test-flow4` must all pass before merging | N/A              |
+| MFE unit tests    | Vitest + React Testing Library, no real API calls                  | 80% line         |
 
 **Rules:**
 - Do not mock domain objects in unit tests — test real domain logic.
@@ -359,7 +359,7 @@ bash scripts/shared/run-flyway-aws.sh
 ## Port Assignments (local mode)
 
 | Service                 | Port | Primary MFE                                               |
-|-------------------------|------|-----------------------------------------------------------|
+| ----------------------- | ---- | --------------------------------------------------------- |
 | SIS                     | 8080 | —                                                         |
 | IMS                     | 8081 | Store Manager (5173)                                      |
 | RE                      | 8082 | SC Planner (5174)                                         |
@@ -404,7 +404,7 @@ See `docs/LOCAL_DEV.md` for detailed local setup and troubleshooting. See `docs/
 Agents are defined in `.claude/settings.json`. Load the relevant one before starting work.
 
 | Agent                | Standards file                  | Use when                          |
-|----------------------|---------------------------------|-----------------------------------|
+| -------------------- | ------------------------------- | --------------------------------- |
 | `java-standards`     | `.claude/standards/java.md`     | Any Java service work             |
 | `openapi-standards`  | `.claude/standards/openapi.md`  | Designing or editing API YAMLs    |
 | `maven-standards`    | `.claude/standards/maven.md`    | Build config, code generation     |
@@ -416,16 +416,18 @@ Agents are defined in `.claude/settings.json`. Load the relevant one before star
 
 ## Common Pitfalls
 
-| Symptom                                     | Root cause                                              | Fix                                                      |
-|---------------------------------------------|---------------------------------------------------------|----------------------------------------------------------|
-| ArchUnit test fails on domain package       | AWS SDK imported in domain class                        | Move AWS call to an infrastructure adapter               |
-| 409 on replenishment approve                | Order not in `PENDING_APPROVAL` state                   | Check state transition logic; do not approve from `DRAFT`|
-| Optimistic lock exception on PO update      | `WHERE version = :v` missing from UPDATE                | Add version predicate; check rows-updated count = 1      |
-| Generated TS client out of sync             | YAML edited but `npm run generate-api` not re-run       | Re-run generator; never edit generated files manually    |
-| LocalStack Firehose behaves differently     | LocalStack Firehose targets SIS directly at `localhost:8080`; AWS Firehose routes via API Gateway + VPC Link | Ensure SIS is running before LocalStack init; check `localstack-init.sh` endpoint URL |
-| Flyway checksum error after migration edit  | Existing migration file was modified                    | Revert the edit; add a new migration instead             |
-| Services crash-loop with "Failed to obtain JDBC connection" in demo | `application-aws.yml` not loaded for `demo` profile — `spring.datasource.password` unset | `password: ${DB_PASSWORD}` is now in base `application.yml`; rebuild + redeploy |
-| Correlation ID missing in logs              | `X-Correlation-ID` header not propagated through chain  | Use `CorrelationIdFilter` and MDC in every service       |
+| Symptom                                                             | Root cause                                                                                                                                   | Fix                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ArchUnit test fails on domain package                               | AWS SDK imported in domain class                                                                                                             | Move AWS call to an infrastructure adapter                                                                                                                                                                                  |
+| 409 on replenishment approve                                        | Order not in `PENDING_APPROVAL` state                                                                                                        | Check state transition logic; do not approve from `DRAFT`                                                                                                                                                                   |
+| Optimistic lock exception on PO update                              | `WHERE version = :v` missing from UPDATE                                                                                                     | Add version predicate; check rows-updated count = 1                                                                                                                                                                         |
+| Generated TS client out of sync                                     | YAML edited but `npm run generate-api` not re-run                                                                                            | Re-run generator; never edit generated files manually                                                                                                                                                                       |
+| LocalStack Firehose behaves differently                             | LocalStack Firehose targets SIS directly at `localhost:8080`; AWS Firehose routes via API Gateway + VPC Link                                 | Ensure SIS is running before LocalStack init; check `localstack-init.sh` endpoint URL                                                                                                                                       |
+| Flyway checksum error after migration edit                          | Existing migration file was modified                                                                                                         | Revert the edit; add a new migration instead                                                                                                                                                                                |
+| Services crash-loop with "Failed to obtain JDBC connection" in demo | `application-aws.yml` not loaded for `demo` profile — `spring.datasource.password` unset                                                     | `password: ${DB_PASSWORD}` is now in base `application.yml`; rebuild + redeploy                                                                                                                                             |
+| Correlation ID missing in logs                                      | `X-Correlation-ID` header not propagated through chain                                                                                       | Use `CorrelationIdFilter` and MDC in every service                                                                                                                                                                          |
+| Lambdas fail in demo (no internet access)                           | Lambda placed inside VPC but demo has no NAT gateway — Lambda in a public subnet gets only a private IP and cannot reach S3 or SageMaker API | Define demo Lambdas outside the VPC (no `vpc` prop); set `DFS_ENDPOINT` to the API GW URL, not CloudMap DNS (`smartretail-dfs-{env}.smartretail.local`)                                                                     |
+| SageMaker pipeline shows "Active" in console but costs nothing      | AWS Console shows `CfnPipeline` status as "Active" — this means the definition is registered, not that a job is running                      | Standing cost is $0; charges only accrue when `StartPipelineExecution` is called (training + transform jobs). The EventBridge cron is disabled by default (`enabled: false`) — activate via `aws events enable-rule` or CDK |
 
 ---
 

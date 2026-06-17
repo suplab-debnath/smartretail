@@ -98,6 +98,7 @@ export class DataStack extends cdk.Stack {
       lifecycleRules: [{ expiration: cdk.Duration.days(365) }],
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
+      eventBridgeEnabled: true, // routes S3 notifications via EventBridge — avoids cross-stack cycle with ComputeStack Lambda ARN
     });
 
     // SageMaker execution role — assumed by training and batch transform jobs.

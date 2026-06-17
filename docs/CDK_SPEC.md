@@ -2,7 +2,7 @@
  
 All CDK stacks are in TypeScript.
 
-- **Demo / dev stack** (`environments/demo/infra/`) — SQS-only, reuses default VPC. **This is the stack to run.** Stack names: `Min-*`.
+- **Demo / dev stack** (`environments/demo/infra/`) — SQS + Firehose, reuses default VPC (no NAT gateway). **This is the stack to run.** Stack names: `Min-*`.
 - **Production stack** (`environments/prod/infra/`) — Firehose, dedicated VPC. Not wired into Makefile. Stack names: `Prod-*`.
 
 The specifications below describe `environments/demo/infra/` (the demo stack).
@@ -12,11 +12,11 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 
 ## Stack Variants
 
-| Stack | Path | Purpose | CPU arch | Stack prefix |
-|-------|------|---------|----------|-------------|
-| **cdk-demo** | `environments/demo/infra/` | Demo only — SQS, default VPC, ARM64, cheap | ARM64 | `Min-*` |
-| **cdk-dev** | `environments/dev/infra/` | Full dev — Firehose, 2-AZ VPC, RDS Proxy, CloudFront, X86_64 | X86_64 | `Dev-*` |
-| **cdk-prod** | `environments/prod/infra/` | Production — Firehose, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64 | `Prod-*` |
+| Stack        | Path                       | Purpose                                                              | CPU arch | Stack prefix |
+| ------------ | -------------------------- | -------------------------------------------------------------------- | -------- | ------------ |
+| **cdk-demo** | `environments/demo/infra/` | Demo — SQS + Firehose, default VPC (no NAT), X86_64, cheap           | X86_64   | `Min-*`      |
+| **cdk-dev**  | `environments/dev/infra/`  | Full dev — Firehose, 2-AZ VPC, RDS Proxy, CloudFront, X86_64         | X86_64   | `Dev-*`      |
+| **cdk-prod** | `environments/prod/infra/` | Production — Firehose, 3-AZ VPC, Multi-AZ RDS, RDS Proxy, CloudFront | X86_64   | `Prod-*`     |
 
 **cdk-demo** is the only stack wired into the Makefile (`dev-*` targets). Use it for local/demo deploys.
 **cdk-dev** and **cdk-prod** are deployed manually from their respective directories.
@@ -25,18 +25,18 @@ Deploy in order: Network → Data → Messaging → Identity → Compute → API
 
 `cdk-dev` and `cdk-prod` use the same services and AWS config patterns. Only sizing differs:
 
-| Dimension | cdk-dev | cdk-prod |
-|-----------|---------|---------|
-| VPC AZs | 2 | 3 |
-| NAT Gateways | 1 | 3 |
-| RDS instance | t4g.small | r6g.large |
-| RDS Multi-AZ | No | Yes |
-| RDS backup retention | 1 day | 7 days |
-| ECS task CPU/mem | 256 / 512 MB | 512 / 1024 MB |
-| ECS desired count | 1 | 2 |
-| ECS autoscale max | 3 | 6 |
-| Container insights | Disabled | Enabled |
-| Log retention | 1 week | 1 month |
+| Dimension            | cdk-dev      | cdk-prod      |
+| -------------------- | ------------ | ------------- |
+| VPC AZs              | 2            | 3             |
+| NAT Gateways         | 1            | 3             |
+| RDS instance         | t4g.small    | r6g.large     |
+| RDS Multi-AZ         | No           | Yes           |
+| RDS backup retention | 1 day        | 7 days        |
+| ECS task CPU/mem     | 256 / 512 MB | 512 / 1024 MB |
+| ECS desired count    | 1            | 2             |
+| ECS autoscale max    | 3            | 6             |
+| Container insights   | Disabled     | Enabled       |
+| Log retention        | 1 week       | 1 month       |
 
 Both stacks deploy 7 ECS services (SIS, IMS, RE, ARS, DFS, SUP, PPS), 4 MFE CloudFront
 distributions (store-manager, sc-planner, executive, supplier), 2 Cognito pools
@@ -223,27 +223,31 @@ const firehoseAccessKey = new secretsmanager.Secret(this, 'FirehoseIngestKey', {
 ### S3 Buckets
  
 ```typescript
-// Events archive
+// Events archive — Firehose AllData backup destination
+// Demo: versioned=false, autoDeleteObjects=true, DESTROY (ephemeral)
+// Dev/prod: versioned=true, RETAIN
 new s3.Bucket(this, 'EventsBucket', {
-  bucketName: `smartretail-events-${env}-${account}`,
-  encryption: s3.BucketEncryption.S3_MANAGED,
-  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-  versioned: true,
-  lifecycleRules: [{ expiration: cdk.Duration.days(365 * 7) }],
-  removalPolicy: cdk.RemovalPolicy.RETAIN,
-});
- 
-// SageMaker output bucket — transform output CSV triggers Batch Post-Processor Lambda
-// Key prefix convention: sagemaker/output/{run_id}/part-*.csv
-new s3.Bucket(this, 'SageMakerBucket', {
-  bucketName: `smartretail-sagemaker-${env}-${account}`,
+  bucketName: `smartretail-events-${srEnv}-${account}`,
   encryption: s3.BucketEncryption.S3_MANAGED,
   blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-  versioned: true,
-  lifecycleRules: [{ expiration: cdk.Duration.days(365 * 3) }],
-  removalPolicy: cdk.RemovalPolicy.RETAIN,
+  versioned: false,
+  lifecycleRules: [{ expiration: cdk.Duration.days(365 * 7) }],
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
+  autoDeleteObjects: true,
 });
- 
+
+// SageMaker training data + transform output — triggers Batch Post-Processor Lambda
+// Key prefix convention: sagemaker/output/{run_id}/part-*.csv
+new s3.Bucket(this, 'SageMakerBucket', {
+  bucketName: `smartretail-sagemaker-${srEnv}-${account}`,
+  encryption: s3.BucketEncryption.S3_MANAGED,
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  versioned: false,
+  lifecycleRules: [{ expiration: cdk.Duration.days(365) }],
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
+  autoDeleteObjects: true,
+});
+
 // MFE static assets
 // Demo stack: sc-planner bucket only (HostingStack serves it via CloudFront)
 // cdk-dev / cdk-prod: all 4 buckets (store-manager, sc-planner, executive, supplier-portal)
@@ -278,35 +282,12 @@ new s3.Bucket(this, 'SageMakerBucket', {
 File: `environments/demo/infra/lib/messaging-stack.ts`
  
 Creates:
-- Amazon Data Firehose delivery stream
 - EventBridge custom bus
 - SQS queues with DLQs
 - EventBridge rules routing to SQS
  
-### Amazon Data Firehose
+> **Firehose is defined in ApiStack (Stack 6), not MessagingStack.** It requires `restApi.url` which is only available after the REST API is constructed — placing it here would create a circular dependency.
 
-```typescript
-const deliveryStream = new firehose.CfnDeliveryStream(this, 'SmartRetailIngest', {
-  deliveryStreamName: `smartretail-ingest-${env}`,
-  deliveryStreamType: 'DirectPut',
-  httpEndpointDestinationConfiguration: {
-    endpointConfiguration: {
-      url: `https://${apiGatewayDomain}/ingest/v1/ingest/events`,
-      accessKey: firehoseAccessKey.secretValue.unsafeUnwrap(),
-    },
-    retryOptions: { durationInSeconds: 86400 },
-    s3BackupMode: 'AllData',
-    roleArn: firehoseDeliveryRole.roleArn,
-  },
-  extendedS3DestinationConfiguration: {
-    bucketArn: eventsBucket.bucketArn,
-    prefix: 'events/!{timestamp:yyyy/MM/dd}/',
-    errorOutputPrefix: 'firehose-backup/',
-    bufferingHints: { intervalInSeconds: 60, sizeInMBs: 5 },
-    roleArn: firehoseDeliveryRole.roleArn,
-  },
-});
-```
 
 ### EventBridge
  
@@ -544,6 +525,12 @@ const service = new ecs.FargateService(this, `${serviceName}Service`, {
 > Eliminated. Firehose now delivers directly to SIS via API Gateway HTTP endpoint + VPC Link.
 > The `backend/adapters/kinesis-consumer/` directory and its ECR repository are removed.
 
+### Lambda Adapters
+
+> **Demo placement**: Both Lambda functions (`batch-post-processor` and `ml-trigger`) are defined in **ApiStack** (not ComputeStack) because the demo stack has no NAT gateway. Lambdas inside the default VPC's public subnets cannot reach public AWS endpoints (SageMaker API, S3). Running Lambdas outside the VPC and pointing `DFS_ENDPOINT` at the API Gateway URL solves this without adding a NAT gateway (~$32/month). In dev/prod (private subnets + NAT), the Lambdas remain in ComputeStack with CloudMap DNS.
+
+ECR repos for both Lambdas are always in DataStack so images can be pushed before ComputeStack or ApiStack deploys.
+
 ### Batch Post-Processor Lambda
  
 ```typescript
@@ -573,7 +560,9 @@ const batchPostProcessorFn = new lambda.DockerImageFunction(this, 'BatchPostProc
   memorySize: 512,
   role: batchPostProcessorRole,
   environment: {
-    DFS_ENDPOINT: `http://smartretail-dfs-${env}.smartretail.local:8084`,
+    // dev/prod: CloudMap DNS (Lambda in VPC); demo: API GW URL (Lambda outside VPC)
+    DFS_ENDPOINT: `http://smartretail-dfs-${env}.smartretail.local:8084`,  // dev/prod
+    // DFS_ENDPOINT: `${restApi.url}v1/forecast`,                         // demo
     ENV: env,
   },
 });
@@ -592,10 +581,12 @@ batchPostProcessorFn.addEventSource(new lambdaEventSources.S3EventSource(sagemak
 File: `environments/demo/infra/lib/api-stack.ts`
  
 Creates:
-- API Gateway REST API
-- VPC Link
-- JWT Authoriser (Cognito)
-- Resource + method definitions
+- NLB + VPC Link
+- API Gateway REST API (six `/v1/{service}/{proxy+}` routes)
+- Kinesis Data Firehose delivery stream (`smartretail-ingest-{env}`) → API GW → SIS
+- batch-post-processor Lambda (outside VPC in demo; inside VPC in dev)
+- ml-trigger Lambda + daily EventBridge schedule (disabled by default — `enabled: false`)
+- SageMaker demand-forecast pipeline definition (`smartretail-demand-forecast-{env}`, $0 standing cost)
  
 ### VPC Link
  
@@ -632,10 +623,29 @@ const authoriser = new apigateway.CognitoUserPoolsAuthorizer(this, 'InternalAuth
 });
 ```
  
+### SageMaker Demand-Forecast Pipeline
+
+`CfnPipeline` (`smartretail-demand-forecast-{env}`) — a named pipeline definition stored by SageMaker. No compute starts until `StartPipelineExecution` is called explicitly. **Standing cost: $0.**
+
+Two-step pipeline triggered by the ml-trigger Lambda with parameter `RunId`:
+
+| Step             | Type      | Instance     | ~Duration | ~Cost/run |
+| ---------------- | --------- | ------------ | --------- | --------- |
+| `TrainDeepAR`    | Training  | ml.c5.xlarge | ~2 hr     | ~$0.48    |
+| `BatchTransform` | Transform | ml.m5.large  | ~0.5 hr   | ~$0.06    |
+
+- Training image: `382416733822.dkr.ecr.us-east-1.amazonaws.com/forecasting-deepar:1` (AWS-managed)
+- Hyperparameters: `prediction_length=30`, `context_length=90`, `epochs=100`
+- Training input: `s3://{sagemakerBucket}/sagemaker/training/` (written by ml-trigger)
+- Transform output: `s3://{sagemakerBucket}/sagemaker/output/{RunId}/` (triggers batch-post-processor Lambda)
+- EventBridge cron created with `enabled: false`; re-enable via `aws events enable-rule --name smartretail-ml-trigger-daily-{env}` or set `enabled: true` in CDK and redeploy
+
 ### Outputs
 ```
 /smartretail/{env}/api-gateway/endpoint
 /smartretail/{env}/api-gateway/id
+/smartretail/{env}/firehose/stream-name
+/smartretail/{env}/sagemaker/pipeline-name
 ```
 
 ---
@@ -655,12 +665,12 @@ Creates:
 
 **Demo** serves `sc-planner` only. **Dev/prod** serve all four MFEs:
 
-| Path | MFE | Cognito pool |
-|------|-----|-------------|
-| `/sc-planner/*` | SC Planner Console | Internal |
-| `/store-manager/*` | Store Manager Dashboard | Internal |
-| `/executive/*` | Executive Dashboard | Internal |
-| `/supplier/*` | Supplier Portal | Supplier |
+| Path               | MFE                     | Cognito pool |
+| ------------------ | ----------------------- | ------------ |
+| `/sc-planner/*`    | SC Planner Console      | Internal     |
+| `/store-manager/*` | Store Manager Dashboard | Internal     |
+| `/executive/*`     | Executive Dashboard     | Internal     |
+| `/supplier/*`      | Supplier Portal         | Supplier     |
 
 ### Outputs
 ```

@@ -5,8 +5,8 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sagemaker from 'aws-cdk-lib/aws-sagemaker';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
@@ -273,10 +273,23 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
-    this.batchPostProcessorFn.addEventSource(new lambdaEventSources.S3EventSource(data.sagemakerBucket, {
-      events: [s3.EventType.OBJECT_CREATED],
-      filters: [{ prefix: 'sagemaker/output/', suffix: '.csv' }],
-    }));
+    // S3EventSource adds a BucketNotification to DataStack referencing the Lambda ARN here in
+    // ComputeStack — creating DataStack → ComputeStack dependency that cycles with
+    // ComputeStack → DataStack. Use EventBridge (sagemakerBucket has eventBridgeEnabled:true)
+    // so the rule lives in ComputeStack with no cross-stack reference from DataStack.
+    const sagemakerOutputRule = new events.Rule(this, 'SageMakerOutputCreated', {
+      ruleName: `smartretail-sagemaker-output-${srEnv}`,
+      eventPattern: {
+        source: ['aws.s3'],
+        detailType: ['Object Created'],
+        detail: {
+          bucket: { name: [data.sagemakerBucket.bucketName] },
+          object: { key: [{ prefix: 'sagemaker/output/' }, { suffix: '.csv' }] },
+        },
+      },
+      description: 'Fires when SageMaker transform output CSV lands in S3; triggers batch-post-processor',
+    });
+    sagemakerOutputRule.addTarget(new eventsTargets.LambdaFunction(this.batchPostProcessorFn));
 
     // ML Trigger Lambda — EventBridge scheduled rule → SageMaker StartPipelineExecution
     const mlTriggerRepo = new ecr.Repository(this, 'MlTriggerRepo', {
@@ -297,6 +310,10 @@ export class ComputeStack extends cdk.Stack {
     mlTriggerRole.addToPolicy(new iam.PolicyStatement({
       actions: ['sagemaker:StartPipelineExecution'],
       resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}`],
+    }));
+    mlTriggerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sagemaker:DescribePipelineExecution'],
+      resources: [`arn:aws:sagemaker:${this.region}:${this.account}:pipeline/${sagemakerPipelineName}/*`],
     }));
     // Read raw POS events (Firehose AllData) → write DeepAR training files
     data.eventsBucket.grantRead(mlTriggerRole);
@@ -334,6 +351,19 @@ export class ComputeStack extends cdk.Stack {
       description: 'Daily SageMaker demand forecast pipeline trigger',
     });
     mlTriggerRule.addTarget(new eventsTargets.LambdaFunction(mlTriggerFn));
+
+    const demandForecastPipeline = new sagemaker.CfnPipeline(this, 'DemandForecastPipeline', {
+      pipelineName: sagemakerPipelineName,
+      roleArn: data.sagemakerExecutionRole.roleArn,
+      pipelineDefinition: {} as sagemaker.CfnPipeline.PipelineDefinitionProperty,
+      tags: [
+        { key: 'Environment', value: srEnv },
+        { key: 'Project', value: 'SmartRetail' },
+      ],
+    });
+    demandForecastPipeline.addPropertyOverride('PipelineDefinition', {
+      PipelineDefinitionBody: JSON.stringify(buildDemandForecastPipelineDefinition(data.sagemakerBucket.bucketName)),
+    });
 
     new ssm.StringParameter(this, 'SageMakerPipelineNameParam', {
       parameterName: `/smartretail/${srEnv}/sagemaker/pipeline-name`,
@@ -462,4 +492,69 @@ export class ComputeStack extends cdk.Stack {
 
     return service;
   }
+}
+
+function buildDemandForecastPipelineDefinition(sagemakerBucket: string) {
+  return {
+    Version: '2020-12-01',
+    Parameters: [{ Name: 'RunId', Type: 'String' }],
+    Steps: [
+      {
+        Name: 'TrainDeepAR',
+        Type: 'Training',
+        Arguments: {
+          AlgorithmSpecification: {
+            TrainingImage: '382416733822.dkr.ecr.us-east-1.amazonaws.com/forecasting-deepar:1',
+            TrainingInputMode: 'File',
+          },
+          InputDataConfig: [
+            {
+              ChannelName: 'train',
+              DataSource: { S3DataSource: { S3Uri: `s3://${sagemakerBucket}/sagemaker/training/train.jsonl`, S3DataType: 'S3Prefix' } },
+              ContentType: 'application/jsonlines',
+            },
+            {
+              ChannelName: 'test',
+              DataSource: { S3DataSource: { S3Uri: `s3://${sagemakerBucket}/sagemaker/training/test.jsonl`, S3DataType: 'S3Prefix' } },
+              ContentType: 'application/jsonlines',
+            },
+          ],
+          OutputDataConfig: { S3OutputPath: `s3://${sagemakerBucket}/sagemaker/model/` },
+          ResourceConfig: { InstanceType: 'ml.c5.xlarge', InstanceCount: 1, VolumeSizeInGB: 20 },
+          StoppingCondition: { MaxRuntimeInSeconds: 7200 },
+          HyperParameters: {
+            prediction_length: '30',
+            context_length: '90',
+            epochs: '100',
+            num_cells: '40',
+            num_layers: '2',
+            likelihood: 'gaussian',
+          },
+        },
+      },
+      {
+        Name: 'BatchTransform',
+        Type: 'Transform',
+        DependsOn: ['TrainDeepAR'],
+        Arguments: {
+          ModelName: { 'Get': 'Steps.TrainDeepAR.ModelArtifacts.S3ModelArtifacts' },
+          TransformInput: {
+            DataSource: {
+              S3DataSource: {
+                S3Uri: { 'Std:Join': { On: '/', Values: [`s3://${sagemakerBucket}/sagemaker/transform-input`, { 'Get': 'Parameters.RunId' }] } },
+                S3DataType: 'S3Prefix',
+              },
+            },
+            ContentType: 'application/jsonlines',
+            SplitType: 'Line',
+          },
+          TransformOutput: {
+            S3OutputPath: { 'Std:Join': { On: '/', Values: [`s3://${sagemakerBucket}/sagemaker/output`, { 'Get': 'Parameters.RunId' }] } },
+            AssembleWith: 'Line',
+          },
+          TransformResources: { InstanceType: 'ml.m5.large', InstanceCount: 1 },
+        },
+      },
+    ],
+  };
 }

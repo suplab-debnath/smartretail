@@ -30,7 +30,7 @@ const messaging = new MessagingStack(app, 'Min-MessagingStack', { env: cdkEnv, s
 const hosting   = new HostingStack  (app, 'Min-HostingStack',   { env: cdkEnv, srEnv: env });
 const identity  = new IdentityStack (app, 'Min-IdentityStack',  { env: cdkEnv, srEnv: env, mfeBaseUrl: hosting.distributionUrl });
 const compute   = new ComputeStack  (app, 'Min-ComputeStack',   { env: cdkEnv, srEnv: env, network, data, messaging, identity });
-const api       = new ApiStack      (app, 'Min-ApiStack',       { env: cdkEnv, srEnv: env, network, compute });
+const api       = new ApiStack      (app, 'Min-ApiStack',       { env: cdkEnv, srEnv: env, network, data, compute });
 new MonitoringStack(app, 'Min-MonitoringStack', {
   env: cdkEnv, srEnv: env,
   compute, messaging, data, api,
