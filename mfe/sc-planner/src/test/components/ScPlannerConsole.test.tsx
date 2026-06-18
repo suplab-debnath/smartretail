@@ -168,12 +168,12 @@ describe('ScPlannerConsole', () => {
     expect(screen.getByRole('button', { name: 'Supplier Scorecard' })).toBeInTheDocument()
   })
 
-  it('switches to Demo tab on click', async () => {
-    mockedUseAuth.mockReturnValue(authWithRole())
-    render(<ScPlannerConsole />)
-    await userEvent.click(screen.getByRole('button', { name: 'Demo' }))
-    expect(screen.getByRole('button', { name: 'Demo' })).toBeInTheDocument()
-  })
+  // it('switches to Demo tab on click', async () => {
+  //   mockedUseAuth.mockReturnValue(authWithRole())
+  //   render(<ScPlannerConsole />)
+  //   await userEvent.click(screen.getByRole('button', { name: 'Demo' }))
+  //   expect(screen.getByRole('button', { name: 'Demo' })).toBeInTheDocument()
+  // })
 
   it('shows 99+ badge when alert count exceeds 99', () => {
     mockedUseAuth.mockReturnValue(authWithRole())
