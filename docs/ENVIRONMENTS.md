@@ -13,11 +13,11 @@ and whether the ML pipeline is active**.
 Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run SageMaker charges of
 ~$0.54/run — training ~$0.48 + batch-transform ~$0.06):
 
-| Environment | Footprint                                                                                     | ~$/month |
-|-------------|-----------------------------------------------------------------------------------------------|----------|
-| **Demo**    | Default VPC (0 NAT), single-AZ `t4g.micro`, 6 ARM64 tasks, ML pipeline dormant                | **~$80** |
-| **Dev**     | 2-AZ VPC + 1 NAT + VPC endpoints, RDS Proxy → `t4g.small`, 7 tasks (Spot), nightly ML         | **~$230** |
-| **Prod**    | 3-AZ VPC + 3 NAT + VPC endpoints, Multi-AZ `r6g.large` + RDS Proxy, 7 tasks ×2 (Spot+OD), ML  | **~$850** |
+| Environment | Footprint                                                                                    | ~$/month  |
+| ----------- | -------------------------------------------------------------------------------------------- | --------- |
+| **Demo**    | Default VPC (0 NAT), single-AZ `t4g.micro`, 6 ARM64 tasks, ML pipeline dormant               | **~$80**  |
+| **Dev**     | 2-AZ VPC + 1 NAT + VPC endpoints, RDS Proxy → `t4g.small`, 7 tasks (Spot), nightly ML        | **~$230** |
+| **Prod**    | 3-AZ VPC + 3 NAT + VPC endpoints, Multi-AZ `r6g.large` + RDS Proxy, 7 tasks ×2 (Spot+OD), ML | **~$850** |
 
 **Key drivers and levers:**
 - **NAT Gateways** are the biggest fixed cost above demo: ~$33/gateway/month + data. Demo avoids them
@@ -45,24 +45,24 @@ Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run Sag
 
 ## 1. Environment Summary
 
-| Property              | Value                                                                                     |
-|-----------------------|-------------------------------------------------------------------------------------------|
-| Environment name      | `demo`                                                                                    |
-| Spring profile        | `demo`                                                                                    |
-| CDK stacks            | `Min-Network` · `Min-Data` · `Min-Messaging` · `Min-Compute` · `Min-Identity` · `Min-Api` |
-| CPU architecture      | ARM64 (Graviton)                                                                          |
-| VPC type              | Default account VPC (looked up by CDK, not created)                                       |
-| Subnet tier           | Public only (no private subnets in default VPC)                                           |
-| RDS proxy             | None — ECS tasks connect directly to the RDS instance                                     |
-| POS ingestion         | Kinesis Data Firehose → API Gateway → SIS `/v1/ingest/events` (S3 backup bucket)          |
-| SageMaker pipeline    | Deployed but **dormant** — EventBridge cron `enabled: false`, ml-trigger throttled to 0   |
-| Lambdas               | `batch-post-processor` + `ml-trigger` (ARM64, **outside VPC**, reach DFS via API GW URL)  |
-| Forecast data         | Pre-seeded via Flyway V7 (stands in for trained-model output)                             |
-| MFEs deployed         | SC Planner only (:5174)                                                                   |
-| ECS task min / max    | 1 / 2 (CPU scaling at 70%)                                                                |
-| ECS task size         | 256 CPU units · 512 MiB                                                                   |
-| Log retention         | 2 weeks                                                                                   |
-| Removal policy        | DESTROY (all resources)                                                                   |
+| Property           | Value                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Environment name   | `demo`                                                                                    |
+| Spring profile     | `demo`                                                                                    |
+| CDK stacks         | `Min-Network` · `Min-Data` · `Min-Messaging` · `Min-Compute` · `Min-Identity` · `Min-Api` |
+| CPU architecture   | ARM64 (Graviton)                                                                          |
+| VPC type           | Default account VPC (looked up by CDK, not created)                                       |
+| Subnet tier        | Public only (no private subnets in default VPC)                                           |
+| RDS proxy          | None — ECS tasks connect directly to the RDS instance                                     |
+| POS ingestion      | Kinesis Data Firehose → API Gateway → SIS `/v1/ingest/events` (S3 backup bucket)          |
+| SageMaker pipeline | Deployed but **dormant** — EventBridge cron `enabled: false`, ml-trigger throttled to 0   |
+| Lambdas            | `batch-post-processor` + `ml-trigger` (ARM64, **outside VPC**, reach DFS via API GW URL)  |
+| Forecast data      | Pre-seeded via Flyway V7 (stands in for trained-model output)                             |
+| MFEs deployed      | SC Planner only (:5174)                                                                   |
+| ECS task min / max | 1 / 2 (CPU scaling at 70%)                                                                |
+| ECS task size      | 256 CPU units · 512 MiB                                                                   |
+| Log retention      | 2 weeks                                                                                   |
+| Removal policy     | DESTROY (all resources)                                                                   |
 
 ---
 
@@ -180,11 +180,11 @@ Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run Sag
 
 ## 3. SQS Queues
 
-| Queue name                       | Type     | Visibility | DLQ (max receive) | Encryption   | Note                                                                                                    |
-|----------------------------------|----------|------------|-------------------|--------------|---------------------------------------------------------------------------------------------------------|
-| `smartretail-ims-sales-demo`     | Standard | 120 s      | …-dlq (3×)        | SQS-managed  | Provisioned; idle — no EventBridge rule routes to it (SIS absent, no `SalesTransactionEvent` published) |
-| `smartretail-re-alert-demo.fifo` | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  | Content-based dedup; `messageGroupId=$.detail.dcId`                                                     |
-| `smartretail-ars-updates-demo`   | Standard | default    | …-dlq (3×)        | SQS-managed  | Dashboard aggregation                                                                                   |
+| Queue name                       | Type     | Visibility | DLQ (max receive) | Encryption  | Note                                                                                                    |
+| -------------------------------- | -------- | ---------- | ----------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `smartretail-ims-sales-demo`     | Standard | 120 s      | …-dlq (3×)        | SQS-managed | Provisioned; idle — no EventBridge rule routes to it (SIS absent, no `SalesTransactionEvent` published) |
+| `smartretail-re-alert-demo.fifo` | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed | Content-based dedup; `messageGroupId=$.detail.dcId`                                                     |
+| `smartretail-ars-updates-demo`   | Standard | default    | …-dlq (3×)        | SQS-managed | Dashboard aggregation                                                                                   |
 
 > **Why 3 queues?** Demo has no PPS service and no SIS service. The IMS sales queue is wired in CDK for consistency but receives no messages; only 2 queues (`re-alert` and `ars-updates`) carry live traffic during demos.
 
@@ -194,10 +194,10 @@ Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run Sag
 
 **Bus:** `smartretail-events-demo`
 
-| Rule name                      | Source                              | Detail type           | Target                | Notes                              |
-|--------------------------------|-------------------------------------|-----------------------|-----------------------|------------------------------------|
-| `smartretail-alert-to-re-demo` | `smartretail.ims`                   | `InventoryAlertEvent` | `re-alert-demo.fifo`  | `messageGroupId = $.detail.dcId`   |
-| `smartretail-all-to-ars-demo`  | `smartretail.ims`, `smartretail.re` | any                   | `ars-updates-demo`    | Dashboard aggregation              |
+| Rule name                      | Source                              | Detail type           | Target               | Notes                            |
+| ------------------------------ | ----------------------------------- | --------------------- | -------------------- | -------------------------------- |
+| `smartretail-alert-to-re-demo` | `smartretail.ims`                   | `InventoryAlertEvent` | `re-alert-demo.fifo` | `messageGroupId = $.detail.dcId` |
+| `smartretail-all-to-ars-demo`  | `smartretail.ims`, `smartretail.re` | any                   | `ars-updates-demo`   | Dashboard aggregation            |
 
 > Note: IMS publishes events; RE reads the FIFO queue and publishes in turn; ARS consumes the
 > updates queue. SIS is absent in demo — no `SalesTransactionEvent` rule is needed.
@@ -208,13 +208,13 @@ Rough us-east-1, on-demand, 24×7 estimates (exclude data egress and per-run Sag
 
 **API name:** `smartretail-api-demo` · **Stage:** `internal` · **Type:** Regional REST
 
-| Path pattern                | Method | Backend service | Port   | Integration           |
-|-----------------------------|--------|-----------------|--------|-----------------------|
-| `/v1/dashboard/{proxy+}`    | ANY    | ARS             | 8083   | HTTP_PROXY / VPC Link |
-| `/v1/inventory/{proxy+}`    | ANY    | IMS             | 8081   | HTTP_PROXY / VPC Link |
-| `/v1/forecast/{proxy+}`     | ANY    | DFS             | 8084   | HTTP_PROXY / VPC Link |
-| `/v1/replenishment/{proxy+}`| ANY    | RE              | 8082   | HTTP_PROXY / VPC Link |
-| `/v1/supplier/{proxy+}`     | ANY    | SUP             | 8085   | HTTP_PROXY / VPC Link |
+| Path pattern                 | Method | Backend service | Port | Integration           |
+| ---------------------------- | ------ | --------------- | ---- | --------------------- |
+| `/v1/dashboard/{proxy+}`     | ANY    | ARS             | 8083 | HTTP_PROXY / VPC Link |
+| `/v1/inventory/{proxy+}`     | ANY    | IMS             | 8081 | HTTP_PROXY / VPC Link |
+| `/v1/forecast/{proxy+}`      | ANY    | DFS             | 8084 | HTTP_PROXY / VPC Link |
+| `/v1/replenishment/{proxy+}` | ANY    | RE              | 8082 | HTTP_PROXY / VPC Link |
+| `/v1/supplier/{proxy+}`      | ANY    | SUP             | 8085 | HTTP_PROXY / VPC Link |
 
 Integration URI pattern: `http://{nlb-dns}:{port}/v1/{pathPart}/{proxy}` — the path prefix is
 prepended in the URI because API Gateway's `{proxy}` captures only the suffix after the resource
@@ -227,26 +227,26 @@ path.
 ### EcsExecutionRole
 Assumed by: `ecs-tasks.amazonaws.com`
 
-| Permission | Source |
-|-----------|--------|
-| Pull images from ECR, write to CloudWatch Logs | `AmazonECSTaskExecutionRolePolicy` (managed) |
+| Permission                                                       | Source                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Pull images from ECR, write to CloudWatch Logs                   | `AmazonECSTaskExecutionRolePolicy` (managed)                       |
 | `secretsmanager:GetSecretValue` on `smartretail-rds-secret-demo` | `grantRead()` — used to inject `DB_PASSWORD` and `FLYWAY_PASSWORD` |
 
 ### Per-service Task Roles
 
-| Role | Allowed actions | Resources |
-|------|----------------|-----------|
-| `imsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` | `smartretail-ims-sales-demo` |
-| | `events:PutEvents` | `smartretail-events-demo` bus |
-| | `rds-db:connect` | `dbuser:*/smartretail_admin` |
-| `reTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `smartretail-re-alert-demo.fifo` |
-| | `events:PutEvents` | `smartretail-events-demo` bus |
-| | `rds-db:connect` | `dbuser:*/smartretail_admin` |
-| `arsTaskRole` | `rds-db:connect` | `dbuser:*/smartretail_admin` |
-| `dfsTaskRole` | `events:PutEvents` | `smartretail-events-demo` bus |
-| | `rds-db:connect` | `dbuser:*/smartretail_admin` |
-| `supTaskRole` | `events:PutEvents` | `smartretail-events-demo` bus |
-| | `rds-db:connect` | `dbuser:*/smartretail_admin` |
+| Role          | Allowed actions                                                                        | Resources                        |
+| ------------- | -------------------------------------------------------------------------------------- | -------------------------------- |
+| `imsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                            | `smartretail-ims-sales-demo`     |
+|               | `events:PutEvents`                                                                     | `smartretail-events-demo` bus    |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`     |
+| `reTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `smartretail-re-alert-demo.fifo` |
+|               | `events:PutEvents`                                                                     | `smartretail-events-demo` bus    |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`     |
+| `arsTaskRole` | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`     |
+| `dfsTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-demo` bus    |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`     |
+| `supTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-demo` bus    |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`     |
 
 ---
 
@@ -315,35 +315,35 @@ Developer workstation:  make demo-reset-db          (between demo runs)
 
 ## 8. Observability
 
-| Signal         | Detail                                                                  |
-|----------------|-------------------------------------------------------------------------|
-| Container logs | CloudWatch Logs `/smartretail/{svc}/demo` · retention 2 weeks          |
-| Flyway logs    | CloudWatch Logs `/smartretail/flyway/demo` · retention 2 weeks         |
-| RDS logs       | `postgresql` log type exported to CloudWatch · retention 2 weeks       |
-| Metrics        | Container Insights V2 on ECS cluster (CPU, memory, task counts)       |
-| Health checks  | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)      |
-| Circuit breaker| ECS deployment circuit breaker with rollback enabled                   |
-| Log format     | Structured JSON — fields: `timestamp`, `level`, `service`, `correlationId`, `traceId` |
-| Error format   | RFC 7807 `ProblemDetail` on all 4xx/5xx responses                     |
+| Signal          | Detail                                                                                |
+| --------------- | ------------------------------------------------------------------------------------- |
+| Container logs  | CloudWatch Logs `/smartretail/{svc}/demo` · retention 2 weeks                         |
+| Flyway logs     | CloudWatch Logs `/smartretail/flyway/demo` · retention 2 weeks                        |
+| RDS logs        | `postgresql` log type exported to CloudWatch · retention 2 weeks                      |
+| Metrics         | Container Insights V2 on ECS cluster (CPU, memory, task counts)                       |
+| Health checks   | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)                      |
+| Circuit breaker | ECS deployment circuit breaker with rollback enabled                                  |
+| Log format      | Structured JSON — fields: `timestamp`, `level`, `service`, `correlationId`, `traceId` |
+| Error format    | RFC 7807 `ProblemDetail` on all 4xx/5xx responses                                     |
 
 ---
 
 ## 9. Key Resource Names
 
-| Resource              | Name / Pattern                                             |
-|-----------------------|------------------------------------------------------------|
-| ECS cluster           | `smartretail-demo`                                         |
-| RDS instance          | `smartretail-rds-demo`                                     |
-| RDS secret            | `smartretail-rds-secret-demo`                              |
-| NLB                   | `smartretail-nlb-demo`                                     |
-| VPC Link              | `smartretail-vpclink-demo`                                 |
-| API Gateway           | `smartretail-api-demo` (stage `internal`)                  |
-| EventBridge bus       | `smartretail-events-demo`                                  |
-| ECR repos             | `smartretail-{ims,re,ars,dfs,sup,flyway}-demo`             |
-| MFE S3 bucket         | `smartretail-mfe-demo-sc-planner-{accountId}`              |
-| SSM prefix            | `/smartretail/demo/`                                       |
-| CloudMap namespace    | `smartretail.local`                                        |
-| Flyway task family    | `smartretail-flyway-demo`                                  |
+| Resource           | Name / Pattern                                 |
+| ------------------ | ---------------------------------------------- |
+| ECS cluster        | `smartretail-demo`                             |
+| RDS instance       | `smartretail-rds-demo`                         |
+| RDS secret         | `smartretail-rds-secret-demo`                  |
+| NLB                | `smartretail-nlb-demo`                         |
+| VPC Link           | `smartretail-vpclink-demo`                     |
+| API Gateway        | `smartretail-api-demo` (stage `internal`)      |
+| EventBridge bus    | `smartretail-events-demo`                      |
+| ECR repos          | `smartretail-{ims,re,ars,dfs,sup,flyway}-demo` |
+| MFE S3 bucket      | `smartretail-mfe-demo-sc-planner-{accountId}`  |
+| SSM prefix         | `/smartretail/demo/`                           |
+| CloudMap namespace | `smartretail.local`                            |
+| Flyway task family | `smartretail-flyway-demo`                      |
 
 ---
 
@@ -370,22 +370,22 @@ Min-Network
 
 ## 1. Environment Summary
 
-| Property              | Value                                                                 |
-|-----------------------|-----------------------------------------------------------------------|
-| Environment name      | `dev`                                                                 |
-| Spring profile        | `aws`                                                                 |
-| CDK stacks            | `Dev-Network` · `Dev-Data` · `Dev-Messaging` · `Dev-Hosting` · `Dev-Identity` · `Dev-Compute` · `Dev-Api` · `Dev-Monitoring` |
-| CPU architecture      | x86_64                                                                |
-| VPC type              | Custom CDK VPC (10.0.0.0/16), 2 AZs, 3 subnet tiers                 |
-| Subnet tiers          | Public · PrivateApp · Isolated                                       |
-| NAT Gateways          | 1 (in one public subnet; both PrivateApp subnets share it)           |
-| RDS proxy             | Yes — all services connect via RDS Proxy in isolated subnets         |
-| ECS task min / max    | 1 / 3 (CPU scaling at 70%)                                          |
-| ECS task size         | 256 CPU units · 512 MiB                                             |
-| Capacity strategy     | FARGATE_SPOT (weight 4) + FARGATE (weight 1)                        |
-| Log retention         | 1 month                                                              |
-| Removal policy        | DESTROY (all resources — dev is ephemeral)                           |
-| CORS origin           | `https://*.smartretail.com`                                          |
+| Property           | Value                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Environment name   | `dev`                                                                                                                        |
+| Spring profile     | `aws`                                                                                                                        |
+| CDK stacks         | `Dev-Network` · `Dev-Data` · `Dev-Messaging` · `Dev-Hosting` · `Dev-Identity` · `Dev-Compute` · `Dev-Api` · `Dev-Monitoring` |
+| CPU architecture   | x86_64                                                                                                                       |
+| VPC type           | Custom CDK VPC (10.0.0.0/16), 2 AZs, 3 subnet tiers                                                                          |
+| Subnet tiers       | Public · PrivateApp · Isolated                                                                                               |
+| NAT Gateways       | 1 (in one public subnet; both PrivateApp subnets share it)                                                                   |
+| RDS proxy          | Yes — all services connect via RDS Proxy in isolated subnets                                                                 |
+| ECS task min / max | 1 / 3 (CPU scaling at 70%)                                                                                                   |
+| ECS task size      | 256 CPU units · 512 MiB                                                                                                      |
+| Capacity strategy  | FARGATE_SPOT (weight 4) + FARGATE (weight 1)                                                                                 |
+| Log retention      | 1 month                                                                                                                      |
+| Removal policy     | DESTROY (all resources — dev is ephemeral)                                                                                   |
+| CORS origin        | `https://*.smartretail.com`                                                                                                  |
 
 ---
 
@@ -422,15 +422,15 @@ check cdk.context.json after first synth for actuals.
 
 ### 2.2 VPC Endpoints
 
-| Endpoint type | Service               | Subnets     | Notes                                |
-|---------------|-----------------------|-------------|--------------------------------------|
-| Gateway       | S3                    | All         | Free; ECR image pulls + S3 access    |
-| Interface     | ECR (`ecr.api`)       | PrivateApp  | ECS image pull without NAT           |
-| Interface     | ECR Docker (`ecr.dkr`)| PrivateApp  | Image layer pull                     |
-| Interface     | SQS                   | PrivateApp  | ECS → SQS without NAT               |
-| Interface     | EventBridge           | PrivateApp  | ECS → EventBridge without NAT       |
-| Interface     | CloudWatch Logs       | PrivateApp  | Container log delivery               |
-| Interface     | Secrets Manager       | PrivateApp  | Secret injection at task launch      |
+| Endpoint type | Service                | Subnets    | Notes                             |
+| ------------- | ---------------------- | ---------- | --------------------------------- |
+| Gateway       | S3                     | All        | Free; ECR image pulls + S3 access |
+| Interface     | ECR (`ecr.api`)        | PrivateApp | ECS image pull without NAT        |
+| Interface     | ECR Docker (`ecr.dkr`) | PrivateApp | Image layer pull                  |
+| Interface     | SQS                    | PrivateApp | ECS → SQS without NAT             |
+| Interface     | EventBridge            | PrivateApp | ECS → EventBridge without NAT     |
+| Interface     | CloudWatch Logs        | PrivateApp | Container log delivery            |
+| Interface     | Secrets Manager        | PrivateApp | Secret injection at task launch   |
 
 All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR, no outbound.
 
@@ -610,26 +610,26 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 
 ## 3. Security Groups
 
-| SG name                | Ingress                                      | Egress    | Placed in           |
-|------------------------|----------------------------------------------|-----------|---------------------|
-| `sgEcsTasks`           | TCP 8080–8086 from VPC CIDR                  | all       | PrivateApp          |
-|                        | all TCP from `sgEcsTasks` (svc-to-svc)       |           |                     |
-| `sgRdsProxy`           | TCP 5432 from `sgEcsTasks`                   | all       | Isolated            |
-| `sgRds`                | TCP 5432 from `sgRdsProxy`                   | **none**  | Isolated            |
-| `sgVpcEndpoints`       | TCP 443 from VPC CIDR (10.0.0.0/16)          | **none**  | PrivateApp          |
-| `sgBatchProcessor`     | none                                         | all       | PrivateApp (Lambda) |
-| `sgMlTrigger`          | none                                         | all       | PrivateApp (Lambda) |
+| SG name            | Ingress                                | Egress   | Placed in           |
+| ------------------ | -------------------------------------- | -------- | ------------------- |
+| `sgEcsTasks`       | TCP 8080–8086 from VPC CIDR            | all      | PrivateApp          |
+|                    | all TCP from `sgEcsTasks` (svc-to-svc) |          |                     |
+| `sgRdsProxy`       | TCP 5432 from `sgEcsTasks`             | all      | Isolated            |
+| `sgRds`            | TCP 5432 from `sgRdsProxy`             | **none** | Isolated            |
+| `sgVpcEndpoints`   | TCP 443 from VPC CIDR (10.0.0.0/16)    | **none** | PrivateApp          |
+| `sgBatchProcessor` | none                                   | all      | PrivateApp (Lambda) |
+| `sgMlTrigger`      | none                                   | all      | PrivateApp (Lambda) |
 
 ---
 
 ## 4. SQS Queues
 
-| Queue name                           | Type     | Visibility | DLQ (max receive) | Encryption   |
-|--------------------------------------|----------|------------|-------------------|--------------|
-| `smartretail-ims-sales-dev`          | Standard | 120 s      | …-dlq (3×)        | SQS-managed  |
-| `smartretail-re-alert-dev.fifo`      | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  |
-| `smartretail-ars-updates-dev`        | Standard | default    | …-dlq (3×)        | SQS-managed  |
-| `smartretail-pps-inbound-dev`        | Standard | 120 s      | …-dlq (3×)        | SQS-managed  |
+| Queue name                      | Type     | Visibility | DLQ (max receive) | Encryption  |
+| ------------------------------- | -------- | ---------- | ----------------- | ----------- |
+| `smartretail-ims-sales-dev`     | Standard | 120 s      | …-dlq (3×)        | SQS-managed |
+| `smartretail-re-alert-dev.fifo` | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed |
+| `smartretail-ars-updates-dev`   | Standard | default    | …-dlq (3×)        | SQS-managed |
+| `smartretail-pps-inbound-dev`   | Standard | 120 s      | …-dlq (3×)        | SQS-managed |
 
 DLQ properties: IMS sales DLQ and ARS updates DLQ have 14-day retention. All DLQs are exposed as
 public properties on `MessagingStack` so the MonitoringStack can attach CloudWatch alarms.
@@ -640,12 +640,12 @@ public properties on `MessagingStack` so the MonitoringStack can attach CloudWat
 
 **Bus:** `smartretail-events-dev`
 
-| Rule name                              | Source                               | Detail type             | Target                        | Notes                            |
-|----------------------------------------|--------------------------------------|-------------------------|-------------------------------|----------------------------------|
-| `smartretail-sales-to-ims-dev`         | `smartretail.sis`                    | `SalesTransactionEvent` | `ims-sales-dev`               | SIS → IMS pipeline               |
-| `smartretail-alert-to-re-dev`          | `smartretail.ims`                    | `InventoryAlertEvent`   | `re-alert-dev.fifo`           | `messageGroupId = $.detail.dcId` |
-| `smartretail-all-to-ars-dev`           | `smartretail.sis`, `.ims`, `.re`     | any                     | `ars-updates-dev`             | Dashboard aggregation            |
-| `smartretail-promotion-to-pps-dev`     | `external.campaign-management`       | `PromotionActivated`    | `pps-inbound-dev`             | External → API GW system route   |
+| Rule name                          | Source                           | Detail type             | Target              | Notes                            |
+| ---------------------------------- | -------------------------------- | ----------------------- | ------------------- | -------------------------------- |
+| `smartretail-sales-to-ims-dev`     | `smartretail.sis`                | `SalesTransactionEvent` | `ims-sales-dev`     | SIS → IMS pipeline               |
+| `smartretail-alert-to-re-dev`      | `smartretail.ims`                | `InventoryAlertEvent`   | `re-alert-dev.fifo` | `messageGroupId = $.detail.dcId` |
+| `smartretail-all-to-ars-dev`       | `smartretail.sis`, `.ims`, `.re` | any                     | `ars-updates-dev`   | Dashboard aggregation            |
+| `smartretail-promotion-to-pps-dev` | `external.campaign-management`   | `PromotionActivated`    | `pps-inbound-dev`   | External → API GW system route   |
 
 ---
 
@@ -653,16 +653,16 @@ public properties on `MessagingStack` so the MonitoringStack can attach CloudWat
 
 **API name:** `smartretail-api-dev` · **Stage:** `internal` · **Type:** Regional REST
 
-| Path pattern                       | Method | Backend | Port   | Integration               |
-|------------------------------------|--------|---------|--------|---------------------------|
-| `/v1/dashboard/{proxy+}`           | ANY    | ARS     | 8083   | HTTP_PROXY / VPC Link     |
-| `/v1/inventory/{proxy+}`           | ANY    | IMS     | 8081   | HTTP_PROXY / VPC Link     |
-| `/v1/forecast/{proxy+}`            | ANY    | DFS     | 8084   | HTTP_PROXY / VPC Link     |
-| `/v1/replenishment/{proxy+}`       | ANY    | RE      | 8082   | HTTP_PROXY / VPC Link     |
-| `/v1/supplier/{proxy+}`            | ANY    | SUP     | 8085   | HTTP_PROXY / VPC Link     |
-| `/v1/ingest/{proxy+}`              | ANY    | SIS     | 8080   | HTTP_PROXY / VPC Link     |
-| `/v1/promotions/{proxy+}`          | ANY    | PPS     | 8086   | HTTP_PROXY / VPC Link     |
-| `POST /system/v1/events/promotions`| POST   | EventBridge | — | AWS direct integration (API key) |
+| Path pattern                        | Method | Backend     | Port | Integration                      |
+| ----------------------------------- | ------ | ----------- | ---- | -------------------------------- |
+| `/v1/dashboard/{proxy+}`            | ANY    | ARS         | 8083 | HTTP_PROXY / VPC Link            |
+| `/v1/inventory/{proxy+}`            | ANY    | IMS         | 8081 | HTTP_PROXY / VPC Link            |
+| `/v1/forecast/{proxy+}`             | ANY    | DFS         | 8084 | HTTP_PROXY / VPC Link            |
+| `/v1/replenishment/{proxy+}`        | ANY    | RE          | 8082 | HTTP_PROXY / VPC Link            |
+| `/v1/supplier/{proxy+}`             | ANY    | SUP         | 8085 | HTTP_PROXY / VPC Link            |
+| `/v1/ingest/{proxy+}`               | ANY    | SIS         | 8080 | HTTP_PROXY / VPC Link            |
+| `/v1/promotions/{proxy+}`           | ANY    | PPS         | 8086 | HTTP_PROXY / VPC Link            |
+| `POST /system/v1/events/promotions` | POST   | EventBridge | —    | AWS direct integration (API key) |
 
 Integration URI: `http://{nlb-dns}:{port}/{proxy}` — NLB routes by port to the correct target group.
 
@@ -673,42 +673,42 @@ Integration URI: `http://{nlb-dns}:{port}/{proxy}` — NLB routes by port to the
 ### EcsExecutionRole
 Assumed by: `ecs-tasks.amazonaws.com`
 
-| Permission                                              | Source                                       |
-|---------------------------------------------------------|----------------------------------------------|
-| ECR pull, CW Logs stream write                          | `AmazonECSTaskExecutionRolePolicy` (managed) |
-| `secretsmanager:GetSecretValue` on Firehose access key  | `grantRead()` — SIS validates Firehose deliveries |
-| `secretsmanager:GetSecretValue` on RDS secret           | `grantRead()` — Flyway task only (services use IAM auth) |
+| Permission                                             | Source                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| ECR pull, CW Logs stream write                         | `AmazonECSTaskExecutionRolePolicy` (managed)             |
+| `secretsmanager:GetSecretValue` on Firehose access key | `grantRead()` — SIS validates Firehose deliveries        |
+| `secretsmanager:GetSecretValue` on RDS secret          | `grantRead()` — Flyway task only (services use IAM auth) |
 
 ### Per-service Task Roles
 
-| Role           | Allowed actions                                                                 | Resources                            |
-|----------------|---------------------------------------------------------------------------------|--------------------------------------|
-| `sisTaskRole`  | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `imsTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                     | `smartretail-ims-sales-dev`          |
-|                | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `reTaskRole`   | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `re-alert-dev.fifo`           |
-|                | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `arsTaskRole`  | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `dfsTaskRole`  | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `supTaskRole`  | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
-| `ppsTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                     | `smartretail-pps-inbound-dev`        |
-|                | `events:PutEvents`                                                              | `smartretail-events-dev` bus         |
-|                | `rds-db:connect`                                                                | `dbuser:*/smartretail_admin`         |
+| Role          | Allowed actions                                                                        | Resources                     |
+| ------------- | -------------------------------------------------------------------------------------- | ----------------------------- |
+| `sisTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `imsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                            | `smartretail-ims-sales-dev`   |
+|               | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `reTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `re-alert-dev.fifo`           |
+|               | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `arsTaskRole` | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `dfsTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `supTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
+| `ppsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                            | `smartretail-pps-inbound-dev` |
+|               | `events:PutEvents`                                                                     | `smartretail-events-dev` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`  |
 
 ### Infrastructure Roles
 
-| Role                       | Trust principal               | Key permissions                                                                         |
-|----------------------------|-------------------------------|-----------------------------------------------------------------------------------------|
-| `FirehoseRole`             | `firehose.amazonaws.com`      | S3 `PutObject` on `smartretail-events-dev-{acct}`                                      |
-| `ApiGwEventBridgeRole`     | `apigateway.amazonaws.com`    | `events:PutEvents` on `smartretail-events-dev` bus                                     |
-| `SageMakerExecutionRole`   | `sagemaker.amazonaws.com`     | `sagemaker:Create/Describe/StopTrainingJob`, `Create/Describe/StopTransformJob` on `smartretail-*`; CW Logs write; S3 R/W on SageMaker bucket |
-| `BatchPostProcessorRole`   | `lambda.amazonaws.com`        | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; S3 `GetObject` on sagemaker bucket (`sagemaker/output/*`) |
-| `MlTriggerRole`            | `lambda.amazonaws.com`        | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; `sagemaker:StartPipelineExecution` on pipeline; S3 read (events), S3 write (sagemaker) |
+| Role                     | Trust principal            | Key permissions                                                                                                                                           |
+| ------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FirehoseRole`           | `firehose.amazonaws.com`   | S3 `PutObject` on `smartretail-events-dev-{acct}`                                                                                                         |
+| `ApiGwEventBridgeRole`   | `apigateway.amazonaws.com` | `events:PutEvents` on `smartretail-events-dev` bus                                                                                                        |
+| `SageMakerExecutionRole` | `sagemaker.amazonaws.com`  | `sagemaker:Create/Describe/StopTrainingJob`, `Create/Describe/StopTransformJob` on `smartretail-*`; CW Logs write; S3 R/W on SageMaker bucket             |
+| `BatchPostProcessorRole` | `lambda.amazonaws.com`     | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; S3 `GetObject` on sagemaker bucket (`sagemaker/output/*`)                              |
+| `MlTriggerRole`          | `lambda.amazonaws.com`     | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; `sagemaker:StartPipelineExecution` on pipeline; S3 read (events), S3 write (sagemaker) |
 
 ---
 
@@ -717,9 +717,12 @@ Assumed by: `ecs-tasks.amazonaws.com`
 ### Flow 1 — POS Event Ingestion
 
 ```
-POS terminal / SDK
+>> The real POS aggregator would use an IAM role attached to its compute
+
+POS terminal / SDK (Firehose PutRecord API)
   → Kinesis Firehose (smartretail-ingest-dev)
-      buffer: 1 MiB / 60 s
+      X-Amz-Firehose-Request-Id (auto)
+      X-Amz-Firehose-Access-Key  (from stream config)
     → HTTP POST to API Gateway /v1/ingest/events
         X-Access-Key header validated by SIS FirehoseBatchFilter
       → VPC Link → NLB :8080 → SIS :8080
@@ -836,14 +839,14 @@ Operator:  make aws-migrate ENV=dev
 
 ## 9. S3 Buckets
 
-| Bucket name                            | Purpose                           | Versioned | Lifecycle   | Removal  |
-|----------------------------------------|-----------------------------------|-----------|-------------|----------|
-| `smartretail-events-dev-{acct}`        | Firehose S3 backup (AllData)      | No        | Expire 7yr  | DESTROY  |
-| `smartretail-sagemaker-dev-{acct}`     | SageMaker training + output       | No        | Expire 1yr  | DESTROY  |
-| `smartretail-mfe-dev-store-manager-{acct}` | Store Manager MFE assets     | —         | —           | DESTROY  |
-| `smartretail-mfe-dev-sc-planner-{acct}`    | SC Planner MFE assets        | —         | —           | DESTROY  |
-| `smartretail-mfe-dev-executive-{acct}`     | Executive Dashboard MFE      | —         | —           | DESTROY  |
-| `smartretail-mfe-dev-supplier-{acct}`      | Supplier Portal MFE          | —         | —           | DESTROY  |
+| Bucket name                                | Purpose                      | Versioned | Lifecycle  | Removal |
+| ------------------------------------------ | ---------------------------- | --------- | ---------- | ------- |
+| `smartretail-events-dev-{acct}`            | Firehose S3 backup (AllData) | No        | Expire 7yr | DESTROY |
+| `smartretail-sagemaker-dev-{acct}`         | SageMaker training + output  | No        | Expire 1yr | DESTROY |
+| `smartretail-mfe-dev-store-manager-{acct}` | Store Manager MFE assets     | —         | —          | DESTROY |
+| `smartretail-mfe-dev-sc-planner-{acct}`    | SC Planner MFE assets        | —         | —          | DESTROY |
+| `smartretail-mfe-dev-executive-{acct}`     | Executive Dashboard MFE      | —         | —          | DESTROY |
+| `smartretail-mfe-dev-supplier-{acct}`      | Supplier Portal MFE          | —         | —          | DESTROY |
 
 ---
 
@@ -857,81 +860,81 @@ The MonitoringStack is only deployed in dev. Prod has no automated CloudWatch al
 
 ### CloudWatch Log Metric Filters
 
-| Filter                 | Log group                        | Metric                      | Namespace         |
-|------------------------|----------------------------------|-----------------------------|-------------------|
-| ERROR per service (×7) | `/smartretail/{svc}/dev`         | `{SVC}_ErrorCount`          | `SmartRetail/App` |
-| POS events ingested    | `/smartretail/sis/dev`           | `POSEventsIngested`         | `SmartRetail/App` |
-| Inventory alerts raised| `/smartretail/ims/dev`           | `InventoryAlertsRaised`     | `SmartRetail/App` |
-| POs created            | `/smartretail/re/dev`            | `PurchaseOrdersCreated`     | `SmartRetail/App` |
+| Filter                  | Log group                | Metric                  | Namespace         |
+| ----------------------- | ------------------------ | ----------------------- | ----------------- |
+| ERROR per service (×7)  | `/smartretail/{svc}/dev` | `{SVC}_ErrorCount`      | `SmartRetail/App` |
+| POS events ingested     | `/smartretail/sis/dev`   | `POSEventsIngested`     | `SmartRetail/App` |
+| Inventory alerts raised | `/smartretail/ims/dev`   | `InventoryAlertsRaised` | `SmartRetail/App` |
+| POs created             | `/smartretail/re/dev`    | `PurchaseOrdersCreated` | `SmartRetail/App` |
 
 ### CloudWatch Alarms
 
-| Alarm name                    | Metric                                         | Threshold          | Periods |
-|-------------------------------|------------------------------------------------|--------------------|---------|
-| `SR-DLQ-ImsSales-dev`         | `ApproximateNumberOfMessagesVisible` (ims DLQ) | > 0                | 1       |
-| `SR-DLQ-ReAlert-dev`          | `ApproximateNumberOfMessagesVisible` (re DLQ)  | > 0                | 1       |
-| `SR-DLQ-ArsUpdates-dev`       | `ApproximateNumberOfMessagesVisible` (ars DLQ) | > 0                | 1       |
-| `SR-API-5xxErrors-dev`        | API Gateway `5XXError` (Sum, 5 min)            | > 10               | 1       |
-| `SR-RDS-CPUHigh-dev`          | RDS `CPUUtilization` (Average, 10 min)         | > 80%              | 2       |
-| `SR-Firehose-DeliveryFailed-dev` | Firehose `DataFreshness` (Maximum, 5 min)   | > 600 s            | 2       |
+| Alarm name                       | Metric                                         | Threshold | Periods |
+| -------------------------------- | ---------------------------------------------- | --------- | ------- |
+| `SR-DLQ-ImsSales-dev`            | `ApproximateNumberOfMessagesVisible` (ims DLQ) | > 0       | 1       |
+| `SR-DLQ-ReAlert-dev`             | `ApproximateNumberOfMessagesVisible` (re DLQ)  | > 0       | 1       |
+| `SR-DLQ-ArsUpdates-dev`          | `ApproximateNumberOfMessagesVisible` (ars DLQ) | > 0       | 1       |
+| `SR-API-5xxErrors-dev`           | API Gateway `5XXError` (Sum, 5 min)            | > 10      | 1       |
+| `SR-RDS-CPUHigh-dev`             | RDS `CPUUtilization` (Average, 10 min)         | > 80%     | 2       |
+| `SR-Firehose-DeliveryFailed-dev` | Firehose `DataFreshness` (Maximum, 5 min)      | > 600 s   | 2       |
 
 All alarms notify `smartretail-alerts-dev` SNS topic on both ALARM and OK state.
 
 ### CloudWatch Dashboard — `SmartRetail-dev-Ops`
 
-| Row | Widgets |
-|-----|---------|
-| 1   | API request count, API 5xx errors, API latency p99, Firehose DataFreshness |
+| Row | Widgets                                                                                     |
+| --- | ------------------------------------------------------------------------------------------- |
+| 1   | API request count, API 5xx errors, API latency p99, Firehose DataFreshness                  |
 | 2   | Business pipeline KPIs (POS events / alerts / POs), Application errors by service (stacked) |
-| 3   | ECS CPU % for SIS · IMS · RE · ARS |
-| 4   | RDS CPU, RDS connections, SQS DLQ depths (IMS / RE / ARS) |
-| 5   | Alarm status summary (all 6 alarms) |
+| 3   | ECS CPU % for SIS · IMS · RE · ARS                                                          |
+| 4   | RDS CPU, RDS connections, SQS DLQ depths (IMS / RE / ARS)                                   |
+| 5   | Alarm status summary (all 6 alarms)                                                         |
 
 ---
 
 ## 11. Observability
 
-| Signal             | Detail                                                                     |
-|--------------------|----------------------------------------------------------------------------|
-| Container logs     | CloudWatch Logs `/smartretail/{svc}/dev` · retention 1 month              |
-| Flyway logs        | CloudWatch Logs `/smartretail/flyway/dev` · retention 1 month · DESTROY   |
-| RDS logs           | `postgresql` log type exported to CW · retention 1 month                  |
-| Metrics endpoint   | `GET /actuator/prometheus` (Micrometer) on every service                  |
-| Metric tags        | `service`, `flow`, `env` on all custom metrics                            |
-| Custom metrics     | `replenishment.orders.created`, `pos.events.received`, `stock.alerts.published` |
-| Circuit breaker    | ECS deployment circuit breaker with rollback                               |
-| Health checks      | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)          |
-| Correlation IDs    | `X-Correlation-ID` propagated; generated if absent; in every log line     |
-| Log format         | Structured JSON — `timestamp`, `level`, `service`, `correlationId`, `traceId` |
-| Error format       | RFC 7807 `ProblemDetail` on all 4xx/5xx                                   |
+| Signal           | Detail                                                                          |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Container logs   | CloudWatch Logs `/smartretail/{svc}/dev` · retention 1 month                    |
+| Flyway logs      | CloudWatch Logs `/smartretail/flyway/dev` · retention 1 month · DESTROY         |
+| RDS logs         | `postgresql` log type exported to CW · retention 1 month                        |
+| Metrics endpoint | `GET /actuator/prometheus` (Micrometer) on every service                        |
+| Metric tags      | `service`, `flow`, `env` on all custom metrics                                  |
+| Custom metrics   | `replenishment.orders.created`, `pos.events.received`, `stock.alerts.published` |
+| Circuit breaker  | ECS deployment circuit breaker with rollback                                    |
+| Health checks    | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)                |
+| Correlation IDs  | `X-Correlation-ID` propagated; generated if absent; in every log line           |
+| Log format       | Structured JSON — `timestamp`, `level`, `service`, `correlationId`, `traceId`   |
+| Error format     | RFC 7807 `ProblemDetail` on all 4xx/5xx                                         |
 
 ---
 
 ## 12. Key Resource Names
 
-| Resource                  | Name / Pattern                                                      |
-|---------------------------|---------------------------------------------------------------------|
-| ECS cluster               | `smartretail-dev`                                                   |
-| RDS instance              | `smartretail-rds-dev`                                               |
-| RDS Proxy                 | `smartretail-rds-proxy-dev`                                         |
-| RDS secret                | Auto-generated (ARN in SSM `/smartretail/dev/rds/secret-arn`)       |
-| Firehose access key       | SSM `/smartretail/dev/firehose/access-key-secret-arn`               |
-| NLB                       | `smartretail-nlb-dev`                                               |
-| VPC Link                  | `smartretail-vpclink-dev`                                           |
-| API Gateway               | `smartretail-api-dev` (stage `internal`)                            |
-| Firehose stream           | `smartretail-ingest-dev`                                            |
-| EventBridge bus           | `smartretail-events-dev`                                            |
-| SageMaker pipeline        | `smartretail-demand-forecast-dev`                                   |
-| ECR repos                 | `smartretail-{sis,ims,re,ars,dfs,sup,pps,batch-post-processor,ml-trigger,flyway}-dev` |
-| System API key            | `smartretail-system-events-dev`                                     |
-| Cognito internal pool     | `smartretail-internal-dev` (domain `smartretail-dev-internal`)      |
-| Cognito supplier pool     | `smartretail-supplier-dev` (domain `smartretail-dev-supplier`)      |
-| CloudFront distribution   | Single dist; SSM `/smartretail/dev/hosting/cloudfront-url`          |
-| CloudMap namespace        | `smartretail.local`                                                 |
-| SNS alert topic           | `smartretail-alerts-dev`                                            |
-| CloudWatch dashboard      | `SmartRetail-dev-Ops`                                               |
-| Flyway task family        | `smartretail-flyway-dev`                                            |
-| SSM prefix                | `/smartretail/dev/`                                                 |
+| Resource                | Name / Pattern                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| ECS cluster             | `smartretail-dev`                                                                     |
+| RDS instance            | `smartretail-rds-dev`                                                                 |
+| RDS Proxy               | `smartretail-rds-proxy-dev`                                                           |
+| RDS secret              | Auto-generated (ARN in SSM `/smartretail/dev/rds/secret-arn`)                         |
+| Firehose access key     | SSM `/smartretail/dev/firehose/access-key-secret-arn`                                 |
+| NLB                     | `smartretail-nlb-dev`                                                                 |
+| VPC Link                | `smartretail-vpclink-dev`                                                             |
+| API Gateway             | `smartretail-api-dev` (stage `internal`)                                              |
+| Firehose stream         | `smartretail-ingest-dev`                                                              |
+| EventBridge bus         | `smartretail-events-dev`                                                              |
+| SageMaker pipeline      | `smartretail-demand-forecast-dev`                                                     |
+| ECR repos               | `smartretail-{sis,ims,re,ars,dfs,sup,pps,batch-post-processor,ml-trigger,flyway}-dev` |
+| System API key          | `smartretail-system-events-dev`                                                       |
+| Cognito internal pool   | `smartretail-internal-dev` (domain `smartretail-dev-internal`)                        |
+| Cognito supplier pool   | `smartretail-supplier-dev` (domain `smartretail-dev-supplier`)                        |
+| CloudFront distribution | Single dist; SSM `/smartretail/dev/hosting/cloudfront-url`                            |
+| CloudMap namespace      | `smartretail.local`                                                                   |
+| SNS alert topic         | `smartretail-alerts-dev`                                                              |
+| CloudWatch dashboard    | `SmartRetail-dev-Ops`                                                                 |
+| Flyway task family      | `smartretail-flyway-dev`                                                              |
+| SSM prefix              | `/smartretail/dev/`                                                                   |
 
 ---
 
@@ -954,24 +957,24 @@ Dev-Network
 
 ## 14. Key Differences vs Production
 
-| Dimension                | Dev                              | Prod                               |
-|--------------------------|----------------------------------|------------------------------------|
-| AZs                      | 2                                | 3                                  |
-| NAT Gateways             | 1 (shared)                       | 3 (one per AZ)                     |
-| RDS instance class       | t4g.small                        | r6g.large (ARM, memory-optimised)  |
-| RDS multi-AZ             | No                               | Yes                                |
-| RDS backup retention     | 1 day                            | 7 days                             |
-| Performance Insights     | Disabled                         | Enabled                            |
-| ECS task size            | 256 CPU / 512 MiB                | 512 CPU / 1024 MiB                 |
-| ECS desired / max        | 1 / 3                            | 2 / 10                             |
-| SPOT ratio               | SPOT×4 + FARGATE×1               | SPOT×2 + FARGATE×1                 |
-| Deregistration delay     | 30 s                             | 60 s                               |
-| BatchPostProcessor timeout | 180 s                          | 300 s                              |
-| SageMaker S3 lifecycle   | 1 year                           | 3 years                            |
-| Log retention            | 1 month                          | 3 months                           |
-| Removal policy           | DESTROY everywhere               | RETAIN (RDS, ECR, S3, secrets)     |
-| MonitoringStack          | Yes (SNS + alarms + dashboard)   | No (manual CloudWatch setup)       |
-| CORS origin              | `https://*.smartretail.com`      | `https://*.smartretail.com`        |
+| Dimension                  | Dev                            | Prod                              |
+| -------------------------- | ------------------------------ | --------------------------------- |
+| AZs                        | 2                              | 3                                 |
+| NAT Gateways               | 1 (shared)                     | 3 (one per AZ)                    |
+| RDS instance class         | t4g.small                      | r6g.large (ARM, memory-optimised) |
+| RDS multi-AZ               | No                             | Yes                               |
+| RDS backup retention       | 1 day                          | 7 days                            |
+| Performance Insights       | Disabled                       | Enabled                           |
+| ECS task size              | 256 CPU / 512 MiB              | 512 CPU / 1024 MiB                |
+| ECS desired / max          | 1 / 3                          | 2 / 10                            |
+| SPOT ratio                 | SPOT×4 + FARGATE×1             | SPOT×2 + FARGATE×1                |
+| Deregistration delay       | 30 s                           | 60 s                              |
+| BatchPostProcessor timeout | 180 s                          | 300 s                             |
+| SageMaker S3 lifecycle     | 1 year                         | 3 years                           |
+| Log retention              | 1 month                        | 3 months                          |
+| Removal policy             | DESTROY everywhere             | RETAIN (RDS, ECR, S3, secrets)    |
+| MonitoringStack            | Yes (SNS + alarms + dashboard) | No (manual CloudWatch setup)      |
+| CORS origin                | `https://*.smartretail.com`    | `https://*.smartretail.com`       |
 
 ---
 
@@ -985,22 +988,22 @@ Dev-Network
 
 ## 1. Environment Summary
 
-| Property              | Value                                                                 |
-|-----------------------|-----------------------------------------------------------------------|
-| Environment name      | `prod`                                                                |
-| Spring profile        | `aws`                                                                 |
-| CDK stacks            | `Prod-Network` · `Prod-Data` · `Prod-Messaging` · `Prod-Hosting` · `Prod-Identity` · `Prod-Compute` · `Prod-Api` |
-| CPU architecture      | x86_64                                                                |
-| VPC type              | Custom CDK VPC (10.0.0.0/16), 3 AZs, 3 subnet tiers                 |
-| Subnet tiers          | Public · PrivateApp · Isolated                                       |
-| NAT Gateways          | 3 (one per AZ in public subnets)                                     |
-| RDS proxy             | Yes — all services connect via RDS Proxy in isolated subnets         |
-| ECS task min / max    | 2 / 10 (CPU scaling at 70%)                                         |
-| ECS task size         | 512 CPU units · 1024 MiB                                            |
-| Capacity strategy     | FARGATE_SPOT (weight 2) + FARGATE (weight 1)                        |
-| Log retention         | 3 months                                                             |
-| Removal policy        | RETAIN (RDS, ECR, S3, secrets)                                       |
-| CORS origin           | `https://*.smartretail.com`                                          |
+| Property           | Value                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Environment name   | `prod`                                                                                                           |
+| Spring profile     | `aws`                                                                                                            |
+| CDK stacks         | `Prod-Network` · `Prod-Data` · `Prod-Messaging` · `Prod-Hosting` · `Prod-Identity` · `Prod-Compute` · `Prod-Api` |
+| CPU architecture   | x86_64                                                                                                           |
+| VPC type           | Custom CDK VPC (10.0.0.0/16), 3 AZs, 3 subnet tiers                                                              |
+| Subnet tiers       | Public · PrivateApp · Isolated                                                                                   |
+| NAT Gateways       | 3 (one per AZ in public subnets)                                                                                 |
+| RDS proxy          | Yes — all services connect via RDS Proxy in isolated subnets                                                     |
+| ECS task min / max | 2 / 10 (CPU scaling at 70%)                                                                                      |
+| ECS task size      | 512 CPU units · 1024 MiB                                                                                         |
+| Capacity strategy  | FARGATE_SPOT (weight 2) + FARGATE (weight 1)                                                                     |
+| Log retention      | 3 months                                                                                                         |
+| Removal policy     | RETAIN (RDS, ECR, S3, secrets)                                                                                   |
+| CORS origin        | `https://*.smartretail.com`                                                                                      |
 
 ---
 
@@ -1037,15 +1040,15 @@ representative defaults; check cdk.context.json after first synth for actuals.
 
 ### 2.2 VPC Endpoints
 
-| Endpoint type | Service              | Subnets     | Notes                                |
-|---------------|----------------------|-------------|--------------------------------------|
-| Gateway       | S3                   | All         | Free; used by ECR image pulls + S3   |
-| Interface     | ECR (`ecr.api`)      | PrivateApp  | ECS image pull without NAT           |
-| Interface     | ECR Docker (`ecr.dkr`) | PrivateApp | Image layer pull                     |
-| Interface     | SQS                  | PrivateApp  | ECS → SQS without NAT               |
-| Interface     | EventBridge          | PrivateApp  | ECS → EventBridge without NAT       |
-| Interface     | CloudWatch Logs      | PrivateApp  | Container log delivery               |
-| Interface     | Secrets Manager      | PrivateApp  | Secret injection at task launch      |
+| Endpoint type | Service                | Subnets    | Notes                              |
+| ------------- | ---------------------- | ---------- | ---------------------------------- |
+| Gateway       | S3                     | All        | Free; used by ECR image pulls + S3 |
+| Interface     | ECR (`ecr.api`)        | PrivateApp | ECS image pull without NAT         |
+| Interface     | ECR Docker (`ecr.dkr`) | PrivateApp | Image layer pull                   |
+| Interface     | SQS                    | PrivateApp | ECS → SQS without NAT              |
+| Interface     | EventBridge            | PrivateApp | ECS → EventBridge without NAT      |
+| Interface     | CloudWatch Logs        | PrivateApp | Container log delivery             |
+| Interface     | Secrets Manager        | PrivateApp | Secret injection at task launch    |
 
 All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR, egress none.
 
@@ -1225,26 +1228,26 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 
 ## 3. Security Groups
 
-| SG name              | Ingress                                      | Egress    | Placed in        |
-|----------------------|----------------------------------------------|-----------|------------------|
-| `sgEcsTasks`         | TCP 8080–8086 from VPC CIDR                  | all       | PrivateApp       |
-|                      | all TCP from `sgEcsTasks` (svc-to-svc)       |           |                  |
-| `sgRdsProxy`         | TCP 5432 from `sgEcsTasks`                   | all       | Isolated         |
-| `sgRds`              | TCP 5432 from `sgRdsProxy`                   | **none**  | Isolated         |
-| `sgVpcEndpoints`     | TCP 443 from VPC CIDR (10.0.0.0/16)         | **none**  | PrivateApp       |
-| `sgBatchPostProcessor` | none                                       | all       | PrivateApp (Lambda) |
-| `sgMlTrigger`        | none                                         | all       | PrivateApp (Lambda) |
+| SG name                | Ingress                                | Egress   | Placed in           |
+| ---------------------- | -------------------------------------- | -------- | ------------------- |
+| `sgEcsTasks`           | TCP 8080–8086 from VPC CIDR            | all      | PrivateApp          |
+|                        | all TCP from `sgEcsTasks` (svc-to-svc) |          |                     |
+| `sgRdsProxy`           | TCP 5432 from `sgEcsTasks`             | all      | Isolated            |
+| `sgRds`                | TCP 5432 from `sgRdsProxy`             | **none** | Isolated            |
+| `sgVpcEndpoints`       | TCP 443 from VPC CIDR (10.0.0.0/16)    | **none** | PrivateApp          |
+| `sgBatchPostProcessor` | none                                   | all      | PrivateApp (Lambda) |
+| `sgMlTrigger`          | none                                   | all      | PrivateApp (Lambda) |
 
 ---
 
 ## 4. SQS Queues
 
-| Queue name                            | Type     | Visibility | DLQ (max receive) | Encryption   |
-|---------------------------------------|----------|------------|-------------------|--------------|
-| `smartretail-ims-sales-prod`          | Standard | 120 s      | …-dlq (3×)        | SQS-managed  |
-| `smartretail-re-alert-prod.fifo`      | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed  |
-| `smartretail-ars-updates-prod`        | Standard | default    | …-dlq (3×)        | SQS-managed  |
-| `smartretail-pps-inbound-prod`        | Standard | 120 s      | …-dlq (3×)        | SQS-managed  |
+| Queue name                       | Type     | Visibility | DLQ (max receive) | Encryption  |
+| -------------------------------- | -------- | ---------- | ----------------- | ----------- |
+| `smartretail-ims-sales-prod`     | Standard | 120 s      | …-dlq (3×)        | SQS-managed |
+| `smartretail-re-alert-prod.fifo` | FIFO     | 120 s      | …-dlq.fifo (3×)   | SQS-managed |
+| `smartretail-ars-updates-prod`   | Standard | default    | …-dlq (3×)        | SQS-managed |
+| `smartretail-pps-inbound-prod`   | Standard | 120 s      | …-dlq (3×)        | SQS-managed |
 
 ---
 
@@ -1252,12 +1255,12 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 
 **Bus:** `smartretail-events-prod`
 
-| Rule name                               | Source                                | Detail type             | Target                          | Notes                              |
-|-----------------------------------------|---------------------------------------|-------------------------|---------------------------------|------------------------------------|
-| `smartretail-sales-to-ims-prod`         | `smartretail.sis`                     | `SalesTransactionEvent` | `ims-sales-prod`                | SIS → IMS pipeline                 |
-| `smartretail-alert-to-re-prod`          | `smartretail.ims`                     | `InventoryAlertEvent`   | `re-alert-prod.fifo`            | `messageGroupId = $.detail.dcId`   |
-| `smartretail-all-to-ars-prod`           | `smartretail.sis`, `.ims`, `.re`      | any                     | `ars-updates-prod`              | Dashboard aggregation              |
-| `smartretail-promotion-to-pps-prod`     | `external.campaign-management`        | `PromotionActivated`    | `pps-inbound-prod`              | External → API GW system route     |
+| Rule name                           | Source                           | Detail type             | Target               | Notes                            |
+| ----------------------------------- | -------------------------------- | ----------------------- | -------------------- | -------------------------------- |
+| `smartretail-sales-to-ims-prod`     | `smartretail.sis`                | `SalesTransactionEvent` | `ims-sales-prod`     | SIS → IMS pipeline               |
+| `smartretail-alert-to-re-prod`      | `smartretail.ims`                | `InventoryAlertEvent`   | `re-alert-prod.fifo` | `messageGroupId = $.detail.dcId` |
+| `smartretail-all-to-ars-prod`       | `smartretail.sis`, `.ims`, `.re` | any                     | `ars-updates-prod`   | Dashboard aggregation            |
+| `smartretail-promotion-to-pps-prod` | `external.campaign-management`   | `PromotionActivated`    | `pps-inbound-prod`   | External → API GW system route   |
 
 ---
 
@@ -1265,16 +1268,16 @@ All interface endpoints share **sgVpcEndpoints**: ingress TCP 443 from VPC CIDR,
 
 **API name:** `smartretail-api-prod` · **Stage:** `internal` · **Type:** Regional REST
 
-| Path pattern                     | Method | Backend | Port   | Integration               |
-|----------------------------------|--------|---------|--------|---------------------------|
-| `/v1/dashboard/{proxy+}`         | ANY    | ARS     | 8083   | HTTP_PROXY / VPC Link     |
-| `/v1/inventory/{proxy+}`         | ANY    | IMS     | 8081   | HTTP_PROXY / VPC Link     |
-| `/v1/forecast/{proxy+}`          | ANY    | DFS     | 8084   | HTTP_PROXY / VPC Link     |
-| `/v1/replenishment/{proxy+}`     | ANY    | RE      | 8082   | HTTP_PROXY / VPC Link     |
-| `/v1/supplier/{proxy+}`          | ANY    | SUP     | 8085   | HTTP_PROXY / VPC Link     |
-| `/v1/ingest/{proxy+}`            | ANY    | SIS     | 8080   | HTTP_PROXY / VPC Link     |
-| `/v1/promotions/{proxy+}`        | ANY    | PPS     | 8086   | HTTP_PROXY / VPC Link     |
-| `POST /system/v1/events/promotions` | POST | EventBridge | — | AWS direct integration (API key) |
+| Path pattern                        | Method | Backend     | Port | Integration                      |
+| ----------------------------------- | ------ | ----------- | ---- | -------------------------------- |
+| `/v1/dashboard/{proxy+}`            | ANY    | ARS         | 8083 | HTTP_PROXY / VPC Link            |
+| `/v1/inventory/{proxy+}`            | ANY    | IMS         | 8081 | HTTP_PROXY / VPC Link            |
+| `/v1/forecast/{proxy+}`             | ANY    | DFS         | 8084 | HTTP_PROXY / VPC Link            |
+| `/v1/replenishment/{proxy+}`        | ANY    | RE          | 8082 | HTTP_PROXY / VPC Link            |
+| `/v1/supplier/{proxy+}`             | ANY    | SUP         | 8085 | HTTP_PROXY / VPC Link            |
+| `/v1/ingest/{proxy+}`               | ANY    | SIS         | 8080 | HTTP_PROXY / VPC Link            |
+| `/v1/promotions/{proxy+}`           | ANY    | PPS         | 8086 | HTTP_PROXY / VPC Link            |
+| `POST /system/v1/events/promotions` | POST   | EventBridge | —    | AWS direct integration (API key) |
 
 Integration URI pattern for staff routes: `http://{nlb-dns}:{port}/{proxy}` — NLB routes to
 the correct target group by port; the full path is passed through via `{proxy}`.
@@ -1286,42 +1289,42 @@ the correct target group by port; the full path is passed through via `{proxy}`.
 ### EcsExecutionRole
 Assumed by: `ecs-tasks.amazonaws.com`
 
-| Permission                                            | Source                                       |
-|-------------------------------------------------------|----------------------------------------------|
-| ECR pull, CW Logs stream write                        | `AmazonECSTaskExecutionRolePolicy` (managed) |
-| `secretsmanager:GetSecretValue` on Firehose access key | `grantRead()` — SIS validates Firehose delivery |
-| `secretsmanager:GetSecretValue` on RDS secret         | `grantRead()` — Flyway task only (services use IAM auth) |
+| Permission                                             | Source                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| ECR pull, CW Logs stream write                         | `AmazonECSTaskExecutionRolePolicy` (managed)             |
+| `secretsmanager:GetSecretValue` on Firehose access key | `grantRead()` — SIS validates Firehose delivery          |
+| `secretsmanager:GetSecretValue` on RDS secret          | `grantRead()` — Flyway task only (services use IAM auth) |
 
 ### Per-service Task Roles
 
-| Role           | Allowed actions                                             | Resources                              |
-|----------------|-------------------------------------------------------------|----------------------------------------|
-| `sisTaskRole`  | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `imsTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` | `smartretail-ims-sales-prod`           |
-|                | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `reTaskRole`   | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `re-alert-prod.fifo` |
-|                | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `arsTaskRole`  | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `dfsTaskRole`  | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `supTaskRole`  | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
-| `ppsTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` | `smartretail-pps-inbound-prod`         |
-|                | `events:PutEvents`                                          | `smartretail-events-prod` bus          |
-|                | `rds-db:connect`                                            | `dbuser:*/smartretail_admin`           |
+| Role          | Allowed actions                                                                        | Resources                      |
+| ------------- | -------------------------------------------------------------------------------------- | ------------------------------ |
+| `sisTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `imsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                            | `smartretail-ims-sales-prod`   |
+|               | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `reTaskRole`  | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`, `ChangeMessageVisibility` | `re-alert-prod.fifo`           |
+|               | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `arsTaskRole` | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `dfsTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `supTaskRole` | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
+| `ppsTaskRole` | `sqs:ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes`                            | `smartretail-pps-inbound-prod` |
+|               | `events:PutEvents`                                                                     | `smartretail-events-prod` bus  |
+|               | `rds-db:connect`                                                                       | `dbuser:*/smartretail_admin`   |
 
 ### Infrastructure Roles
 
-| Role                       | Trust principal               | Key permissions                                                        |
-|----------------------------|-------------------------------|------------------------------------------------------------------------|
-| `FirehoseRole`             | `firehose.amazonaws.com`      | S3 `PutObject` on `smartretail-events-prod-{acct}`                    |
-| `ApiGwEventBridgeRole`     | `apigateway.amazonaws.com`    | `events:PutEvents` on `smartretail-events-prod` bus                   |
-| `SageMakerExecutionRole`   | `sagemaker.amazonaws.com`     | `sagemaker:Create/Describe/StopTrainingJob`, `Create/Describe/StopTransformJob` on `smartretail-*` resources; CW Logs write; S3 R/W on SageMaker bucket |
-| `BatchPostProcessorRole`   | `lambda.amazonaws.com`        | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; S3 `GetObject` on events bucket |
-| `MlTriggerRole`            | `lambda.amazonaws.com`        | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; `sagemaker:StartPipelineExecution` on `smartretail-demand-forecast-prod`; S3 read (events), S3 write (SageMaker) |
+| Role                     | Trust principal            | Key permissions                                                                                                                                                                     |
+| ------------------------ | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FirehoseRole`           | `firehose.amazonaws.com`   | S3 `PutObject` on `smartretail-events-prod-{acct}`                                                                                                                                  |
+| `ApiGwEventBridgeRole`   | `apigateway.amazonaws.com` | `events:PutEvents` on `smartretail-events-prod` bus                                                                                                                                 |
+| `SageMakerExecutionRole` | `sagemaker.amazonaws.com`  | `sagemaker:Create/Describe/StopTrainingJob`, `Create/Describe/StopTransformJob` on `smartretail-*` resources; CW Logs write; S3 R/W on SageMaker bucket                             |
+| `BatchPostProcessorRole` | `lambda.amazonaws.com`     | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; S3 `GetObject` on events bucket                                                                                  |
+| `MlTriggerRole`          | `lambda.amazonaws.com`     | `AWSLambdaVPCAccessExecutionRole` + `AWSLambdaBasicExecutionRole`; `sagemaker:StartPipelineExecution` on `smartretail-demand-forecast-prod`; S3 read (events), S3 write (SageMaker) |
 
 ---
 
@@ -1451,58 +1454,58 @@ Operator:  make aws-migrate ENV=prod
 
 ## 9. S3 Buckets
 
-| Bucket name                              | Purpose                        | Versioned | Lifecycle       | Removal  |
-|------------------------------------------|--------------------------------|-----------|-----------------|----------|
-| `smartretail-events-prod-{acct}`         | Firehose S3 backup (AllData)   | Yes       | Expire 7 years  | RETAIN   |
-| `smartretail-sagemaker-prod-{acct}`      | SageMaker training + output    | Yes       | Expire 3 years  | RETAIN   |
-| `smartretail-mfe-prod-store-manager-{acct}` | Store Manager MFE assets    | —         | —               | RETAIN   |
-| `smartretail-mfe-prod-sc-planner-{acct}` | SC Planner MFE assets          | —         | —               | RETAIN   |
-| `smartretail-mfe-prod-executive-{acct}`  | Executive Dashboard MFE assets | —         | —               | RETAIN   |
-| `smartretail-mfe-prod-supplier-{acct}`   | Supplier Portal MFE assets     | —         | —               | RETAIN   |
+| Bucket name                                 | Purpose                        | Versioned | Lifecycle      | Removal |
+| ------------------------------------------- | ------------------------------ | --------- | -------------- | ------- |
+| `smartretail-events-prod-{acct}`            | Firehose S3 backup (AllData)   | Yes       | Expire 7 years | RETAIN  |
+| `smartretail-sagemaker-prod-{acct}`         | SageMaker training + output    | Yes       | Expire 3 years | RETAIN  |
+| `smartretail-mfe-prod-store-manager-{acct}` | Store Manager MFE assets       | —         | —              | RETAIN  |
+| `smartretail-mfe-prod-sc-planner-{acct}`    | SC Planner MFE assets          | —         | —              | RETAIN  |
+| `smartretail-mfe-prod-executive-{acct}`     | Executive Dashboard MFE assets | —         | —              | RETAIN  |
+| `smartretail-mfe-prod-supplier-{acct}`      | Supplier Portal MFE assets     | —         | —              | RETAIN  |
 
 ---
 
 ## 10. Observability
 
-| Signal             | Detail                                                                   |
-|--------------------|--------------------------------------------------------------------------|
-| Container logs     | CloudWatch Logs `/smartretail/{svc}/prod` · retention 3 months          |
-| Flyway logs        | CloudWatch Logs `/smartretail/flyway/prod` · retention 3 months · RETAIN |
-| RDS Perf Insights  | Enabled on `r6g.large` instance                                          |
-| Metrics endpoint   | `GET /actuator/prometheus` (Micrometer) on every service                |
-| Metric tags        | `service`, `flow`, `env` on all custom metrics                          |
-| Custom metrics     | `replenishment.orders.created`, `pos.events.received`, `stock.alerts.published` |
-| Circuit breaker    | ECS deployment circuit breaker with rollback                             |
-| Health checks      | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)        |
-| Correlation IDs    | `X-Correlation-ID` propagated; generated if absent; in every log line  |
-| Log format         | Structured JSON — `timestamp`, `level`, `service`, `correlationId`, `traceId` |
-| Error format       | RFC 7807 `ProblemDetail` on all 4xx/5xx                                 |
+| Signal            | Detail                                                                          |
+| ----------------- | ------------------------------------------------------------------------------- |
+| Container logs    | CloudWatch Logs `/smartretail/{svc}/prod` · retention 3 months                  |
+| Flyway logs       | CloudWatch Logs `/smartretail/flyway/prod` · retention 3 months · RETAIN        |
+| RDS Perf Insights | Enabled on `r6g.large` instance                                                 |
+| Metrics endpoint  | `GET /actuator/prometheus` (Micrometer) on every service                        |
+| Metric tags       | `service`, `flow`, `env` on all custom metrics                                  |
+| Custom metrics    | `replenishment.orders.created`, `pos.events.received`, `stock.alerts.published` |
+| Circuit breaker   | ECS deployment circuit breaker with rollback                                    |
+| Health checks     | NLB HTTP `/actuator/health` every 30 s (2 healthy / 3 unhealthy)                |
+| Correlation IDs   | `X-Correlation-ID` propagated; generated if absent; in every log line           |
+| Log format        | Structured JSON — `timestamp`, `level`, `service`, `correlationId`, `traceId`   |
+| Error format      | RFC 7807 `ProblemDetail` on all 4xx/5xx                                         |
 
 ---
 
 ## 11. Key Resource Names
 
-| Resource                  | Name / Pattern                                                     |
-|---------------------------|--------------------------------------------------------------------|
-| ECS cluster               | `smartretail-prod`                                                 |
-| RDS instance              | `smartretail-rds-prod`                                             |
-| RDS Proxy                 | `smartretail-rds-proxy-prod`                                       |
-| RDS secret                | Auto-generated (ARN in SSM `/smartretail/prod/rds/secret-arn`)    |
-| Firehose access key       | `/smartretail/prod/firehose/ingest-access-key`                    |
-| NLB                       | `smartretail-nlb-prod`                                             |
-| VPC Link                  | `smartretail-vpclink-prod`                                         |
-| API Gateway               | `smartretail-api-prod` (stage `internal`)                          |
-| Firehose stream           | `smartretail-ingest-prod`                                          |
-| EventBridge bus           | `smartretail-events-prod`                                          |
-| SageMaker pipeline        | `smartretail-demand-forecast-prod`                                 |
-| ECR repos                 | `smartretail-{sis,ims,re,ars,dfs,sup,pps,batch-post-processor,ml-trigger,flyway}-prod` |
-| System API key            | `smartretail-system-events-prod`                                   |
-| Cognito internal pool     | `smartretail-internal-prod` (domain `smartretail-prod-internal`)   |
-| Cognito supplier pool     | `smartretail-supplier-prod` (domain `smartretail-prod-supplier`)   |
-| CloudFront distribution   | Single dist; SSM `/smartretail/prod/hosting/cloudfront-url`        |
-| CloudMap namespace        | `smartretail.local`                                                |
-| Flyway task family        | `smartretail-flyway-prod`                                          |
-| SSM prefix                | `/smartretail/prod/`                                               |
+| Resource                | Name / Pattern                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| ECS cluster             | `smartretail-prod`                                                                     |
+| RDS instance            | `smartretail-rds-prod`                                                                 |
+| RDS Proxy               | `smartretail-rds-proxy-prod`                                                           |
+| RDS secret              | Auto-generated (ARN in SSM `/smartretail/prod/rds/secret-arn`)                         |
+| Firehose access key     | `/smartretail/prod/firehose/ingest-access-key`                                         |
+| NLB                     | `smartretail-nlb-prod`                                                                 |
+| VPC Link                | `smartretail-vpclink-prod`                                                             |
+| API Gateway             | `smartretail-api-prod` (stage `internal`)                                              |
+| Firehose stream         | `smartretail-ingest-prod`                                                              |
+| EventBridge bus         | `smartretail-events-prod`                                                              |
+| SageMaker pipeline      | `smartretail-demand-forecast-prod`                                                     |
+| ECR repos               | `smartretail-{sis,ims,re,ars,dfs,sup,pps,batch-post-processor,ml-trigger,flyway}-prod` |
+| System API key          | `smartretail-system-events-prod`                                                       |
+| Cognito internal pool   | `smartretail-internal-prod` (domain `smartretail-prod-internal`)                       |
+| Cognito supplier pool   | `smartretail-supplier-prod` (domain `smartretail-prod-supplier`)                       |
+| CloudFront distribution | Single dist; SSM `/smartretail/prod/hosting/cloudfront-url`                            |
+| CloudMap namespace      | `smartretail.local`                                                                    |
+| Flyway task family      | `smartretail-flyway-prod`                                                              |
+| SSM prefix              | `/smartretail/prod/`                                                                   |
 
 ---
 

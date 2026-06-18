@@ -13,3 +13,5 @@ spring:
 smartretail:
   eventbridge:
     bus-name: ${EVENTBRIDGE_BUS_NAME}
+  firehose:
+    access-key: ${SMARTRETAIL_FIREHOSE_ACCESSKEY:}
