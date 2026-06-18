@@ -244,6 +244,11 @@
                                                 <value>COVEREDRATIO</value>
                                                 <minimum>0.80</minimum>
                                             </limit>
+                                            <limit>
+                                                <counter>BRANCH</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>0.70</minimum>
+                                            </limit>
                                         </limits>
                                         <includes>
                                             <include>com.smartretail.*.domain.**</include>

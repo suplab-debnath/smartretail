@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -168,6 +169,71 @@ class S3TrainingDataPreparerTest {
         assertThat(keyCaptor.getAllValues())
                 .extracting(PutObjectRequest::key)
                 .contains("sagemaker/transform-input/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/predict.jsonl");
+    }
+
+    @Test
+    void prepare_coversParseEdgeCases_butStillUploads() throws Exception {
+        UUID runId = UUID.randomUUID();
+        // One file exercising every parse guard in parsePosEvent / textOrNull:
+        String events = String.join("\n",
+                // soldAt missing → falls back to "timestamp"
+                "{\"skuId\":\"SKU-BEV-001\",\"storeId\":\"STORE-001\",\"quantity\":5,\"timestamp\":\"2026-06-01T10:00:00Z\"}",
+                // quantity <= 0 → skipped
+                "{\"skuId\":\"SKU-BEV-001\",\"storeId\":\"STORE-001\",\"quantity\":0,\"soldAt\":\"2026-06-01T10:00:00Z\"}",
+                // skuId missing → skipped (isMissingNode true)
+                "{\"storeId\":\"STORE-001\",\"quantity\":5,\"soldAt\":\"2026-06-01T10:00:00Z\"}",
+                // storeId missing → skipped
+                "{\"skuId\":\"SKU-BEV-001\",\"quantity\":5,\"soldAt\":\"2026-06-01T10:00:00Z\"}",
+                // neither soldAt nor timestamp → ts stays null → skipped
+                "{\"skuId\":\"SKU-BEV-001\",\"storeId\":\"STORE-001\",\"quantity\":5}",
+                // skuId present but JSON null → isNull true → skipped
+                "{\"skuId\":null,\"storeId\":\"STORE-001\",\"quantity\":5,\"soldAt\":\"2026-06-01T10:00:00Z\"}",
+                // blank line → line.isEmpty() true → skipped
+                "   ",
+                // valid event
+                "{\"skuId\":\"SKU-BEV-001\",\"storeId\":\"STORE-001\",\"quantity\":7,\"soldAt\":\"2026-06-01T10:00:00Z\"}");
+
+        stubS3List(List.of("firehose/2026/06/01/edge"));
+        stubS3Get("firehose/2026/06/01/edge", events);
+        stubS3Put();
+
+        preparer.prepare(runId, logger);
+
+        verify(s3, times(3)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void prepare_skipsOldKeys_andKeepsUnparseableKeys() throws Exception {
+        UUID runId = UUID.randomUUID();
+        stubS3List(List.of(
+                "firehose/2020/01/01/old",       // date before lookback window → skipped (no fetch)
+                "firehose/badkey",                // fewer than 4 path segments → kept
+                "firehose/aa/bb/cc/nonnumeric",   // non-numeric date → NumberFormatException → kept
+                "firehose/2026/06/01/good"));     // in-window valid file
+        // The old key is never fetched; the rest are.
+        stubS3Get("firehose/badkey", "");
+        stubS3Get("firehose/aa/bb/cc/nonnumeric", "");
+        stubS3Get("firehose/2026/06/01/good",
+                posEvent("SKU-BEV-001", "STORE-001", 5, "2026-06-01T10:00:00Z"));
+        stubS3Put();
+
+        preparer.prepare(runId, logger);
+
+        verify(s3, times(3)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void prepare_continuesWhenFileReadFails() throws Exception {
+        UUID runId = UUID.randomUUID();
+        stubS3List(List.of("firehose/2026/06/01/broken"));
+        when(s3.getObject(argThat((Consumer<GetObjectRequest.Builder> b) -> b != null)))
+                .thenThrow(new RuntimeException("S3 read failed"));
+        stubS3Put();
+
+        // processFile swallows the read error and logs WARN; prepare still uploads all 3 files.
+        preparer.prepare(runId, logger);
+
+        verify(s3, times(3)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,7 +33,7 @@ class MlTriggerHandlerTest {
 
     @BeforeEach
     void setUp() {
-        when(context.getLogger()).thenReturn(logger);
+        lenient().when(context.getLogger()).thenReturn(logger);
         handler = new MlTriggerHandler(registrar, trainingDataPreparer, starter);
         event   = new ScheduledEvent();
         event.setSource("aws.events");
@@ -88,5 +89,22 @@ class MlTriggerHandlerTest {
         when(starter.startExecution(any(), any())).thenReturn("arn:test");
 
         assertNull(handler.handleRequest(event, context));
+    }
+
+    // ── requireEnv guard branches ───────────────────────────────────────────────
+
+    @Test
+    void requireEnv_returnsValue_whenSetAndNonBlank() {
+        assertEquals("https://dfs.example", MlTriggerHandler.requireEnv("DFS_ENDPOINT", n -> "https://dfs.example"));
+    }
+
+    @Test
+    void requireEnv_throws_whenVariableMissing() {
+        assertThrows(IllegalStateException.class, () -> MlTriggerHandler.requireEnv("DFS_ENDPOINT", n -> null));
+    }
+
+    @Test
+    void requireEnv_throws_whenVariableBlank() {
+        assertThrows(IllegalStateException.class, () -> MlTriggerHandler.requireEnv("DFS_ENDPOINT", n -> "   "));
     }
 }

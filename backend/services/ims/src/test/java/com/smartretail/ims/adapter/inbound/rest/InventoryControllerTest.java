@@ -4,6 +4,8 @@ import com.smartretail.ims.domain.model.AlertSeverity;
 import com.smartretail.ims.domain.model.AlertType;
 import com.smartretail.ims.domain.model.InventoryPosition;
 import com.smartretail.ims.domain.model.StockAlert;
+import com.smartretail.ims.adapter.in.web.generated.model.InventoryPositionPage;
+import com.smartretail.ims.adapter.in.web.generated.model.StockAlertPage;
 import com.smartretail.ims.port.outbound.InventoryRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -18,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -29,11 +33,12 @@ class InventoryControllerTest {
     private InventoryRepositoryPort inventoryRepo;
 
     private MockMvc mockMvc;
+    private InventoryController controller;
 
     @BeforeEach
     void setUp() {
         InventoryResponseMapper mapper = Mappers.getMapper(InventoryResponseMapper.class);
-        InventoryController controller = new InventoryController(inventoryRepo, mapper);
+        controller = new InventoryController(inventoryRepo, mapper);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -198,5 +203,39 @@ class InventoryControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(0));
 
         verify(inventoryRepo).findAlerts(null, null, "RESOLVED", 0, 20);
+    }
+
+    // ── null page/size default branches (direct call) ─────────────────────────
+    // MockMvc can't reach these: the generated query params carry a defaultValue,
+    // so Spring never passes null. A direct call exercises the `?: default` branches.
+
+    @Test
+    void listInventoryPositions_directCallWithNullPaging_appliesDefaults() {
+        when(inventoryRepo.findPositions(null, null, 0, 20)).thenReturn(List.of());
+        when(inventoryRepo.countPositions(null, null)).thenReturn(0L);
+
+        ResponseEntity<InventoryPositionPage> response =
+                controller.listInventoryPositions(null, null, null, null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getPage()).isEqualTo(0);
+        assertThat(response.getBody().getSize()).isEqualTo(20);
+        verify(inventoryRepo).findPositions(null, null, 0, 20);
+    }
+
+    @Test
+    void listStockAlerts_directCallWithNullPagingAndFilters_appliesDefaults() {
+        when(inventoryRepo.findAlerts(null, null, "ACTIVE", 0, 20)).thenReturn(List.of());
+        when(inventoryRepo.countAlerts(null, null, "ACTIVE")).thenReturn(0L);
+
+        ResponseEntity<StockAlertPage> response =
+                controller.listStockAlerts(null, null, null, null, null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getPage()).isEqualTo(0);
+        assertThat(response.getBody().getSize()).isEqualTo(20);
+        verify(inventoryRepo).findAlerts(null, null, "ACTIVE", 0, 20);
     }
 }

@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sagemaker.SageMakerClient;
 
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 /**
  * Lambda handler triggered by an EventBridge scheduled rule (daily at 02:00 UTC).
@@ -71,7 +72,12 @@ public class MlTriggerHandler implements RequestHandler<ScheduledEvent, Void> {
     }
 
     private static String requireEnv(String name) {
-        String value = System.getenv(name);
+        return requireEnv(name, System::getenv);
+    }
+
+    /** Package-private overload with an injectable lookup so the guard branches are unit-testable. */
+    static String requireEnv(String name, UnaryOperator<String> getenv) {
+        String value = getenv.apply(name);
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("Required environment variable not set: " + name);
         }
