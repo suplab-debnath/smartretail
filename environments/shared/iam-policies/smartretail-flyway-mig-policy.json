@@ -1,0 +1,27 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "EcsRunFlywayTask",
+            "Effect": "Allow",
+            "Action": "ecs:RunTask",
+            "Resource": "arn:aws:ecs:us-east-1:491085389857:task-definition/smartretail-flyway-*",
+            "Condition": {
+                "ArnEquals": {
+                    "ecs:cluster": "arn:aws:ecs:us-east-1:491085389857:cluster/smartretail-*"
+                }
+            }
+        },
+        {
+            "Sid": "IamPassRoleToEcs",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::491085389857:role/*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": "ecs-tasks.amazonaws.com"
+                }
+            }
+        }
+    ]
+}
