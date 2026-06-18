@@ -61,8 +61,9 @@ export class ComputeStack extends cdk.Stack {
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AmazonECSTaskExecutionRolePolicy")],
     });
 
-    // Grant execution role access to the RDS secret so ECS can inject DB_PASSWORD
+    // Grant execution role access to secrets so ECS can inject them at task launch
     data.rdsInstance.secret!.grantRead(ecsExecutionRole);
+    data.firehoseAccessKeySecret.grantRead(ecsExecutionRole);
 
     // Cognito issuer URI — built from the pool ID via Fn.join so CloudFormation
     // resolves it correctly (SSM dynamic refs cannot be embedded in strings).
@@ -95,7 +96,10 @@ export class ComputeStack extends cdk.Stack {
         DB_USERNAME: "smartretail_admin",
         EVENTBRIDGE_BUS_NAME: messaging.eventBus.eventBusName,
       },
-      secrets: commonSecrets,
+      secrets: {
+        ...commonSecrets,
+        SMARTRETAIL_FIREHOSE_ACCESSKEY: ecs.Secret.fromSecretsManager(data.firehoseAccessKeySecret),
+      },
       policies: [
         new iam.PolicyStatement({
           actions: ["events:PutEvents"],
