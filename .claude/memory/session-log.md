@@ -1,3 +1,19 @@
+## 2026-06-18 08:37 UTC
+```
+  M .claude/memory/session-log.md
+  D environments/shared/iam-policies/smartretail-dev.json
+ ?? environments/shared/iam-policies/smartretail-bootstrap-policy.json
+ ?? environments/shared/iam-policies/smartretail-flyway-mig-policy.json
+ ?? environments/shared/iam-policies/smartretail-pos-trigger-policy.json
+```
+
+## 2026-06-18 08:14 UTC
+```
+  D environments/shared/iam-policies/smartretail-dev.json
+ ?? environments/shared/iam-policies/smartretail-bootstrap-policy.json
+ ?? environments/shared/iam-policies/smartretail-flyway-mig-policy.json
+```
+
 ## 2026-06-18 07:40 UTC
 ```
   M .claude/memory/session-log.md
