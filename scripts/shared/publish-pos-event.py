@@ -87,7 +87,7 @@ def publish_to_firehose(event, args):
   )['Parameter']['Value']
 
   firehose = boto3.client('firehose', **boto_kwargs)
-  record_data = base64.b64encode(json.dumps(event).encode('utf-8'))
+  record_data = json.dumps(event).encode('utf-8')
 
   response = firehose.put_record(
     DeliveryStreamName=stream_name,

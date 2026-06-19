@@ -78,7 +78,7 @@ export class MessagingStack extends cdk.Stack {
     this.salesToImsRule = new events.Rule(this, 'SalesToIms', {
       eventBus: this.eventBus,
       ruleName: `smartretail-sales-to-ims-${srEnv}`,
-      eventPattern: { source: ['smartretail.sis'], detailType: ['SalesTransactionProcessed'] },
+      eventPattern: { source: ['smartretail.sis'], detailType: ['SalesTransactionEvent'] },
       targets: [new eventsTargets.SqsQueue(this.imsSalesQueue)],
     });
 
