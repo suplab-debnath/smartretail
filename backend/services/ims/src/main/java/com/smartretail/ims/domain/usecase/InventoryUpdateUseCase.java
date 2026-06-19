@@ -50,8 +50,6 @@ public class InventoryUpdateUseCase implements InventoryUpdatePort {
             StockAlert alert = StockAlert.create(position, AlertType.LOW_STOCK, severity);
             inventoryRepo.saveAlert(alert);
             alertPublisher.publishInventoryAlertEvent(alert, position);
-            log.info("InventoryAlertEvent published: alertId={} skuId={} severity={}",
-                    alert.getAlertId(), position.getSkuId(), severity);
         }
     }
 

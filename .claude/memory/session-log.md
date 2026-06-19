@@ -1,3 +1,347 @@
+## 2026-06-19 07:58 UTC
+```
+  M .claude/memory/session-log.md
+  M docs/ARCHITECTURE.md
+  M docs/DEMO_OPS_COMMANDS.md
+  M environments/demo/infra/lib/messaging-stack.ts
+  M environments/demo/infra/lib/monitoring-stack.ts
+```
+
+## 2026-06-19 07:57 UTC
+```
+  M .claude/memory/session-log.md
+  M docs/ARCHITECTURE.md
+  M docs/DEMO_OPS_COMMANDS.md
+  M environments/demo/infra/lib/messaging-stack.ts
+  M environments/demo/infra/lib/monitoring-stack.ts
+```
+
+## 2026-06-19 07:55 UTC
+```
+  M .claude/memory/session-log.md
+  M docs/ARCHITECTURE.md
+  M docs/DEMO_OPS_COMMANDS.md
+  M environments/demo/infra/lib/messaging-stack.ts
+  M environments/demo/infra/lib/monitoring-stack.ts
+```
+
+## 2026-06-19 07:55 UTC
+```
+  M .claude/memory/session-log.md
+  M docs/ARCHITECTURE.md
+  M docs/DEMO_OPS_COMMANDS.md
+  M environments/demo/infra/lib/messaging-stack.ts
+  M environments/demo/infra/lib/monitoring-stack.ts
+```
+
+## 2026-06-19 07:45 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:41 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:33 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:29 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:22 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:13 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/messaging-stack.ts
+```
+
+## 2026-06-19 07:08 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-19 07:07 UTC
+```
+ (no git changes this session)
+```
+
+## 2026-06-19 06:23 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:20 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:20 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:20 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:19 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:18 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:17 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:16 UTC
+```
+  M .claude/memory/session-log.md
+  M backend/services/ims/src/main/java/com/smartretail/ims/domain/usecase/InventoryUpdateUseCase.java
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:14 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:12 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:10 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:08 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:06 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:06 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M environments/demo/infra/lib/messaging-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:04 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 06:03 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 05:57 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-19 05:55 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+  M scripts/shared/publish-pos-event.py
+```
+
+## 2026-06-18 15:31 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+```
+
+## 2026-06-18 15:26 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+```
+
+## 2026-06-18 15:16 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+```
+
+## 2026-06-18 15:16 UTC
+```
+  M .claude/memory/session-log.md
+  M environments/demo/infra/lib/api-stack.ts
+```
+
+## 2026-06-18 15:14 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 15:13 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 15:11 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 15:09 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 15:07 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 15:03 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:58 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:51 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:50 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:45 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:45 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:43 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:42 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:41 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:40 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:39 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:36 UTC
+```
+  M .claude/memory/session-log.md
+```
+
+## 2026-06-18 14:35 UTC
+```
+ (no git changes this session)
+```
+
 ## 2026-06-18 10:00 UTC
 ```
   M .claude/memory/session-log.md

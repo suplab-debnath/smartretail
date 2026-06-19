@@ -172,6 +172,7 @@ export class ApiStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal("firehose.amazonaws.com"),
     });
     data.eventsBucket.grantWrite(firehoseRole);
+    data.firehoseAccessKeySecret.grantRead(firehoseRole);
 
     this.firehoseStreamName = `smartretail-ingest-${srEnv}`;
     new firehose.CfnDeliveryStream(this, "IngestStream", {
