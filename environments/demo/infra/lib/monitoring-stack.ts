@@ -151,9 +151,9 @@ export class MonitoringStack extends cdk.Stack {
       messaging.reAlertDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum' }),
       0, 1);
 
-    const dlqAlarmArsUpdates = alarm(
-      'DlqArsUpdatesAlarm', 'DLQ-ArsUpdates',
-      messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum' }),
+    const dlqAlarmImsPo = alarm(
+      'DlqImsPoAlarm', 'DLQ-ImsPo',
+      messaging.imsPoDlq.metricApproximateNumberOfMessagesVisible({ period: p5, statistic: 'Maximum' }),
       0, 1);
 
     const apigw5xxAlarm = alarm(
@@ -172,7 +172,7 @@ export class MonitoringStack extends cdk.Stack {
       80, 2);
 
     const allAlarms = [
-      dlqAlarmImsSales, dlqAlarmReAlert, dlqAlarmArsUpdates,
+      dlqAlarmImsSales, dlqAlarmReAlert, dlqAlarmImsPo,
       apigw5xxAlarm, apigwLatencyAlarm, rdsCpuAlarm,
     ];
 
@@ -259,7 +259,7 @@ export class MonitoringStack extends cdk.Stack {
         left: [
           messaging.imsSalesQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS Sales' }),
           messaging.reAlertQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'RE Alert' }),
-          messaging.arsUpdatesQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'ARS Updates' }),
+          messaging.imsPoQueue.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS PO' }),
         ],
       }),
       new cloudwatch.GraphWidget({
@@ -268,7 +268,7 @@ export class MonitoringStack extends cdk.Stack {
         left: [
           messaging.imsSalesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS-Sales DLQ' }),
           messaging.reAlertDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'RE-Alert DLQ' }),
-          messaging.arsUpdatesDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'ARS-Updates DLQ' }),
+          messaging.imsPoDlq.metricApproximateNumberOfMessagesVisible({ period: p5, label: 'IMS-PO DLQ' }),
         ],
         leftAnnotations: [{ value: 0, color: '#ff6600', label: 'Any message triggers alarm' }],
       }),

@@ -114,17 +114,17 @@ aws logs filter-log-events \
 **Why:** Primary way to trace event processing through the pipeline without needing a terminal on the container.
 
 ### Key log messages to look for per service
-| Service | Log message | Meaning |
-|---------|-------------|---------|
-| SIS | `SalesTransactionEvent published` | Event sent to EventBridge |
-| SIS | `SalesTransactionEvent processed` | Full ingest complete |
-| SIS | `Skipping invalid Firehose record` | Base64/JSON decode failed |
-| IMS | `SQS message received` | Picked up from ims-sales queue |
-| IMS | `InventoryAlertEvent published` | Stock alert raised on EventBridge |
-| RE | `InventoryAlertEvent received` | Picked up from re-alert FIFO queue |
-| RE | `Rule found` | Replenishment rule matched |
-| RE | `PurchaseOrderEvent published status=APPROVED` | Auto-approved PO |
-| RE | `PurchaseOrderEvent published status=PENDING_APPROVAL` | Manual approval required |
+| Service | Log message                                            | Meaning                            |
+| ------- | ------------------------------------------------------ | ---------------------------------- |
+| SIS     | `SalesTransactionEvent published`                      | Event sent to EventBridge          |
+| SIS     | `SalesTransactionEvent processed`                      | Full ingest complete               |
+| SIS     | `Skipping invalid Firehose record`                     | Base64/JSON decode failed          |
+| IMS     | `SQS message received`                                 | Picked up from ims-sales queue     |
+| IMS     | `InventoryAlertEvent published`                        | Stock alert raised on EventBridge  |
+| RE      | `InventoryAlertEvent received`                         | Picked up from re-alert FIFO queue |
+| RE      | `Rule found`                                           | Replenishment rule matched         |
+| RE      | `PurchaseOrderEvent published status=APPROVED`         | Auto-approved PO                   |
+| RE      | `PurchaseOrderEvent published status=PENDING_APPROVAL` | Manual approval required           |
 
 ---
 
@@ -141,11 +141,12 @@ aws sqs get-queue-attributes \
 **Why:** `ApproximateNumberOfMessages=0` with `NotVisible=0` means messages were already consumed. `NotVisible>0` means a consumer is actively processing.
 
 ### SSM parameter names for queue URLs
-| Queue | SSM parameter |
-|-------|---------------|
-| IMS sales | `/smartretail/demo/sqs/ims-sales-queue-url` |
-| RE alert (FIFO) | `/smartretail/demo/sqs/re-alert-queue-url` |
-| ARS updates | `/smartretail/demo/sqs/ars-updates-queue-url` |
+| Queue           | SSM parameter                                  | Status                 |
+| --------------- | ---------------------------------------------- | ---------------------- |
+| IMS sales       | `/smartretail/demo/sqs/ims-sales-queue-url`    | Active                 |
+| RE alert (FIFO) | `/smartretail/demo/sqs/re-alert-queue-url`     | Active                 |
+| IMS PO          | `/smartretail/demo/sqs/ims-po-queue-url`       | Provisioned — deferred |
+| IMS forecast    | `/smartretail/demo/sqs/ims-forecast-queue-url` | Provisioned — deferred |
 
 ---
 
@@ -231,11 +232,11 @@ aws secretsmanager get-secret-value \
 
 ## Firehose → SIS Pipeline — Root Causes Found & Fixed
 
-| # | Symptom | Root cause | Fix |
-|---|---------|-----------|-----|
-| 1 | Firehose `SecretsManagerException` | `smartretail-firehose-demo` IAM role lacked `secretsmanager:GetSecretValue` | Added inline policy to Firehose role |
-| 2 | Firehose `SecretsManagerValueParseException` | Console edit of retry duration switched access key mode to "Secrets Manager ARN" which requires JSON secret | Changed access key back to "Direct" mode with raw value |
-| 3 | SIS returning 401 to Firehose | Spring Security JWT filter rejected Firehose requests before reaching `FirehoseBatchFilter` | Added `X-Amz-Firehose-Request-Id` header matcher to `SecurityConfig` to bypass JWT |
-| 4 | `SMARTRETAIL_FIREHOSE_ACCESSKEY` not injected | Demo compute stack `sisConfig.secrets` was missing the secret injection | Added `ecs.Secret.fromSecretsManager(data.firehoseAccessKeySecret)` to sisConfig |
-| 5 | `Skipping invalid Firehose record` (double base64) | Python script pre-encoded payload with `base64.b64encode()` before `put_record()` — Firehose encodes again | Removed pre-encoding; pass raw `json.dumps(event).encode('utf-8')` |
-| 6 | IMS never received `SalesTransactionEvent` | EventBridge rule `salesToImsRule` used wrong `detailType: SalesTransactionProcessed` | Fixed to `SalesTransactionEvent` (canonical name per `EVENT_ASYNC_SPEC.md`) |
+| #   | Symptom                                            | Root cause                                                                                                  | Fix                                                                                |
+| --- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Firehose `SecretsManagerException`                 | `smartretail-firehose-demo` IAM role lacked `secretsmanager:GetSecretValue`                                 | Added inline policy to Firehose role                                               |
+| 2   | Firehose `SecretsManagerValueParseException`       | Console edit of retry duration switched access key mode to "Secrets Manager ARN" which requires JSON secret | Changed access key back to "Direct" mode with raw value                            |
+| 3   | SIS returning 401 to Firehose                      | Spring Security JWT filter rejected Firehose requests before reaching `FirehoseBatchFilter`                 | Added `X-Amz-Firehose-Request-Id` header matcher to `SecurityConfig` to bypass JWT |
+| 4   | `SMARTRETAIL_FIREHOSE_ACCESSKEY` not injected      | Demo compute stack `sisConfig.secrets` was missing the secret injection                                     | Added `ecs.Secret.fromSecretsManager(data.firehoseAccessKeySecret)` to sisConfig   |
+| 5   | `Skipping invalid Firehose record` (double base64) | Python script pre-encoded payload with `base64.b64encode()` before `put_record()` — Firehose encodes again  | Removed pre-encoding; pass raw `json.dumps(event).encode('utf-8')`                 |
+| 6   | IMS never received `SalesTransactionEvent`         | EventBridge rule `salesToImsRule` used wrong `detailType: SalesTransactionProcessed`                        | Fixed to `SalesTransactionEvent` (canonical name per `EVENT_ASYNC_SPEC.md`)        |

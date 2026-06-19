@@ -19,15 +19,15 @@ Do not generate code that contradicts these decisions.
 Seven services. All run on ECS Fargate. All use Java 21 + Spring Boot 3.3.x.
 All follow Hexagonal Architecture (Ports & Adapters).
  
-| Service | Abbreviation | Owns | REST surface |
-|---------|-------------|------|-------------|
-| Sales Ingestion Service | SIS | sales schema | POST /v1/ingest/events |
-| Demand Forecasting Service | DFS | forecasting schema | GET /v1/forecast/** |
-| Inventory Management Service | IMS | inventory schema | GET /v1/inventory/** |
-| Replenishment Engine | RE | replenishment schema | POST/GET /v1/replenishment/** |
-| Supplier Integration Service | SUP | supplier schema | GET /v1/supplier/** |
-| Pricing & Promotions Service | PPS | promotions schema | None — event-driven only |
-| Analytics & Reporting Service | ARS | None (read-only) | GET /v1/dashboard/** |
+| Service                       | Abbreviation | Owns                 | REST surface                  |
+| ----------------------------- | ------------ | -------------------- | ----------------------------- |
+| Sales Ingestion Service       | SIS          | sales schema         | POST /v1/ingest/events        |
+| Demand Forecasting Service    | DFS          | forecasting schema   | GET /v1/forecast/**           |
+| Inventory Management Service  | IMS          | inventory schema     | GET /v1/inventory/**          |
+| Replenishment Engine          | RE           | replenishment schema | POST/GET /v1/replenishment/** |
+| Supplier Integration Service  | SUP          | supplier schema      | GET /v1/supplier/**           |
+| Pricing & Promotions Service  | PPS          | promotions schema    | None — event-driven only      |
+| Analytics & Reporting Service | ARS          | None (read-only)     | GET /v1/dashboard/**          |
  
 **Prototype scope: SIS, IMS, RE, ARS, DFS, SUP are implemented. PPS is a stub.**
  
@@ -37,10 +37,10 @@ All follow Hexagonal Architecture (Ports & Adapters).
  
 Two Lambda functions exist in the production architecture. One has source code in `backend/adapters/`.
  
-| Lambda | Directory | Trigger | Status |
-|--------|-----------|---------|--------|
+| Lambda                      | Directory                                | Trigger                             | Status                                                       |
+| --------------------------- | ---------------------------------------- | ----------------------------------- | ------------------------------------------------------------ |
 | Batch Post-Processor Lambda | `backend/adapters/batch-post-processor/` | S3 ObjectCreated (SageMaker output) | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
-| SageMaker Trigger Lambda | `backend/adapters/ml-trigger/` | EventBridge scheduled rule | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
+| SageMaker Trigger Lambda    | `backend/adapters/ml-trigger/`           | EventBridge scheduled rule          | Implemented — deployed via cdk-dev and cdk-prod ComputeStack |
  
  
 **Batch Post-Processor Lambda** is a DFS inbound adapter: reads SageMaker batch transform output CSV from S3 (`sagemaker/output/{run_id}/part-*.csv`), parses P10/P50/P90 forecast rows, and POSTs them to DFS `POST /v1/forecast/runs/{runId}/results`. DFS persists rows into `forecasting.demand_forecasts` and marks the run `COMPLETED`.
@@ -95,7 +95,7 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
 - Endpoint stored in Parameter Store at `/smartretail/{env}/rds/proxy-endpoint`
  
 ### SIS Idempotency Table (RDS — sales schema)
- 
+
 - Table: `sales.idempotency_keys`
 - Purpose: SIS deduplication — prevents reprocessing of duplicate Firehose-delivered events
 - PK: `event_id VARCHAR(64)` — SHA-256 of `transactionId`
@@ -113,7 +113,7 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
 ## Messaging Architecture
  
 ### Amazon Data Firehose (Ingest Path)
- 
+
 - Delivery stream name: `smartretail-ingest-{env}`
 - Source: Store-edge aggregator (AWS IoT Greengrass or equivalent) authenticates via IAM SigV4
 - Destination 1 (primary): S3 `smartretail-events-{env}` — raw archive, SSE-KMS, prefix `events/{yyyy/MM/dd}/`
@@ -130,15 +130,18 @@ or any AWS SDK package. All AWS SDK usage is in `adapter/` only.
  
 ### SQS Queues (prototype scope)
  
-| Queue | Type | Consumer | Source event |
-|-------|------|----------|-------------|
-| `smartretail-ims-sales-{env}` | Standard | IMS | Sales transaction event |
-| `smartretail-re-alert-{env}` | FIFO | RE | Inventory alert event |
-| `smartretail-ars-updates-{env}` | Standard | ARS | All domain events |
+| Queue                            | Type     | Consumer       | Source event                                         | Status                        |
+| -------------------------------- | -------- | -------------- | ---------------------------------------------------- | ----------------------------- |
+| `smartretail-ims-sales-{env}`    | Standard | IMS            | `SalesTransactionEvent` from SIS                     | Active                        |
+| `smartretail-re-alert-{env}`     | FIFO     | RE             | `InventoryAlertEvent` from IMS                       | Active                        |
+| `smartretail-ims-po-{env}`       | Standard | IMS (deferred) | `PurchaseOrderEvent` (APPROVED) from RE              | Provisioned — no consumer yet |
+| `smartretail-ims-forecast-{env}` | Standard | IMS (deferred) | `ForecastReadyDomainEvent` from batch-post-processor | Provisioned — no consumer yet |
  
 Each queue has a paired DLQ: `{queue-name}-dlq`
  
-FIFO queue message group ID for RE: `{dcId}#{skuId}` (ensures ordering per DC+SKU)
+FIFO queue message group ID for RE: `{dcId}` (ensures ordering per DC)
+ 
+**Removed:** `smartretail-ars-updates-{env}` — ARS performs live RDS queries per request; no SQS consumer exists or is planned.
  
 ---
  
@@ -152,23 +155,23 @@ FIFO queue message group ID for RE: `{dcId}#{skuId}` (ensures ordering per DC+SK
 
 ### Route groups — four independent integration types
 
-| Route group | Path prefix | Integration type | Backend | Auth |
-|---|---|---|---|---|
-| Staff APIs | `/v1/dashboard/**` `/v1/inventory/**` `/v1/forecast/**` `/v1/replenishment/**` | `HTTP_PROXY` → VPC Link | ARS · IMS · DFS · RE · SIS ECS `:8080` | Cognito JWT — Internal Pool |
-| Supplier APIs | `/v1/supplier/**` | `HTTP_PROXY` → VPC Link | SUP ECS `:8080` | Cognito JWT — Supplier Pool |
-| Firehose ingest | `/ingest/v1/ingest/events` | `HTTP_PROXY` → VPC Link | SIS ECS `:8080` | Static access key — `X-Amz-Firehose-Access-Key` header (Secrets Manager) |
-| External events | `/system/v1/events/**` | `AWS` service integration → `events:PutEvents` | EventBridge custom bus — no Lambda, no VPC Link | API key — `x-api-key` header (Usage Plan) |
+| Route group     | Path prefix                                                                    | Integration type                               | Backend                                         | Auth                                                                     |
+| --------------- | ------------------------------------------------------------------------------ | ---------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------ |
+| Staff APIs      | `/v1/dashboard/**` `/v1/inventory/**` `/v1/forecast/**` `/v1/replenishment/**` | `HTTP_PROXY` → VPC Link                        | ARS · IMS · DFS · RE · SIS ECS `:8080`          | Cognito JWT — Internal Pool                                              |
+| Supplier APIs   | `/v1/supplier/**`                                                              | `HTTP_PROXY` → VPC Link                        | SUP ECS `:8080`                                 | Cognito JWT — Supplier Pool                                              |
+| Firehose ingest | `/ingest/v1/ingest/events`                                                     | `HTTP_PROXY` → VPC Link                        | SIS ECS `:8080`                                 | Static access key — `X-Amz-Firehose-Access-Key` header (Secrets Manager) |
+| External events | `/system/v1/events/**`                                                         | `AWS` service integration → `events:PutEvents` | EventBridge custom bus — no Lambda, no VPC Link | API key — `x-api-key` header (Usage Plan)                                |
 
 One VPC Link is shared across all `HTTP_PROXY` route groups. The external events route uses a direct AWS service integration with a mapping template; no Lambda or ECS service sits on that path.
 
 ### Stages and throttling
 
-| Stage | Domain | Route groups | Default throttle | Burst |
-|---|---|---|---|---|
-| `internal` | api.smartretail.com | Staff APIs | 500 req/s | 1000 |
-| `supplier` | supplier-api.smartretail.com | Supplier APIs | 100 req/s | 200 |
-| `ingest` | api.smartretail.com | Firehose ingest | 1000 req/s | 2000 |
-| `system` | api.smartretail.com | External events | 50 req/s | 100 |
+| Stage      | Domain                       | Route groups    | Default throttle | Burst |
+| ---------- | ---------------------------- | --------------- | ---------------- | ----- |
+| `internal` | api.smartretail.com          | Staff APIs      | 500 req/s        | 1000  |
+| `supplier` | supplier-api.smartretail.com | Supplier APIs   | 100 req/s        | 200   |
+| `ingest`   | api.smartretail.com          | Firehose ingest | 1000 req/s       | 2000  |
+| `system`   | api.smartretail.com          | External events | 50 req/s         | 100   |
 
 Full routing table, VPC Link config, CDK definitions, EventBridge mapping template, and per-stage WAF rules: **LLD §6.8**.
 ---
@@ -222,8 +225,7 @@ Each ECS task role grants ONLY what that service needs:
  
 **ARS task role:**
 - `rds-db:connect` to RDS Proxy (ars_readonly schema user)
-- `sqs:ReceiveMessage`, `sqs:DeleteMessage` on ars-updates queue
-- READ ONLY — no write permissions anywhere
+- READ ONLY — no write permissions, no SQS permissions (ARS has no queue consumer)
  
 ### VPC Endpoints (Interface)
  
@@ -390,5 +392,37 @@ Base URL: read from `window.SMARTRETAIL_CONFIG.apiGatewayEndpoint`
 Authorization header: `Bearer ${token}` on every request.
 401 responses trigger automatic token refresh then retry once.
 
- 
+
  
+---
+
+## Architecture Decision Records
+
+### ADR-001 — IMS in-transit update via ims-po queue (2026-06-19)
+
+**Decision:** Add `smartretail-ims-po-{env}` SQS queue. RE publishes `PurchaseOrderEvent` (workflowStatus=APPROVED) to EventBridge; this queue is a fan-out target alongside the existing `smartretail-sup-{env}` route. IMS consumes it to increment `inventory.inventory_positions.in_transit` and resolve any open `LOW_STOCK` alert for the same SKU+DC.
+
+**Rationale:** Without this wire, ATP (`on_hand + in_transit`) reads `in_transit = 0` even after a PO is approved, causing IMS to re-fire a CRITICAL alert on the next sales event for a SKU that already has stock inbound. This produces duplicate CRITICAL alerts and misleads the SC Planner.
+
+**Status:** Provisioned (queue + DLQ exist in CDK). EventBridge rule and IMS consumer deferred to next phase.
+
+**Implementation scope (Next Phase):**
+- New EventBridge rule: source `smartretail.re`, detailType `PurchaseOrderEvent`, content filter `workflowStatus = APPROVED` to `ims-po` queue
+- New IMS inbound port: `PurchaseOrderUpdatePort.processApprovedPo(PurchaseOrderEventDto)`
+- New IMS use case: `IncrementInTransitUseCase` — load position, increment in_transit, save with version bump, resolve open alert if `on_hand + in_transit >= reorder_point`
+- New IMS SQS listener: `PoSqsListener` (mirrors `SalesSqsListener` pattern)
+- New IMS repository methods: `incrementInTransit()`, `resolveOpenAlert()`
+- `application-aws.yml`: bind `smartretail.sqs.ims-po-queue-url: ${IMS_PO_QUEUE_URL}`
+- `compute-stack.ts`: inject `IMS_PO_QUEUE_URL`, grant SQS read on ims-po queue to IMS task role
+
+---
+
+### ADR-002 — IMS forecast queue deferred (2026-06-19)
+
+**Decision:** Provision `smartretail-ims-forecast-{env}` SQS queue (Standard, no consumer). Do not add an EventBridge rule or IMS listener.
+
+**Rationale:** The intended consumer would update `reorder_point` per SKU/DC from the P50 forecast after each SageMaker batch run. In the prototype `reorder_point` is static seed data; a dynamic update adds unnecessary complexity. The queue slot is reserved so the infra change is trivial when domain logic is ready.
+
+**Status:** Provisioned (queue + DLQ). No EventBridge rule. No IMS consumer.
+
+**Activation criteria:** Add EventBridge rule (source `smartretail.dfs`, detailType `ForecastReadyDomainEvent`) when IMS domain model supports dynamic reorder_point updates.

@@ -11,8 +11,17 @@ export interface MessagingStackProps extends cdk.StackProps {
 
 /**
  * Demo messaging stack — SQS inter-service routing for the live pipeline.
- * SIS publishes SalesTransactionProcessed to EventBridge; IMS and RE consume
- * via the queues below. ARS receives all domain events for dashboard aggregation.
+ *
+ * Active queues (consumers implemented):
+ *   ims-sales   — SalesTransactionEvent → IMS (stock decrement + alert)
+ *   re-alert    — InventoryAlertEvent   → RE  (PO creation, FIFO per DC+SKU)
+ *
+ * Provisioned / no consumer yet:
+ *   ims-po       — ReplenishmentOrderApproved → IMS (in_transit update) — deferred
+ *   ims-forecast — ForecastReadyDomainEvent   → IMS (dynamic reorder_point) — deferred
+ *
+ * Removed:
+ *   ars-updates  — ARS does live RDS queries; no SQS consumer exists or is planned.
  */
 export class MessagingStack extends cdk.Stack {
   public readonly eventBus: events.EventBus;
@@ -20,11 +29,12 @@ export class MessagingStack extends cdk.Stack {
   public readonly imsSalesDlq: sqs.Queue;
   public readonly reAlertQueue: sqs.Queue;
   public readonly reAlertDlq: sqs.Queue;
-  public readonly arsUpdatesQueue: sqs.Queue;
-  public readonly arsUpdatesDlq: sqs.Queue;
+  public readonly imsPoQueue: sqs.Queue;
+  public readonly imsPoDlq: sqs.Queue;
+  public readonly imsForecQueue: sqs.Queue;
+  public readonly imsForecDlq: sqs.Queue;
   public readonly salesToImsRule: events.Rule;
   public readonly alertToReRule: events.Rule;
-  public readonly allToArsRule: events.Rule;
 
   constructor(scope: Construct, id: string, props: MessagingStackProps) {
     super(scope, id, props);
@@ -63,18 +73,35 @@ export class MessagingStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.seconds(120),
     });
 
-    this.arsUpdatesDlq = new sqs.Queue(this, 'ArsUpdatesDlq', {
-      queueName: `smartretail-ars-updates-${srEnv}-dlq`,
+    // ims-po: provisioned for future 2 — no EventBridge rule yet (no consumer)
+    // Wire: RE ReplenishmentOrderApproved → increment in_transit, resolve open alert
+    this.imsPoDlq = new sqs.Queue(this, 'ImsPoQueueDlq', {
+      queueName: `smartretail-ims-po-${srEnv}-dlq`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       retentionPeriod: cdk.Duration.days(14),
     });
-    this.arsUpdatesQueue = new sqs.Queue(this, 'ArsUpdatesQueue', {
-      queueName: `smartretail-ars-updates-${srEnv}`,
+    this.imsPoQueue = new sqs.Queue(this, 'ImsPoQueue', {
+      queueName: `smartretail-ims-po-${srEnv}`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,
-      deadLetterQueue: { queue: this.arsUpdatesDlq, maxReceiveCount: 3 },
+      deadLetterQueue: { queue: this.imsPoDlq, maxReceiveCount: 3 },
+      visibilityTimeout: cdk.Duration.seconds(120),
     });
 
-    // SIS raises SalesTransactionProcessed → IMS picks up for stock decrement
+    // ims-forecast: provisioned for future dynamic reorder_point — no consumer yet
+    // Wire: batch-post-processor Lambda ForecastReadyDomainEvent → IMS adjusts threshold per SKU/DC
+    this.imsForecDlq = new sqs.Queue(this, 'ImsForecQueueDlq', {
+      queueName: `smartretail-ims-forecast-${srEnv}-dlq`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      retentionPeriod: cdk.Duration.days(14),
+    });
+    this.imsForecQueue = new sqs.Queue(this, 'ImsForecQueue', {
+      queueName: `smartretail-ims-forecast-${srEnv}`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      deadLetterQueue: { queue: this.imsForecDlq, maxReceiveCount: 3 },
+      visibilityTimeout: cdk.Duration.seconds(120),
+    });
+
+    // SIS raises SalesTransactionEvent → IMS picks up for stock decrement
     this.salesToImsRule = new events.Rule(this, 'SalesToIms', {
       eventBus: this.eventBus,
       ruleName: `smartretail-sales-to-ims-${srEnv}`,
@@ -92,14 +119,6 @@ export class MessagingStack extends cdk.Stack {
       })],
     });
 
-    // All domain events → ARS for dashboard aggregation
-    this.allToArsRule = new events.Rule(this, 'AllEventsToArs', {
-      eventBus: this.eventBus,
-      ruleName: `smartretail-all-to-ars-${srEnv}`,
-      eventPattern: { source: ['smartretail.ims', 'smartretail.re'] },
-      targets: [new eventsTargets.SqsQueue(this.arsUpdatesQueue)],
-    });
-
     const put = (name: string, value: string) =>
       new ssm.StringParameter(this, name.replace(/[/-]/g, ''), {
         parameterName: `/smartretail/${srEnv}/${name}`,
@@ -110,6 +129,7 @@ export class MessagingStack extends cdk.Stack {
     put('eventbridge/bus-arn',        this.eventBus.eventBusArn);
     put('sqs/ims-sales-queue-url',    this.imsSalesQueue.queueUrl);
     put('sqs/re-alert-queue-url',     this.reAlertQueue.queueUrl);
-    put('sqs/ars-updates-queue-url',  this.arsUpdatesQueue.queueUrl);
+    put('sqs/ims-po-queue-url',       this.imsPoQueue.queueUrl);
+    put('sqs/ims-forecast-queue-url', this.imsForecQueue.queueUrl);
   }
 }
